@@ -10,6 +10,9 @@ mod tray;
 
 const OVERLAY_LABEL: &str = "overlay";
 
+/// When false, the cursor poller idles instead of sampling CGEvent every 16ms.
+static CURSOR_POLLER_ENABLED: AtomicBool = AtomicBool::new(true);
+
 /// Cursor in one overlay window's local logical CSS pixels.
 #[derive(Clone, serde::Serialize)]
 struct CursorLocal {
@@ -108,6 +111,11 @@ fn global_cursor_physical(_app: &tauri::AppHandle) -> Option<(f64, f64)> {
 fn spawn_global_cursor_poller(app: tauri::AppHandle, running: Arc<AtomicBool>) {
     std::thread::spawn(move || {
         while running.load(Ordering::Relaxed) {
+            if !CURSOR_POLLER_ENABLED.load(Ordering::Relaxed) {
+                // Bugs hidden: skip CGEvent sampling entirely.
+                std::thread::sleep(Duration::from_millis(100));
+                continue;
+            }
             if let Some((gx, gy)) = global_cursor_physical(&app) {
                 for (label, win) in app.webview_windows() {
                     if !label.starts_with("overlay") {
@@ -258,7 +266,7 @@ fn open_or_focus_settings(app: &tauri::AppHandle) {
     }
 
     match WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
-        .title("BugScurry 设置")
+        .title("BugScurry Settings")
         .inner_size(420.0, 640.0)
         .resizable(false)
         .decorations(true)
@@ -316,31 +324,8 @@ fn quit_app(app: tauri::AppHandle) {
 }
 
 #[tauri::command]
-fn popup_add_one(app: tauri::AppHandle) {
-    if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
-        let _ = window.emit("tray-command", "add_one");
-    }
-}
-
-#[tauri::command]
-fn popup_remove_one(app: tauri::AppHandle) {
-    if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
-        let _ = window.emit("tray-command", "remove_one");
-    }
-}
-
-#[tauri::command]
-fn popup_toggle_visibility(app: tauri::AppHandle) {
-    if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
-        let _ = window.emit("tray-command", "toggle_visibility");
-    }
-}
-
-#[tauri::command]
-fn popup_regenerate(app: tauri::AppHandle) {
-    if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
-        let _ = window.emit("tray-command", "regenerate");
-    }
+fn set_cursor_poller_enabled(enabled: bool) {
+    CURSOR_POLLER_ENABLED.store(enabled, Ordering::Relaxed);
 }
 
 pub fn run() {
@@ -359,10 +344,7 @@ pub fn run() {
             apply_monitor_mode_cmd,
             apply_locale,
             quit_app,
-            popup_add_one,
-            popup_remove_one,
-            popup_toggle_visibility,
-            popup_regenerate
+            set_cursor_poller_enabled
         ])
         .setup(|app| {
             let handle = app.handle();
@@ -390,15 +372,6 @@ pub fn run() {
                         // Keep overlays pass-through when settings is not focused.
                     }
                     _ => {}
-                }
-            }
-            if label == "tray-popup" {
-                if let WindowEvent::Focused(false) = event {
-                    let _ = window.hide();
-                }
-                if let WindowEvent::CloseRequested { api, .. } = event {
-                    let _ = window.hide();
-                    api.prevent_close();
                 }
             }
             if label.starts_with("overlay") {

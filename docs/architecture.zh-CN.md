@@ -54,6 +54,7 @@ tray.rs
 |------|------|------|
 | Bug | `src/core/bug.ts` | 实体工厂（位置、朝向、大小、虫种、状态） |
 | BugManager | `src/core/bugManager.ts` | 列表、数量、清除、重生、捏死特效；**死后不自动补位** |
+| Settings clamp | `src/core/settings.ts` | 纯函数归一化设置（无 Tauri 依赖） |
 | Movement | `src/core/movement.ts` | 爬行 / 停顿 / 转向 / 角落脱困 / 贴边 |
 | Renderer | `src/core/renderer.ts` | Canvas、squish 形变、痕迹、粒子；委托虫种 `draw` |
 | HitTest | `src/core/hitTest.ts` | 指针与虫半径命中 |
@@ -133,3 +134,4 @@ registerSpecies({
 - Vue 组件只做 UI；逻辑在 `core/` / `services/`
 - rAF 循环内避免重分配
 - 常量集中在 `src/core/config.ts`
+- 核心纯逻辑用 Vitest 覆盖（`pnpm test`）

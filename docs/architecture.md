@@ -54,6 +54,7 @@ tray.rs
 |--------|------|----------------|
 | Bug | `src/core/bug.ts` | Entity factory (position, heading, size, species, state) |
 | BugManager | `src/core/bugManager.ts` | List, count edits, clear, regenerate, squish FX spawn; **no auto-replace after death** |
+| Settings clamp | `src/core/settings.ts` | Pure settings normalization (no Tauri imports) |
 | Movement | `src/core/movement.ts` | Crawl / pause / turn / corner escape / edge-hug |
 | Renderer | `src/core/renderer.ts` | Canvas draw, squish transform, stains, particles; delegates species `draw` |
 | HitTest | `src/core/hitTest.ts` | Pointer vs bug radius |
@@ -133,3 +134,4 @@ Import from `src/species/index.ts`. Movement stays shared; traits only bias beha
 - Vue components are UI-only; logic in `core/` / `services/`
 - No heavy allocation inside the rAF loop
 - Constants in `src/core/config.ts`
+- Pure core logic is covered by Vitest (`pnpm test`)

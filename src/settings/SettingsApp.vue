@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 import type { UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LIMITS } from "../core/config";
 import type { Settings } from "../core/types";
 import { t } from "../i18n";
@@ -120,6 +121,7 @@ async function setLocale(locale: Settings["locale"]) {
   settings.locale = locale;
   await persist();
   localeVersion.value++;
+  await syncWindowTitle();
 }
 
 async function clearAll() {
@@ -130,12 +132,23 @@ async function regenerate() {
   await sendOverlayCommand("regenerate");
 }
 
+async function syncWindowTitle() {
+  const title = t("app.settingsTitle");
+  document.title = title;
+  try {
+    await getCurrentWindow().setTitle(title);
+  } catch (err) {
+    console.error("set window title failed", err);
+  }
+}
+
 onMounted(async () => {
   const loaded = await loadSettings();
   Object.assign(settings, loaded);
   applyThemeToDocument(document, settings.theme);
   await applyUiLocale(settings.locale);
   localeVersion.value++;
+  await syncWindowTitle();
 
   unlistenSettings = await listenSettings((next) => {
     if (ignoreNextBroadcast) {
@@ -144,8 +157,10 @@ onMounted(async () => {
     }
     Object.assign(settings, next);
     applyThemeToDocument(document, settings.theme);
-    void applyUiLocale(settings.locale);
-    localeVersion.value++;
+    void applyUiLocale(settings.locale).then(() => {
+      localeVersion.value++;
+      void syncWindowTitle();
+    });
   });
 });
 

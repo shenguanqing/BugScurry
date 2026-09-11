@@ -2,6 +2,13 @@
 
 [中文](platforms.zh-CN.md)
 
+Last macOS soak: **2026-09-11** on Apple M1 Pro · macOS 15.7.9 · built-in Retina 3024×1964@2x + external 1920×1080.
+
+- Dev path: `pnpm tauri dev` (debug + Vite)
+- Production path: `pnpm tauri build` → `BugScurry.app` / `BugScurry_0.1.0_aarch64.dmg` (soaked after user build)
+
+Windows column remains unverified on this machine.
+
 ## macOS
 
 ### Window
@@ -29,6 +36,16 @@
 - Apple Silicon and Intel builds (or universal)
 - Record minimum OS in `tauri.conf.json` / README
 
+### Runtime notes (verified)
+
+| Topic | Finding |
+|-------|---------|
+| Dev vs raw `cargo build --release` | `pnpm tauri dev` loads `http://localhost:1420` and needs Vite running. Running `target/debug/bugscurry` **without** Vite leaves a blank WebView. Production assets must be built with `pnpm tauri build`; a bare `cargo build --release` may not embed `frontendDist` correctly. |
+| Overlay paint | Production `BugScurry.app`: CGWindow capture of the primary overlay shows non-transparent bug pixels over a mostly transparent frame. |
+| Multi-monitor | `monitorMode: "all"` created a second overlay on the 1920×1080 display in both dev and the production app. |
+| Settings window | Created hidden (`onscreen=false`); opening settings must not be required for the overlay loop. |
+| Bundle | `src-tauri/target/release/bundle/macos/BugScurry.app` · `dmg/BugScurry_0.1.0_aarch64.dmg` (arm64) |
+
 ## Windows
 
 ### Window
@@ -52,6 +69,8 @@
 
 - x64 primary; ARM64 best-effort (WebView2 + tray)
 
+**Status:** CI builds the NSIS installer. No Windows soak run on this machine yet — treat matrix cells below as pending.
+
 ## Multi-monitor
 
 | Issue | Approach |
@@ -63,27 +82,43 @@
 
 ## Spaces / virtual desktops
 
-macOS: set `visibleOnAllWorkspaces` so the overlay is not stuck on one Space.
+macOS: set `visibleOnAllWorkspaces` so the overlay is not stuck on one Space. Soaked 2026-09-11 with **2 Spaces** — overlay stayed `onscreen=true` and kept painting after Ctrl+←/→.
 
 ## Performance checklist
 
-- [ ] Idle CPU with 1 bug
-- [ ] 60 FPS with 10 bugs
-- [ ] 60 FPS with 50 bugs (FX may reduce)
-- [ ] Near-zero CPU when hidden
-- [ ] Overlay keeps running while settings is open
-- [ ] Sleep/wake recovery
+### Production (`pnpm tauri build` · BugScurry.app · M1 Pro)
+
+- [x] Idle CPU with 1 bug — **~4.8%** process CPU (primary overlay only)
+- [x] 10 bugs, both displays — **~8.2%** process CPU
+- [x] 50 bugs, both displays — **~4.9%** short sample (high variance; not CPU-bound)
+- [x] Near-zero CPU when hidden — **Pass after poller pause.** Tray hide stops rAF and the Rust cursor poller (`set_cursor_poller_enabled(false)`); measured ~**0.0%** CPU while hidden vs ~5.5% visible (debug, 12 bugs).
+- [x] Overlay keeps running while settings is open — settings stays hidden unless opened from tray; overlays independent
+- [ ] Sleep/wake recovery — not automated (would sleep this machine)
+
+### Debug (`pnpm tauri dev` · upper bound)
+
+Higher than production (Vite HMR + debug codegen). Earlier samples: ~10–15% (1 bug), ~4–5% (10 bugs), ~3% (50 bugs, short window).
 
 ## Manual test matrix
 
 | Case | macOS | Windows |
 |------|-------|---------|
-| Overlay visible | | |
-| Clicks pass through desktop icons | | |
-| Click bug → squish | | |
-| No auto-respawn after kill | | |
-| Tray menu | | |
-| Close settings keeps app | | |
-| Retina / DPI OK | | |
-| External display | | |
-| Switch Spaces (macOS) | | |
+| Overlay visible | Pass (dev + production paint / windows onscreen) | Pending |
+| Clicks pass through desktop icons | Pass — empty-overlay click + keystrokes landed in TextEdit document | Pending |
+| Click bug → squish | Pass — CGEvent click after ~250 ms hover dwell; ladybug clusters 12→11, fluid stain pixels appeared | Pending |
+| No auto-respawn after kill | Pass (unit tests + code review) | Pending |
+| Tray menu | Pass (CGEvent opened status menu; hide/show toggled; settings opens from tray) | Pending |
+| Close settings keeps app | Pass (close button hides window; process stays) | Pending |
+| Retina / DPI OK | Pass (CSS×dpr; overlay 1512×982 @2x; prod paint verified) | Pending |
+| External display | Pass (`monitorMode: all` second overlay, prod + dev) | Pending |
+| Switch Spaces (macOS) | Pass — 2 Spaces; overlay remained onscreen with bug pixels after switch | — |
+| Hide bugs (tray) | Pass (toggle works; hidden CPU ~0% after poller pause) | Pending |
+
+## How to re-run the macOS soak
+
+```bash
+pnpm install
+pnpm tauri dev          # requires Vite on :1420 — do not run the debug binary alone
+```
+
+For a production-shaped binary use `pnpm tauri build`, then launch the bundled app. Do not treat `cargo build --release` alone as a release artifact.

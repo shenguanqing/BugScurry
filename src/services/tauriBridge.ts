@@ -13,6 +13,11 @@ export async function setOverlayClickable(clickable: boolean): Promise<void> {
   await invoke("set_overlay_clickable", { clickable });
 }
 
+/** Pause/resume the Rust cursor poller (primary overlay only). */
+export async function setCursorPollerEnabled(enabled: boolean): Promise<void> {
+  await invoke("set_cursor_poller_enabled", { enabled });
+}
+
 export async function getOverlayScale(): Promise<number> {
   return invoke<number>("get_overlay_scale");
 }

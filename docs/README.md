@@ -1,6 +1,6 @@
 # Docs index
 
-[中文索引](#中文)
+[中文](README.zh-CN.md)
 
 Each document exists in English (`*.md`) and Chinese (`*.zh-CN.md`).
 
@@ -16,7 +16,3 @@ File trees live in the root READMEs:
 
 - [README.md](../README.md) — English
 - [README.zh-CN.md](../README.zh-CN.md) — 中文
-
-## 中文
-
-每篇文档均有英文版（`*.md`）与中文版（`*.zh-CN.md`）。上表右栏即中文入口。目录树见根目录 README。

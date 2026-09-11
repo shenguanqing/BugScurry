@@ -4,6 +4,7 @@ export type LocalePref = Locale | "auto";
 export const messages: Record<Locale, Record<string, string>> = {
   "zh-CN": {
     "app.tagline": "桌面小虫控制台 · 不弄脏屏幕",
+    "app.settingsTitle": "BugScurry 设置",
     "badge.saved": "已保存",
     "badge.live": "实时生效",
     "species.title": "虫子类型",
@@ -52,14 +53,10 @@ export const messages: Record<Locale, Record<string, string>> = {
     "tray.regen": "重新生成",
     "tray.settings": "设置…",
     "tray.quit": "退出",
-    "popup.bugs": "虫子",
-    "popup.hide": "隐藏虫子",
-    "popup.show": "显示虫子",
-    "popup.close": "关闭",
-    "popup.footer": "点击外部关闭 · ⌘+ 增加",
   },
   en: {
     "app.tagline": "Desktop bug console · no stains on your day",
+    "app.settingsTitle": "BugScurry Settings",
     "badge.saved": "Saved",
     "badge.live": "Live",
     "species.title": "Species",
@@ -108,11 +105,6 @@ export const messages: Record<Locale, Record<string, string>> = {
     "tray.regen": "Regenerate",
     "tray.settings": "Settings…",
     "tray.quit": "Quit",
-    "popup.bugs": "Bugs",
-    "popup.hide": "Hide bugs",
-    "popup.show": "Show bugs",
-    "popup.close": "Close",
-    "popup.footer": "Click outside to close · ⌘+ to add",
   },
 };
 

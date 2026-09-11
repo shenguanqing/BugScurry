@@ -10,6 +10,7 @@ import {
   fitWindowToDisplay,
   listenCursorLocal,
   listenTray,
+  setCursorPollerEnabled,
   setOverlayClickable,
 } from "./services/tauriBridge";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -94,12 +95,34 @@ function onPointerDown(ev: PointerEvent) {
   }
 }
 
+function isPrimaryOverlay(): boolean {
+  try {
+    return getCurrentWindow().label === "overlay";
+  } catch {
+    return true;
+  }
+}
+
+/** Stop rAF + cursor polling while bugs are hidden; restore on show. */
+function applyVisibility(show: boolean) {
+  if (!manager) return;
+  visible.value = show;
+  manager.setVisible(show);
+  if (show) {
+    loop?.start();
+    if (isPrimaryOverlay()) void setCursorPollerEnabled(true);
+  } else {
+    loop?.stop();
+    setClickable(false);
+    if (isPrimaryOverlay()) void setCursorPollerEnabled(false);
+  }
+}
+
 function handleTray(cmd: string) {
   if (!manager) return;
   switch (cmd) {
     case "toggle_visibility":
-      visible.value = !visible.value;
-      manager.setVisible(visible.value);
+      applyVisibility(!visible.value);
       break;
     case "add_one": {
       manager.addOne();

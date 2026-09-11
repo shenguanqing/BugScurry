@@ -39,14 +39,14 @@ Single source of truth for the file tree. Design rationale and module duties liv
 BugScurry/
 ├── index.html                 # Overlay webview entry
 ├── settings.html              # Settings window entry
-├── tray-popup.html            # Tray popup entry (legacy)
 ├── package.json
 ├── vite.config.ts
 ├── tsconfig.json
 ├── assets/
 │   └── icon-source.png        # App icon source (1024² with HIG padding)
 ├── docs/
-│   ├── README.md              # Doc index (EN + 中文)
+│   ├── README.md              # Doc index (EN)
+│   ├── README.zh-CN.md        # Doc index (中文)
 │   ├── architecture.md / .zh-CN.md
 │   ├── platforms.md / .zh-CN.md
 │   ├── requirements.md / .zh-CN.md
@@ -56,11 +56,12 @@ BugScurry/
 │   └── workflows/
 │       └── build-windows.yml  # Windows NSIS CI build
 ├── src/
-│   ├── main.ts                # Overlay Vue bootstrap
+│   ├── main.ts
 │   ├── App.vue                # Overlay shell (canvas, hit-test, tray)
 │   ├── core/
 │   │   ├── types.ts
 │   │   ├── config.ts
+│   │   ├── settings.ts        # Pure settings clamp helpers
 │   │   ├── rng.ts
 │   │   ├── bug.ts             # Bug entity factory
 │   │   ├── bugManager.ts      # Spawn / clear / regenerate / squish
@@ -69,7 +70,8 @@ BugScurry/
 │   │   ├── hitTest.ts
 │   │   ├── squish.ts
 │   │   ├── audio.ts
-│   │   └── loop.ts            # requestAnimationFrame loop
+│   │   ├── loop.ts            # requestAnimationFrame loop
+│   │   └── __tests__/         # Vitest unit tests for pure core logic
 │   ├── species/
 │   │   ├── registry.ts        # Species registry + traits
 │   │   ├── drawing.ts         # Shared canvas helpers
@@ -82,16 +84,12 @@ BugScurry/
 │   ├── settings/
 │   │   ├── main.ts
 │   │   └── SettingsApp.vue    # Settings UI
-│   ├── tray-popup/
-│   │   ├── main.ts
-│   │   └── TrayPopup.vue
 │   ├── services/
 │   │   ├── tauriBridge.ts     # Overlay ↔ Tauri events / commands
 │   │   └── settingsService.ts # Store, theme, monitor mode
 │   └── styles/
 │       ├── overlay.css
-│       ├── settings.css
-│       └── tray-popup.css
+│       └── settings.css
 └── src-tauri/
     ├── Cargo.toml
     ├── tauri.conf.json
@@ -131,11 +129,14 @@ All docs ship in English (`*.md`) and Chinese (`*.zh-CN.md`). Index: [docs/READM
 
 ```bash
 pnpm install          # install dependencies
-pnpm tauri dev        # run in development
+pnpm tauri dev        # run in development (starts Vite on :1420 — required)
 pnpm typecheck        # TypeScript check
+pnpm test             # unit tests (Vitest)
 pnpm build            # frontend production build
 pnpm tauri build      # platform installer
 ```
+
+Use the Tauri CLI for both dev and release. Do **not** run `target/debug/bugscurry` or a bare `cargo build --release` as a substitute — debug loads `http://localhost:1420` and needs Vite; release assets are embedded by `pnpm tauri build`.
 
 ### Build outputs
 

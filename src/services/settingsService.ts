@@ -2,9 +2,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { Store } from "@tauri-apps/plugin-store";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
-import { DEFAULT_SETTINGS, LIMITS } from "../core/config";
+import { DEFAULT_SETTINGS } from "../core/config";
+import { clampSettings } from "../core/settings";
 import type { Settings } from "../core/types";
 import { setLocalePref, syncTrayLocale } from "../i18n";
+
+export { clampSettings };
 
 export const SETTINGS_EVENT = "settings-changed";
 export const COMMAND_EVENT = "overlay-command";
@@ -17,27 +20,6 @@ function getStore(): Promise<Store> {
     storePromise = Store.load(SETTINGS_STORE_FILE);
   }
   return storePromise;
-}
-
-export function clampSettings(input: Partial<Settings>): Settings {
-  const next: Settings = { ...DEFAULT_SETTINGS, ...input };
-  next.count = Math.min(LIMITS.countMax, Math.max(LIMITS.countMin, Math.round(next.count)));
-  next.size = Math.min(LIMITS.sizeMax, Math.max(LIMITS.sizeMin, next.size));
-  next.speed = Math.min(LIMITS.speedMax, Math.max(LIMITS.speedMin, next.speed));
-  next.randomness = Math.min(
-    LIMITS.randomnessMax,
-    Math.max(LIMITS.randomnessMin, next.randomness),
-  );
-  next.sound = !!next.sound;
-  next.stains = !!next.stains;
-  next.particles = !!next.particles;
-  next.autostart = !!next.autostart;
-  next.monitorMode = next.monitorMode === "all" ? "all" : "primary";
-  next.species = typeof next.species === "string" && next.species ? next.species : "random";
-  next.theme = next.theme === "light" || next.theme === "dark" ? next.theme : "auto";
-  next.locale =
-    next.locale === "zh-CN" || next.locale === "en" ? next.locale : "auto";
-  return next;
 }
 
 /** Resolve locale pref → zh-CN/en, update reactive locale, refresh tray labels. */

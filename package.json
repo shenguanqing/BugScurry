@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri"
@@ -22,6 +24,7 @@
     "@vitejs/plugin-vue": "^6.0.7",
     "typescript": "~5.8.3",
     "vite": "^6.3.5",
+    "vitest": "^5.0.0",
     "vue-tsc": "^2.2.10"
   }
 }

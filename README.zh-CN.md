@@ -39,14 +39,14 @@
 BugScurry/
 ├── index.html                 # 覆盖层 Web 入口
 ├── settings.html              # 设置窗口入口
-├── tray-popup.html            # 托盘弹出层入口（保留）
 ├── package.json
 ├── vite.config.ts
 ├── tsconfig.json
 ├── assets/
 │   └── icon-source.png        # 应用图标源图（1024²，已按 HIG 留白）
 ├── docs/
-│   ├── README.md              # 文档索引（中英对照）
+│   ├── README.md              # 文档索引（英文）
+│   ├── README.zh-CN.md        # 文档索引（中文）
 │   ├── architecture.md / .zh-CN.md
 │   ├── platforms.md / .zh-CN.md
 │   ├── requirements.md / .zh-CN.md
@@ -56,11 +56,12 @@ BugScurry/
 │   └── workflows/
 │       └── build-windows.yml  # Windows NSIS CI
 ├── src/
-│   ├── main.ts                # 覆盖层 Vue 启动
+│   ├── main.ts
 │   ├── App.vue                # 覆盖层外壳（画布、命中、托盘）
 │   ├── core/
 │   │   ├── types.ts
 │   │   ├── config.ts
+│   │   ├── settings.ts        # 设置裁剪纯函数
 │   │   ├── rng.ts
 │   │   ├── bug.ts             # Bug 实体
 │   │   ├── bugManager.ts      # 生成 / 清除 / 重生 / 捏死
@@ -69,7 +70,8 @@ BugScurry/
 │   │   ├── hitTest.ts
 │   │   ├── squish.ts
 │   │   ├── audio.ts
-│   │   └── loop.ts            # rAF 主循环
+│   │   ├── loop.ts            # rAF 主循环
+│   │   └── __tests__/         # 核心纯逻辑 Vitest 单测
 │   ├── species/
 │   │   ├── registry.ts        # 虫种注册表
 │   │   ├── drawing.ts         # 公共绘制辅助
@@ -82,16 +84,12 @@ BugScurry/
 │   ├── settings/
 │   │   ├── main.ts
 │   │   └── SettingsApp.vue    # 设置界面
-│   ├── tray-popup/
-│   │   ├── main.ts
-│   │   └── TrayPopup.vue
 │   ├── services/
 │   │   ├── tauriBridge.ts     # 覆盖层 ↔ Tauri 事件/命令
 │   │   └── settingsService.ts # 配置存储、主题、多屏
 │   └── styles/
 │       ├── overlay.css
-│       ├── settings.css
-│       └── tray-popup.css
+│       └── settings.css
 └── src-tauri/
     ├── Cargo.toml
     ├── tauri.conf.json
@@ -106,7 +104,7 @@ BugScurry/
 
 ## 文档
 
-所有文档均提供英文（`*.md`）与中文（`*.zh-CN.md`）。索引：[docs/README.md](docs/README.md)。
+所有文档均提供英文（`*.md`）与中文（`*.zh-CN.md`）。索引：[docs/README.zh-CN.md](docs/README.zh-CN.md)（英文：[docs/README.md](docs/README.md)）。
 
 | 中文 | English | 内容 |
 |------|---------|------|
@@ -131,11 +129,14 @@ BugScurry/
 
 ```bash
 pnpm install          # 安装依赖
-pnpm tauri dev        # 开发运行
+pnpm tauri dev        # 开发运行（会启动 Vite :1420，必须先有它）
 pnpm typecheck        # TypeScript 检查
+pnpm test             # 单元测试（Vitest）
 pnpm build            # 前端生产构建
 pnpm tauri build      # 打包安装包
 ```
+
+开发与发布都请走 Tauri CLI。不要单独跑 `target/debug/bugscurry`，也不要只用 `cargo build --release` 当发布产物：debug 会连 `http://localhost:1420`（依赖 Vite），生产资源由 `pnpm tauri build` 嵌入。
 
 ### 打包产物
 
