@@ -16,12 +16,11 @@ pub fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
 
     let menu = Menu::with_items(app, &[&show, &add, &remove, &regen, &settings, &quit])?;
 
-    let _tray = TrayIconBuilder::with_id("main-tray")
+    let tray = TrayIconBuilder::with_id("main-tray")
         .icon(
             tauri::image::Image::from_bytes(include_bytes!("../icons/tray-32.png"))
                 .expect("tray icon"),
         )
-        .icon_as_template(true)
         .tooltip("BugScurry")
         .menu(&menu)
         // Native menu on left click (OS closes it after each action).
@@ -41,8 +40,13 @@ pub fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                     let _ = window.emit("tray-command", id);
                 }
             }
-        })
-        .build(app)?;
+        });
+
+    // Template icons are a macOS menu-bar concept.
+    #[cfg(target_os = "macos")]
+    let tray = tray.icon_as_template(true);
+
+    let _tray = tray.build(app)?;
 
     Ok(())
 }
