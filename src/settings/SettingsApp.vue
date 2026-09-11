@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, reactive, ref } from "vue";
+import type { UnlistenFn } from "@tauri-apps/api/event";
 import { LIMITS } from "../core/config";
 import type { Settings } from "../core/types";
 import { listSpecies } from "../species";
 import {
   applyMonitorMode,
   applyThemeToDocument,
+  listenSettings,
   loadSettings,
   saveSettings,
   sendOverlayCommand,
@@ -33,8 +35,12 @@ const settings = reactive<Settings>({
 
 const savedFlash = ref(false);
 let flashTimer: number | undefined;
+let unlistenSettings: UnlistenFn | null = null;
+/** Ignore the next settings-changed if we caused it (avoid echo loops). */
+let ignoreNextBroadcast = false;
 
 async function persist() {
+  ignoreNextBroadcast = true;
   await saveSettings({ ...settings });
   savedFlash.value = true;
   window.clearTimeout(flashTimer);
@@ -106,10 +112,21 @@ onMounted(async () => {
   const loaded = await loadSettings();
   Object.assign(settings, loaded);
   applyThemeToDocument(document, settings.theme);
+
+  // Tray / overlay can change count etc.; keep this window in sync.
+  unlistenSettings = await listenSettings((next) => {
+    if (ignoreNextBroadcast) {
+      ignoreNextBroadcast = false;
+      return;
+    }
+    Object.assign(settings, next);
+    applyThemeToDocument(document, settings.theme);
+  });
 });
 
 onUnmounted(() => {
   window.clearTimeout(flashTimer);
+  unlistenSettings?.();
 });
 </script>
 
@@ -233,8 +250,8 @@ onUnmounted(() => {
           <span>死亡痕迹</span>
           <em>{{ settings.stains ? "开" : "关" }}</em>
         </button>
-        <button type="button" class="toggle" :class="{ on: settings.particles }" @click="toggle('particles')">
-          <span>粒子效果</span>
+        <button type="button" class="toggle" :class="{ on: settings.particles }" title="捏死瞬间向外飞溅的小液珠；地面汁液由死亡痕迹控制" @click="toggle('particles')">
+          <span>液珠飞溅</span>
           <em>{{ settings.particles ? "开" : "关" }}</em>
         </button>
         <button type="button" class="toggle" :class="{ on: settings.autostart }" @click="toggleAutostart">

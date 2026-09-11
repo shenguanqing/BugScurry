@@ -192,15 +192,22 @@ export function drawParticles(ctx: CanvasRenderingContext2D, particles: Particle
     const angle = Math.atan2(p.vy, p.vx);
     // Stretch fast droplets along their direction of travel for a motion-blurred, liquid feel
     const stretch = Math.min(2.6, 1 + speed * 0.006);
-    const r = Math.max(0.4, p.size * a);
+    const r = p.size * (0.75 + a * 0.25);
 
     ctx.save();
-    ctx.globalAlpha = a * 0.78;
+    ctx.globalAlpha = Math.min(1, a / 0.65) * 0.9;
     ctx.fillStyle = p.color;
     ctx.translate(p.x, p.y);
     ctx.rotate(angle);
     ctx.beginPath();
     ctx.ellipse(0, 0, r * stretch, r / Math.sqrt(stretch), 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#514b3a66";
+    ctx.lineWidth = 0.4;
+    ctx.stroke();
+    ctx.fillStyle = "#fff9e6bb";
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.2, -r * 0.2, r * 0.32, r * 0.2, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }

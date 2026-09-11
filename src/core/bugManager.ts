@@ -54,12 +54,22 @@ export class BugManager {
     const prev = this.settings;
     const speciesChanged = settings.species !== prev.species;
     const countChanged = Math.round(settings.count) !== Math.round(prev.count);
+    const sizeRatio =
+      prev.size > 0 && settings.size > 0 ? settings.size / prev.size : 1;
     this.settings = settings;
+    if (!settings.particles) this.particles = [];
 
     if (speciesChanged) {
       this.suppressed = false;
       this.regenerate();
       return;
+    }
+
+    // Live-rescale existing bugs so the size slider feels instant.
+    if (sizeRatio !== 1 && Number.isFinite(sizeRatio)) {
+      for (const bug of this.bugs) {
+        bug.size = Math.max(4, bug.size * sizeRatio);
+      }
     }
 
     // Only an explicit count change lifts "cleared" state.
@@ -136,23 +146,23 @@ export class BugManager {
 
     if (this.settings.particles) {
       const rng = new Rng(randomSeed());
-      const n = 4 + Math.floor(rng.next() * 4);
+      const n = 6 + Math.floor(rng.next() * 3);
       for (let i = 0; i < n; i++) {
         const ang = rng.range(0, Math.PI * 2);
-        const sp = bug.size * rng.range(1.5, 3.5);
-        const life = rng.range(0.22, 0.38);
+        const sp = bug.size * rng.range(7, 11);
+        const life = rng.range(0.45, 0.65);
         this.particles.push({
-          x: bug.x,
-          y: bug.y,
+          x: bug.x + Math.cos(ang) * bug.size * 0.3,
+          y: bug.y + Math.sin(ang) * bug.size * 0.3,
           vx: Math.cos(ang) * sp,
           vy: Math.sin(ang) * sp,
           life,
           maxLife: life,
-          size: bug.size * rng.range(0.025, 0.055),
+          size: Math.max(0.8, bug.size * rng.range(0.055, 0.085)),
           color: fluidColor,
         });
       }
-      if (this.particles.length > MAX_PARTICLES * 2) {
+      if (this.particles.length > MAX_PARTICLES) {
         this.particles.splice(0, this.particles.length - MAX_PARTICLES);
       }
     }
@@ -169,7 +179,7 @@ export class BugManager {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       // Friction on the desktop plane arrests the small fragments quickly.
-      const drag = Math.exp(-14 * dt);
+      const drag = Math.exp(-9 * dt);
       p.vx *= drag;
       p.vy *= drag;
     }
