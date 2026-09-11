@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for overlay and settings windows",
-  "windows": ["overlay", "overlay-*", "settings"],
+  "windows": ["overlay", "overlay-*", "settings", "tray-popup"],
   "permissions": [
     "core:default",
     "core:window:allow-set-ignore-cursor-events",

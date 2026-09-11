@@ -13,6 +13,7 @@ export default defineConfig(() => ({
       input: {
         overlay: resolve(__dirname, "index.html"),
         settings: resolve(__dirname, "settings.html"),
+        "tray-popup": resolve(__dirname, "tray-popup.html"),
       },
     },
   },

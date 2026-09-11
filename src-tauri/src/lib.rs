@@ -225,6 +225,34 @@ fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
 
+#[tauri::command]
+fn popup_add_one(app: tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
+        let _ = window.emit("tray-command", "add_one");
+    }
+}
+
+#[tauri::command]
+fn popup_remove_one(app: tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
+        let _ = window.emit("tray-command", "remove_one");
+    }
+}
+
+#[tauri::command]
+fn popup_toggle_visibility(app: tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
+        let _ = window.emit("tray-command", "toggle_visibility");
+    }
+}
+
+#[tauri::command]
+fn popup_regenerate(app: tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
+        let _ = window.emit("tray-command", "regenerate");
+    }
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -240,7 +268,11 @@ pub fn run() {
             get_overlay_scale,
             open_settings_window,
             apply_monitor_mode_cmd,
-            quit_app
+            quit_app,
+            popup_add_one,
+            popup_remove_one,
+            popup_toggle_visibility,
+            popup_regenerate
         ])
         .setup(|app| {
             let handle = app.handle();
@@ -253,13 +285,15 @@ pub fn run() {
             spawn_global_cursor_poller(handle.clone(), running);
             tray::setup_tray(handle)?;
 
-            // Global shortcuts: Command/Ctrl + + and Command/Ctrl + ,
+            // Command/Ctrl + +  and  Command/Ctrl + ,
             let primary_mod = if cfg!(target_os = "macos") {
                 Modifiers::SUPER
             } else {
                 Modifiers::CONTROL
             };
-            let add_one = Shortcut::new(Some(primary_mod | Modifiers::SHIFT), Code::Equal);
+            // ⌘= / Ctrl+= is the "+" key on most layouts; also bind ⇧⌘= for US keyboards.
+            let add_one = Shortcut::new(Some(primary_mod), Code::Equal);
+            let add_one_shift = Shortcut::new(Some(primary_mod | Modifiers::SHIFT), Code::Equal);
             let open_settings = Shortcut::new(Some(primary_mod), Code::Comma);
 
             handle
@@ -271,6 +305,17 @@ pub fn run() {
                         }
                     }
                 })?;
+
+            let _ = handle.global_shortcut().on_shortcut(
+                add_one_shift,
+                |app, _shortcut, event| {
+                    if event.state == ShortcutState::Pressed {
+                        if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
+                            let _ = window.emit("tray-command", "add_one");
+                        }
+                    }
+                },
+            );
 
             handle
                 .global_shortcut()
@@ -285,6 +330,16 @@ pub fn run() {
         .on_window_event(|window, event| {
             let label = window.label();
             if label == "settings" {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    let _ = window.hide();
+                    api.prevent_close();
+                }
+            }
+            // Sticky tray popup: hide when it loses focus (click outside).
+            if label == "tray-popup" {
+                if let WindowEvent::Focused(false) = event {
+                    let _ = window.hide();
+                }
                 if let WindowEvent::CloseRequested { api, .. } = event {
                     let _ = window.hide();
                     api.prevent_close();
