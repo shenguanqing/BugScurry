@@ -6,10 +6,9 @@ use tauri::{
 
 pub fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     // Accelerators only apply while this tray menu is open (not system-wide).
-    // 增加一只：⌘+  /  减少一只：⌘-
+    // Like browser zoom-in: ⌘= / Ctrl+= (the key that types "+" with Shift).
     let show = MenuItem::with_id(app, "toggle_visibility", "显示 / 隐藏虫子", true, None::<&str>)?;
-    // ⇧⌘= is the physical "+" on US/ANSI layouts; many systems label it ⌘+.
-    let add = MenuItem::with_id(app, "add_one", "增加一只", true, Some("CmdOrCtrl+Shift+="))?;
+    let add = MenuItem::with_id(app, "add_one", "增加一只", true, Some("CmdOrCtrl+Equal"))?;
     let remove = MenuItem::with_id(app, "remove_one", "减少一只", true, Some("CmdOrCtrl+-"))?;
     let regen = MenuItem::with_id(app, "regenerate", "重新生成", true, Some("CmdOrCtrl+R"))?;
     let settings = MenuItem::with_id(app, "open_settings", "设置…", true, Some("CmdOrCtrl+,"))?;
