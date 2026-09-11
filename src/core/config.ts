@@ -5,6 +5,9 @@ export const DEFAULT_SETTINGS: Settings = {
   size: 1,
   speed: 1,
   randomness: 0.5,
+  sound: true,
+  stains: true,
+  particles: true,
 };
 
 export const LIMITS = {
@@ -24,7 +27,10 @@ export const BASE_SPEED = 70;
 /** Hit radius multiplier relative to drawn body size. */
 export const HIT_RADIUS_SCALE = 1.35;
 
-export const SQUISH_DURATION = 0.35;
-export const DEATH_FADE_DURATION = 1.1;
-export const EDGE_MARGIN = 12;
+export const SQUISH_DURATION = 0.32;
+export const DEATH_FADE_DURATION = 1.15;
+export const STAIN_LIFE = 2.8;
+export const EDGE_MARGIN = 18;
 export const MAX_DT = 0.05;
+export const MAX_PARTICLES = 24;
+export const MAX_STAINS = 12;

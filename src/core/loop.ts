@@ -28,12 +28,20 @@ export function createLoop(hooks: LoopHooks) {
 
     if (manager.isVisible) {
       updateBugs(manager.list, dt, settings, viewport);
-      manager.updateEffects(dt);
+      manager.tick(dt);
 
       const canvas = hooks.getCanvas();
       if (canvas) {
         const ctx = canvas.getContext("2d");
-        if (ctx) render(ctx, manager.list, viewport);
+        if (ctx) {
+          render(
+            ctx,
+            manager.list,
+            manager.stainList,
+            manager.particleList,
+            viewport,
+          );
+        }
       }
     }
 

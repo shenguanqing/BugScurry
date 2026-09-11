@@ -18,7 +18,28 @@ export interface Bug {
   deathProgress: number;
   /** small heading jitter */
   turnBias: number;
+  /** edge-hug preference 0..1, higher = likes walls */
+  edgeAffinity: number;
   seed: number;
+}
+
+export interface Stain {
+  id: string;
+  x: number;
+  y: number;
+  size: number;
+  life: number;
+  maxLife: number;
+}
+
+export interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  size: number;
 }
 
 export interface Viewport {
@@ -32,6 +53,9 @@ export interface Settings {
   size: number;
   speed: number;
   randomness: number;
+  sound: boolean;
+  stains: boolean;
+  particles: boolean;
 }
 
 export type TrayCommand =

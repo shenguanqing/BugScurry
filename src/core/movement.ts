@@ -20,6 +20,25 @@ function steerToward(heading: number, target: number, dt: number, rate: number):
   return normalizeAngle(heading + shortestAngleDiff(heading, target) * dt * rate);
 }
 
+/** Distance to nearest wall and preferred wall-parallel direction. */
+function wallSteer(bug: Bug, viewport: Viewport): { target: number; weight: number } | null {
+  const { width, height } = viewport;
+  const m = EDGE_MARGIN + bug.size * 0.3;
+  const distLeft = bug.x;
+  const distRight = width - bug.x;
+  const distTop = bug.y;
+  const distBottom = height - bug.y;
+  const minDist = Math.min(distLeft, distRight, distTop, distBottom);
+
+  if (minDist > m * 2.4) return null;
+
+  // Prefer sliding along the closest wall
+  if (minDist === distLeft) return { target: Math.PI / 2, weight: 1 };
+  if (minDist === distRight) return { target: -Math.PI / 2, weight: 1 };
+  if (minDist === distTop) return { target: 0, weight: 1 };
+  return { target: Math.PI, weight: 1 };
+}
+
 export function updateBug(
   bug: Bug,
   dt: number,
@@ -30,46 +49,59 @@ export function updateBug(
   if (bug.state === "squishing" || bug.state === "dying") return;
 
   bug.stateTimer -= dt;
-  bug.legPhase = (bug.legPhase + dt * (2.2 + bug.speed / 40)) % 1;
+  bug.legPhase = (bug.legPhase + dt * (2.4 + bug.speed / 36)) % 1;
 
   if (bug.state === "paused") {
     if (bug.stateTimer <= 0) {
       bug.state = "crawling";
-      bug.stateTimer = rng.range(0.8, 2.8);
-      bug.turnBias = rng.range(-1.2, 1.2) * settings.randomness;
+      bug.stateTimer = rng.range(0.7, 2.6);
+      bug.turnBias = rng.range(-1.0, 1.0) * settings.randomness;
     }
     return;
   }
 
   if (bug.stateTimer <= 0) {
-    if (rng.chance(0.35 + settings.randomness * 0.4)) {
+    if (rng.chance(0.3 + settings.randomness * 0.45)) {
       bug.state = "paused";
-      bug.stateTimer = rng.range(0.25, 1.1);
+      bug.stateTimer = rng.range(0.2, 0.95);
       return;
     }
-    bug.turnBias = rng.range(-1.6, 1.6) * settings.randomness;
-    bug.stateTimer = rng.range(0.5, 2.0);
-    bug.speed = Math.max(20, bug.speed * rng.range(0.9, 1.1));
+    bug.turnBias = rng.range(-1.8, 1.8) * settings.randomness;
+    bug.stateTimer = rng.range(0.4, 1.8);
+    bug.speed = Math.max(24, bug.speed * rng.range(0.92, 1.08));
   }
 
-  const wander = (rng.next() - 0.5) * (0.8 + settings.randomness * 1.8) * dt;
+  // Organic wander
+  const wander = (rng.next() - 0.5) * (1.0 + settings.randomness * 2.2) * dt;
   bug.heading = normalizeAngle(bug.heading + wander + bug.turnBias * dt);
 
-  // Soft steer away from edges (slide / turn back in)
-  const m = EDGE_MARGIN;
-  const { width, height } = viewport;
-  if (bug.y < m) bug.heading = steerToward(bug.heading, Math.PI / 2, dt, 5);
-  else if (bug.y > height - m) bug.heading = steerToward(bug.heading, -Math.PI / 2, dt, 5);
-  if (bug.x < m) bug.heading = steerToward(bug.heading, 0, dt, 5);
-  else if (bug.x > width - m) bug.heading = steerToward(bug.heading, Math.PI, dt, 5);
+  // Edge hug: high edgeAffinity keeps them along borders
+  const wall = wallSteer(bug, viewport);
+  if (wall) {
+    const pull = 3.5 + bug.edgeAffinity * 6;
+    bug.heading = steerToward(bug.heading, wall.target, dt, pull);
+  } else if (bug.edgeAffinity > 0.65) {
+    // Occasionally aim back toward nearest wall
+    const { width, height } = viewport;
+    const options = [
+      { t: Math.PI / 2, d: bug.x },
+      { t: -Math.PI / 2, d: width - bug.x },
+      { t: 0, d: bug.y },
+      { t: Math.PI, d: height - bug.y },
+    ];
+    options.sort((a, b) => a.d - b.d);
+    if (rng.chance(0.35)) {
+      bug.heading = steerToward(bug.heading, options[0].t, dt, 1.8);
+    }
+  }
 
-  const speed = bug.speed * settings.speed;
+  const speed = bug.speed * settings.speed * (0.85 + bug.seed * 0.3);
   bug.x += Math.cos(bug.heading) * speed * dt;
   bug.y += Math.sin(bug.heading) * speed * dt;
 
-  const pad = bug.size * 0.4;
-  bug.x = Math.min(width - pad, Math.max(pad, bug.x));
-  bug.y = Math.min(height - pad, Math.max(pad, bug.y));
+  const pad = bug.size * 0.35;
+  bug.x = Math.min(viewport.width - pad, Math.max(pad, bug.x));
+  bug.y = Math.min(viewport.height - pad, Math.max(pad, bug.y));
 }
 
 export function updateBugs(

@@ -13,6 +13,9 @@ const settings = reactive<Settings>({
   size: 1,
   speed: 1,
   randomness: 0.5,
+  sound: true,
+  stains: true,
+  particles: true,
 });
 
 const savedFlash = ref(false);
@@ -37,9 +40,14 @@ function onSlider(key: keyof Settings, ev: Event) {
   const value = Number(el.value);
   if (key === "count") setCount(value);
   else {
-    settings[key] = value;
+    (settings as Record<string, number | boolean>)[key] = value;
     void persist();
   }
+}
+
+function toggle(key: "sound" | "stains" | "particles") {
+  settings[key] = !settings[key];
+  void persist();
 }
 
 async function clearAll() {
@@ -146,6 +154,23 @@ onUnmounted(() => {
         :value="settings.randomness"
         @input="onSlider('randomness', $event)"
       />
+    </section>
+
+    <section class="card">
+      <div class="toggles">
+        <button type="button" class="toggle" :class="{ on: settings.sound }" @click="toggle('sound')">
+          <span>捏死音效</span>
+          <em>{{ settings.sound ? "开" : "关" }}</em>
+        </button>
+        <button type="button" class="toggle" :class="{ on: settings.stains }" @click="toggle('stains')">
+          <span>死亡痕迹</span>
+          <em>{{ settings.stains ? "开" : "关" }}</em>
+        </button>
+        <button type="button" class="toggle" :class="{ on: settings.particles }" @click="toggle('particles')">
+          <span>粒子效果</span>
+          <em>{{ settings.particles ? "开" : "关" }}</em>
+        </button>
+      </div>
     </section>
 
     <section class="actions">

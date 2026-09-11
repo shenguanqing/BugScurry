@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from "vue";
+import { ensureAudio, playSquishSound } from "./core/audio";
 import { DEFAULT_SETTINGS } from "./core/config";
 import { BugManager } from "./core/bugManager";
 import { hitTestBug } from "./core/hitTest";
@@ -66,9 +67,11 @@ function applySettings(next: Settings) {
 
 function onPointerDown(ev: PointerEvent) {
   if (!manager) return;
+  ensureAudio();
   const hit = hitTestBug(manager.list, ev.clientX, ev.clientY, viewport.value);
   if (hit) {
-    manager.squish(hit);
+    const ok = manager.squish(hit);
+    if (ok && settings.value.sound) playSquishSound();
     hoverHoldUntil = performance.now() + 400;
     setClickable(true);
   }

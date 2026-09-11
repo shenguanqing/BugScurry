@@ -26,6 +26,9 @@ export function clampSettings(input: Partial<Settings>): Settings {
     LIMITS.randomnessMax,
     Math.max(LIMITS.randomnessMin, next.randomness),
   );
+  next.sound = !!next.sound;
+  next.stains = !!next.stains;
+  next.particles = !!next.particles;
   return next;
 }
 

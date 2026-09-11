@@ -160,6 +160,41 @@ output {
   margin-top: 10px;
 }
 
+.toggles {
+  display: grid;
+  gap: 8px;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.03);
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.toggle em {
+  font-style: normal;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.toggle.on {
+  border-color: rgba(194, 65, 12, 0.35);
+  background: rgba(251, 146, 60, 0.12);
+}
+
+.toggle.on em {
+  color: var(--accent-2);
+}
+
 .actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
