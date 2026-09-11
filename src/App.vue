@@ -8,7 +8,7 @@ import { createLoop } from "./core/loop";
 import type { Settings, Viewport } from "./core/types";
 import {
   fitWindowToDisplay,
-  listenCursor,
+  listenCursorLocal,
   listenTray,
   setOverlayClickable,
 } from "./services/tauriBridge";
@@ -138,8 +138,13 @@ onMounted(async () => {
 
   window.addEventListener("pointerdown", onPointerDown);
 
-  unlistenCursor = await listenCursor((pos) => {
+  unlistenCursor = await listenCursorLocal((pos) => {
     if (!manager) return;
+    // Only this window's local coords; disable click-through when mouse is elsewhere.
+    if (!pos.inside) {
+      setClickable(false);
+      return;
+    }
     if (performance.now() < hoverHoldUntil) return;
     const hit = hitTestBug(manager.list, pos.x, pos.y, viewport.value);
     setClickable(!!hit);

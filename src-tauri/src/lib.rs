@@ -11,10 +11,12 @@ mod tray;
 
 const OVERLAY_LABEL: &str = "overlay";
 
+/// Cursor in one overlay window's local logical CSS pixels.
 #[derive(Clone, serde::Serialize)]
-struct CursorPayload {
+struct CursorLocal {
     x: f64,
     y: f64,
+    inside: bool,
 }
 
 fn primary_monitor_or_first(app: &tauri::AppHandle) -> Option<Monitor> {
@@ -35,24 +37,67 @@ fn fit_overlay_to_monitor(window: &tauri::WebviewWindow, monitor: &Monitor) {
     }
 }
 
-fn spawn_cursor_poller(window: tauri::WebviewWindow, running: Arc<AtomicBool>) {
+/// True global cursor in physical pixels.
+///
+/// Tauri/tao `cursor_position` on macOS flips Y with **primary** height and
+/// scales with **primary** DPI, so secondary monitors get wrong coords.
+/// CGEvent gives a proper multi-monitor global point.
+fn global_cursor_physical(_app: &tauri::AppHandle) -> Option<(f64, f64)> {
+    #[cfg(target_os = "macos")]
+    {
+        use core_graphics::event::CGEvent;
+        use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
+        let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState).ok()?;
+        let event = CGEvent::new(source).ok()?;
+        let loc = event.location();
+        return Some((loc.x, loc.y));
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        _app.webview_windows()
+            .values()
+            .find(|w| w.is_visible().unwrap_or(false))
+            .and_then(|w| w.cursor_position().ok())
+            .map(|p| (p.x, p.y))
+    }
+}
+
+/// One global poller. Each overlay gets its own local coords via `emit_to`.
+fn spawn_global_cursor_poller(app: tauri::AppHandle, running: Arc<AtomicBool>) {
     std::thread::spawn(move || {
         while running.load(Ordering::Relaxed) {
-            if !window.is_visible().unwrap_or(true) {
-                std::thread::sleep(Duration::from_millis(100));
-                continue;
+            if let Some((gx, gy)) = global_cursor_physical(&app) {
+                for (label, win) in app.webview_windows() {
+                    if !label.starts_with("overlay") {
+                        continue;
+                    }
+                    if !win.is_visible().unwrap_or(false) {
+                        continue;
+                    }
+                    let Ok(origin) = win.outer_position() else {
+                        continue;
+                    };
+                    let scale = win.scale_factor().unwrap_or(1.0).max(0.01);
+                    let Ok(size) = win.outer_size() else {
+                        continue;
+                    };
+                    let w = f64::from(size.width) / scale;
+                    let h = f64::from(size.height) / scale;
+                    let lx = (gx - f64::from(origin.x)) / scale;
+                    let ly = (gy - f64::from(origin.y)) / scale;
+                    let inside = lx >= 0.0 && ly >= 0.0 && lx <= w && ly <= h;
+                    let _ = win.emit_to(
+                        &label,
+                        "cursor-local",
+                        CursorLocal {
+                            x: lx,
+                            y: ly,
+                            inside,
+                        },
+                    );
+                }
             }
-            if let Ok(pos) = window.cursor_position() {
-                let scale = window.scale_factor().unwrap_or(1.0).max(0.01);
-                // Convert global physical coords into this window's logical space.
-                let origin = window.outer_position().unwrap_or(PhysicalPosition::new(0, 0));
-                let payload = CursorPayload {
-                    x: (pos.x - origin.x as f64) / scale,
-                    y: (pos.y - origin.y as f64) / scale,
-                };
-                let _ = window.emit("cursor-position", payload);
-            }
-            std::thread::sleep(Duration::from_millis(33));
+            std::thread::sleep(Duration::from_millis(16));
         }
     });
 }
@@ -62,25 +107,29 @@ fn configure_overlay_window(window: &tauri::WebviewWindow, monitor: &Monitor) {
     fit_overlay_to_monitor(window, monitor);
 }
 
-/// mode: "primary" keeps one overlay on the main display; "all" adds one per monitor.
+/// Always map the primary monitor to label "overlay"; extra monitors get overlay-1, overlay-2...
 fn apply_monitor_mode(app: &tauri::AppHandle, mode: &str) {
-    let monitors = app
-        .available_monitors()
-        .ok()
-        .unwrap_or_default();
     let primary = primary_monitor_or_first(app);
+    let mut others: Vec<Monitor> = app.available_monitors().ok().unwrap_or_default();
 
-    let mut targets: Vec<Monitor> = Vec::new();
-    if mode == "all" {
-        targets = monitors;
-    } else if let Some(p) = primary {
-        targets.push(p);
+    if let Some(p) = &primary {
+        others.retain(|m| m.name() != p.name());
+        let mut targets = Vec::with_capacity(1 + others.len());
+        targets.push(p.clone());
+        targets.extend(others);
+        others = targets;
     }
+
+    let targets: Vec<Monitor> = if mode == "all" {
+        others
+    } else {
+        primary.into_iter().collect()
+    };
+
     if targets.is_empty() {
         return;
     }
 
-    // Desired labels
     let desired: Vec<String> = targets
         .iter()
         .enumerate()
@@ -93,14 +142,11 @@ fn apply_monitor_mode(app: &tauri::AppHandle, mode: &str) {
         })
         .collect();
 
-    // Close extra overlays
     for (label, win) in app.webview_windows() {
         if label.starts_with("overlay") && !desired.contains(&label) {
             let _ = win.close();
         }
     }
-
-    let running = app.state::<Arc<AtomicBool>>().inner().clone();
 
     for (idx, monitor) in targets.iter().enumerate() {
         let label = &desired[idx];
@@ -109,25 +155,20 @@ fn apply_monitor_mode(app: &tauri::AppHandle, mode: &str) {
             continue;
         }
 
-        let builder = WebviewWindowBuilder::new(
-            app,
-            label.clone(),
-            WebviewUrl::App("index.html".into()),
-        )
-        .title("BugScurry Overlay")
-        .transparent(true)
-        .decorations(false)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .focusable(false)
-        .resizable(false)
-        .shadow(false)
-        .visible(true);
-
-        match builder.build() {
+        match WebviewWindowBuilder::new(app, label.clone(), WebviewUrl::App("index.html".into()))
+            .title("BugScurry Overlay")
+            .transparent(true)
+            .decorations(false)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .focusable(false)
+            .resizable(false)
+            .shadow(false)
+            .visible(true)
+            .build()
+        {
             Ok(win) => {
                 configure_overlay_window(&win, monitor);
-                spawn_cursor_poller(win, running.clone());
             }
             Err(err) => eprintln!("create overlay {label} failed: {err}"),
         }
@@ -143,7 +184,7 @@ fn open_or_focus_settings(app: &tauri::AppHandle) {
 
     match WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
         .title("BugScurry 设置")
-        .inner_size(420.0, 620.0)
+        .inner_size(420.0, 640.0)
         .resizable(false)
         .center()
         .always_on_top(true)
@@ -205,9 +246,9 @@ pub fn run() {
                 if let Some(monitor) = primary_monitor_or_first(handle) {
                     configure_overlay_window(&window, &monitor);
                 }
-                let running = handle.state::<Arc<AtomicBool>>().inner().clone();
-                spawn_cursor_poller(window, running);
             }
+            let running = handle.state::<Arc<AtomicBool>>().inner().clone();
+            spawn_global_cursor_poller(handle.clone(), running);
             tray::setup_tray(handle)?;
             Ok(())
         })
