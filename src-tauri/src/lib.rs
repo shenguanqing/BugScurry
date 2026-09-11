@@ -9,6 +9,8 @@ use tauri::{
 
 mod tray;
 
+const OVERLAY_LABEL: &str = "overlay";
+
 #[derive(Clone, serde::Serialize)]
 struct CursorPayload {
     x: f64,
@@ -33,35 +35,103 @@ fn fit_overlay_to_monitor(window: &tauri::WebviewWindow, monitor: &Monitor) {
     }
 }
 
-fn setup_overlay(app: &tauri::AppHandle) {
-    let Some(window) = app.get_webview_window("overlay") else {
-        eprintln!("overlay window not found");
-        return;
-    };
-
-    if let Err(err) = window.set_ignore_cursor_events(true) {
-        eprintln!("set_ignore_cursor_events failed: {err}");
-    }
-
-    if let Some(monitor) = primary_monitor_or_first(app) {
-        fit_overlay_to_monitor(&window, &monitor);
-    }
-
-    let poll_window = window.clone();
-    let running = app.state::<Arc<AtomicBool>>().inner().clone();
+fn spawn_cursor_poller(window: tauri::WebviewWindow, running: Arc<AtomicBool>) {
     std::thread::spawn(move || {
         while running.load(Ordering::Relaxed) {
-            if let Ok(pos) = poll_window.cursor_position() {
-                let scale = poll_window.scale_factor().unwrap_or(1.0).max(0.01);
+            if !window.is_visible().unwrap_or(true) {
+                std::thread::sleep(Duration::from_millis(100));
+                continue;
+            }
+            if let Ok(pos) = window.cursor_position() {
+                let scale = window.scale_factor().unwrap_or(1.0).max(0.01);
+                // Convert global physical coords into this window's logical space.
+                let origin = window.outer_position().unwrap_or(PhysicalPosition::new(0, 0));
                 let payload = CursorPayload {
-                    x: pos.x / scale,
-                    y: pos.y / scale,
+                    x: (pos.x - origin.x as f64) / scale,
+                    y: (pos.y - origin.y as f64) / scale,
                 };
-                let _ = poll_window.emit("cursor-position", payload);
+                let _ = window.emit("cursor-position", payload);
             }
             std::thread::sleep(Duration::from_millis(33));
         }
     });
+}
+
+fn configure_overlay_window(window: &tauri::WebviewWindow, monitor: &Monitor) {
+    let _ = window.set_ignore_cursor_events(true);
+    fit_overlay_to_monitor(window, monitor);
+}
+
+/// mode: "primary" keeps one overlay on the main display; "all" adds one per monitor.
+fn apply_monitor_mode(app: &tauri::AppHandle, mode: &str) {
+    let monitors = app
+        .available_monitors()
+        .ok()
+        .unwrap_or_default();
+    let primary = primary_monitor_or_first(app);
+
+    let mut targets: Vec<Monitor> = Vec::new();
+    if mode == "all" {
+        targets = monitors;
+    } else if let Some(p) = primary {
+        targets.push(p);
+    }
+    if targets.is_empty() {
+        return;
+    }
+
+    // Desired labels
+    let desired: Vec<String> = targets
+        .iter()
+        .enumerate()
+        .map(|(i, _)| {
+            if i == 0 {
+                OVERLAY_LABEL.to_string()
+            } else {
+                format!("overlay-{i}")
+            }
+        })
+        .collect();
+
+    // Close extra overlays
+    for (label, win) in app.webview_windows() {
+        if label.starts_with("overlay") && !desired.contains(&label) {
+            let _ = win.close();
+        }
+    }
+
+    let running = app.state::<Arc<AtomicBool>>().inner().clone();
+
+    for (idx, monitor) in targets.iter().enumerate() {
+        let label = &desired[idx];
+        if let Some(win) = app.get_webview_window(label) {
+            configure_overlay_window(&win, monitor);
+            continue;
+        }
+
+        let builder = WebviewWindowBuilder::new(
+            app,
+            label.clone(),
+            WebviewUrl::App("index.html".into()),
+        )
+        .title("BugScurry Overlay")
+        .transparent(true)
+        .decorations(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .focusable(false)
+        .resizable(false)
+        .shadow(false)
+        .visible(true);
+
+        match builder.build() {
+            Ok(win) => {
+                configure_overlay_window(&win, monitor);
+                spawn_cursor_poller(win, running.clone());
+            }
+            Err(err) => eprintln!("create overlay {label} failed: {err}"),
+        }
+    }
 }
 
 fn open_or_focus_settings(app: &tauri::AppHandle) {
@@ -71,15 +141,9 @@ fn open_or_focus_settings(app: &tauri::AppHandle) {
         return;
     }
 
-    let url = if cfg!(dev) {
-        WebviewUrl::App("settings.html".into())
-    } else {
-        WebviewUrl::App("settings.html".into())
-    };
-
-    match WebviewWindowBuilder::new(app, "settings", url)
+    match WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
         .title("BugScurry 设置")
-        .inner_size(420.0, 560.0)
+        .inner_size(420.0, 620.0)
         .resizable(false)
         .center()
         .always_on_top(true)
@@ -110,6 +174,11 @@ fn open_settings_window(app: tauri::AppHandle) {
 }
 
 #[tauri::command]
+fn apply_monitor_mode_cmd(app: tauri::AppHandle, mode: String) {
+    apply_monitor_mode(&app, &mode);
+}
+
+#[tauri::command]
 fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
@@ -118,27 +187,39 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .manage(Arc::new(AtomicBool::new(true)))
         .invoke_handler(tauri::generate_handler![
             set_overlay_clickable,
             get_overlay_scale,
             open_settings_window,
+            apply_monitor_mode_cmd,
             quit_app
         ])
         .setup(|app| {
-            setup_overlay(app.handle());
-            tray::setup_tray(app.handle())?;
+            let handle = app.handle();
+            if let Some(window) = handle.get_webview_window(OVERLAY_LABEL) {
+                if let Some(monitor) = primary_monitor_or_first(handle) {
+                    configure_overlay_window(&window, &monitor);
+                }
+                let running = handle.state::<Arc<AtomicBool>>().inner().clone();
+                spawn_cursor_poller(window, running);
+            }
+            tray::setup_tray(handle)?;
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Closing settings must not quit the app.
-            if window.label() == "settings" {
+            let label = window.label();
+            if label == "settings" {
                 if let WindowEvent::CloseRequested { api, .. } = event {
                     let _ = window.hide();
                     api.prevent_close();
                 }
             }
-            if window.label() == "overlay" {
+            if label.starts_with("overlay") {
                 if let WindowEvent::Focused(false) = event {
                     let _ = window.set_ignore_cursor_events(true);
                 }

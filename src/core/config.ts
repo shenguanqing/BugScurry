@@ -8,6 +8,8 @@ export const DEFAULT_SETTINGS: Settings = {
   sound: true,
   stains: true,
   particles: true,
+  autostart: false,
+  monitorMode: "primary",
 };
 
 export const LIMITS = {

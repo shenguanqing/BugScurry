@@ -12,7 +12,9 @@ import {
   listenTray,
   setOverlayClickable,
 } from "./services/tauriBridge";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
+  applyMonitorMode,
   listenOverlayCommands,
   listenSettings,
   loadSettings,
@@ -115,6 +117,16 @@ onMounted(async () => {
   settings.value = loaded;
   manager = new BugManager(loaded, viewport.value);
   resizeCanvas();
+
+  // Restore multi-monitor layout only from the primary overlay window.
+  try {
+    const label = getCurrentWindow().label;
+    if (label === "overlay") {
+      await applyMonitorMode(loaded.monitorMode);
+    }
+  } catch {
+    // ignore
+  }
 
   loop = createLoop({
     manager,

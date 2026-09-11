@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { Store } from "@tauri-apps/plugin-store";
+import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { DEFAULT_SETTINGS, LIMITS } from "../core/config";
 import type { Settings } from "../core/types";
 
@@ -29,6 +30,8 @@ export function clampSettings(input: Partial<Settings>): Settings {
   next.sound = !!next.sound;
   next.stains = !!next.stains;
   next.particles = !!next.particles;
+  next.autostart = !!next.autostart;
+  next.monitorMode = next.monitorMode === "all" ? "all" : "primary";
   return next;
 }
 
@@ -36,7 +39,13 @@ export async function loadSettings(): Promise<Settings> {
   try {
     const store = await getStore();
     const raw = await store.get<Partial<Settings>>("settings");
-    return clampSettings(raw ?? {});
+    let next = clampSettings(raw ?? {});
+    try {
+      next.autostart = await isEnabled();
+    } catch {
+      // ignore
+    }
+    return next;
   } catch {
     return { ...DEFAULT_SETTINGS };
   }
@@ -52,10 +61,6 @@ export async function saveSettings(settings: Settings): Promise<void> {
     console.error("save settings failed", err);
   }
   await emit(SETTINGS_EVENT, next);
-}
-
-export async function broadcastSettings(settings: Settings): Promise<void> {
-  await emit(SETTINGS_EVENT, settings);
 }
 
 export async function listenSettings(
@@ -78,6 +83,15 @@ export async function listenOverlayCommands(
 
 export async function openSettingsWindow(): Promise<void> {
   await invoke("open_settings_window");
+}
+
+export async function applyMonitorMode(mode: Settings["monitorMode"]): Promise<void> {
+  await invoke("apply_monitor_mode_cmd", { mode });
+}
+
+export async function setAutostart(on: boolean): Promise<void> {
+  if (on) await enable();
+  else await disable();
 }
 
 export async function quitApp(): Promise<void> {

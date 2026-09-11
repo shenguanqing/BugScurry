@@ -56,6 +56,8 @@ export interface Settings {
   sound: boolean;
   stains: boolean;
   particles: boolean;
+  autostart: boolean;
+  monitorMode: "primary" | "all";
 }
 
 export type TrayCommand =

@@ -3,9 +3,11 @@ import { onMounted, onUnmounted, reactive, ref } from "vue";
 import { LIMITS } from "../core/config";
 import type { Settings } from "../core/types";
 import {
+  applyMonitorMode,
   loadSettings,
   saveSettings,
   sendOverlayCommand,
+  setAutostart,
 } from "../services/settingsService";
 
 const settings = reactive<Settings>({
@@ -16,6 +18,8 @@ const settings = reactive<Settings>({
   sound: true,
   stains: true,
   particles: true,
+  autostart: false,
+  monitorMode: "primary",
 });
 
 const savedFlash = ref(false);
@@ -35,12 +39,12 @@ function setCount(n: number) {
   void persist();
 }
 
-function onSlider(key: keyof Settings, ev: Event) {
+function onSlider(key: "size" | "speed" | "randomness" | "count", ev: Event) {
   const el = ev.target as HTMLInputElement;
   const value = Number(el.value);
   if (key === "count") setCount(value);
   else {
-    (settings as Record<string, number | boolean>)[key] = value;
+    settings[key] = value;
     void persist();
   }
 }
@@ -48,6 +52,26 @@ function onSlider(key: keyof Settings, ev: Event) {
 function toggle(key: "sound" | "stains" | "particles") {
   settings[key] = !settings[key];
   void persist();
+}
+
+async function toggleAutostart() {
+  settings.autostart = !settings.autostart;
+  try {
+    await setAutostart(settings.autostart);
+  } catch (err) {
+    console.error("autostart failed", err);
+  }
+  void persist();
+}
+
+async function setMonitorMode(mode: Settings["monitorMode"]) {
+  settings.monitorMode = mode;
+  void persist();
+  try {
+    await applyMonitorMode(mode);
+  } catch (err) {
+    console.error("monitor mode failed", err);
+  }
 }
 
 async function clearAll() {
@@ -169,6 +193,35 @@ onUnmounted(() => {
         <button type="button" class="toggle" :class="{ on: settings.particles }" @click="toggle('particles')">
           <span>粒子效果</span>
           <em>{{ settings.particles ? "开" : "关" }}</em>
+        </button>
+        <button type="button" class="toggle" :class="{ on: settings.autostart }" @click="toggleAutostart">
+          <span>开机启动</span>
+          <em>{{ settings.autostart ? "开" : "关" }}</em>
+        </button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="row head">
+        <div>
+          <label>多显示器</label>
+          <p class="hint">当前屏幕 / 所有屏幕</p>
+        </div>
+      </div>
+      <div class="segmented">
+        <button
+          type="button"
+          :class="{ active: settings.monitorMode === 'primary' }"
+          @click="setMonitorMode('primary')"
+        >
+          当前屏幕
+        </button>
+        <button
+          type="button"
+          :class="{ active: settings.monitorMode === 'all' }"
+          @click="setMonitorMode('all')"
+        >
+          所有屏幕
         </button>
       </div>
     </section>
