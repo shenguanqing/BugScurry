@@ -11,6 +11,13 @@ import {
   listenTray,
   setOverlayClickable,
 } from "./services/tauriBridge";
+import {
+  listenOverlayCommands,
+  listenSettings,
+  loadSettings,
+  openSettingsWindow,
+  saveSettings,
+} from "./services/settingsService";
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 
@@ -23,6 +30,8 @@ let manager: BugManager | null = null;
 let loop: ReturnType<typeof createLoop> | null = null;
 let unlistenCursor: (() => void) | null = null;
 let unlistenTray: (() => void) | null = null;
+let unlistenSettings: (() => void) | null = null;
+let unlistenCommands: (() => void) | null = null;
 let clickableFlag = true;
 let hoverHoldUntil = 0;
 
@@ -50,6 +59,11 @@ function setClickable(next: boolean) {
   void setOverlayClickable(next);
 }
 
+function applySettings(next: Settings) {
+  settings.value = next;
+  manager?.applySettings(next);
+}
+
 function onPointerDown(ev: PointerEvent) {
   if (!manager) return;
   const hit = hitTestBug(manager.list, ev.clientX, ev.clientY, viewport.value);
@@ -67,18 +81,25 @@ function handleTray(cmd: string) {
       visible.value = !visible.value;
       manager.setVisible(visible.value);
       break;
-    case "add_one":
+    case "add_one": {
       manager.addOne();
-      settings.value = { ...settings.value, count: manager.list.length };
+      const next = { ...settings.value, count: manager.list.length };
+      settings.value = next;
+      void saveSettings(next);
       break;
-    case "remove_one":
+    }
+    case "remove_one": {
       manager.removeOne();
-      settings.value = { ...settings.value, count: manager.list.length };
+      const next = { ...settings.value, count: Math.max(1, manager.list.length) };
+      settings.value = next;
+      void saveSettings(next);
       break;
+    }
     case "regenerate":
       manager.regenerate();
       break;
     case "open_settings":
+      void openSettingsWindow();
       break;
     default:
       break;
@@ -87,7 +108,9 @@ function handleTray(cmd: string) {
 
 onMounted(async () => {
   await refreshViewport();
-  manager = new BugManager(settings.value, viewport.value);
+  const loaded = await loadSettings();
+  settings.value = loaded;
+  manager = new BugManager(loaded, viewport.value);
   resizeCanvas();
 
   loop = createLoop({
@@ -108,6 +131,19 @@ onMounted(async () => {
   });
 
   unlistenTray = await listenTray((cmd) => handleTray(cmd));
+
+  unlistenSettings = await listenSettings((next) => {
+    applySettings(next);
+  });
+
+  unlistenCommands = await listenOverlayCommands((cmd) => {
+    if (!manager) return;
+    if (cmd === "clear") {
+      manager.clear();
+    } else if (cmd === "regenerate") {
+      manager.regenerate();
+    }
+  });
 });
 
 onUnmounted(() => {
@@ -115,6 +151,8 @@ onUnmounted(() => {
   window.removeEventListener("pointerdown", onPointerDown);
   unlistenCursor?.();
   unlistenTray?.();
+  unlistenSettings?.();
+  unlistenCommands?.();
 });
 </script>
 
@@ -134,7 +172,6 @@ onUnmounted(() => {
 }
 
 .overlay.clickable {
-  /* OS is not ignoring events; DOM must accept them for squish clicks. */
   pointer-events: auto;
 }
 

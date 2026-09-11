@@ -15,16 +15,28 @@ pub fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let menu = Menu::with_items(app, &[&show, &add, &remove, &regen, &settings, &quit])?;
 
     let _tray = TrayIconBuilder::with_id("main-tray")
-        .icon(app.default_window_icon().cloned().unwrap_or_else(|| {
-            tauri::image::Image::from_bytes(include_bytes!("../icons/32x32.png"))
-                .expect("tray icon")
-        }))
+        .icon(
+            app.default_window_icon()
+                .cloned()
+                .unwrap_or_else(|| {
+                    tauri::image::Image::from_bytes(include_bytes!("../icons/32x32.png"))
+                        .expect("tray icon")
+                }),
+        )
         .icon_as_template(true)
         .tooltip("BugScurry")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "quit" => app.exit(0),
+            "open_settings" => {
+                if let Some(window) = app.get_webview_window("settings") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                } else if let Some(window) = app.get_webview_window("overlay") {
+                    let _ = window.emit("tray-command", "open_settings");
+                }
+            }
             id => {
                 if let Some(window) = app.get_webview_window("overlay") {
                     let _ = window.emit("tray-command", id);

@@ -8,6 +8,8 @@ export class BugManager {
   private settings: Settings;
   private viewport: Viewport;
   private visible = true;
+  /** When true, do not auto-refill after clear. */
+  private suppressed = false;
 
   constructor(settings: Settings, viewport: Viewport) {
     this.settings = settings;
@@ -29,7 +31,6 @@ export class BugManager {
 
   setViewport(viewport: Viewport): void {
     this.viewport = viewport;
-    // Keep bugs inside the new bounds
     for (const bug of this.bugs) {
       const pad = bug.size * 0.5;
       bug.x = Math.min(viewport.width - pad, Math.max(pad, bug.x));
@@ -39,10 +40,12 @@ export class BugManager {
 
   applySettings(settings: Settings): void {
     this.settings = settings;
+    this.suppressed = false;
     this.syncCount();
   }
 
   syncCount(): void {
+    if (this.suppressed) return;
     const target = Math.max(0, Math.round(this.settings.count));
     while (this.bugs.length < target) {
       this.bugs.push(createBug(this.viewport, this.settings));
@@ -53,22 +56,25 @@ export class BugManager {
   }
 
   addOne(): void {
+    this.suppressed = false;
     this.settings = { ...this.settings, count: this.settings.count + 1 };
     this.bugs.push(createBug(this.viewport, this.settings));
   }
 
   removeOne(): void {
     if (this.bugs.length === 0) return;
-    this.settings = { ...this.settings, count: this.bugs.length - 1 };
+    this.suppressed = false;
+    this.settings = { ...this.settings, count: Math.max(0, this.bugs.length - 1) };
     this.bugs.pop();
   }
 
   clear(): void {
     this.bugs = [];
-    this.settings = { ...this.settings, count: 0 };
+    this.suppressed = true;
   }
 
   regenerate(): void {
+    this.suppressed = false;
     this.bugs = [];
     const rng = new Rng(randomSeed());
     const target = Math.max(1, Math.round(this.settings.count));
@@ -85,9 +91,9 @@ export class BugManager {
     for (const bug of this.bugs) {
       updateSquish(bug, dt);
     }
-    // Respawn replacements for fully faded bugs to maintain count
-    const target = Math.max(0, Math.round(this.settings.count));
     this.bugs = this.bugs.filter((b) => !isBugDead(b));
+    if (this.suppressed) return;
+    const target = Math.max(0, Math.round(this.settings.count));
     while (this.bugs.length < target) {
       this.bugs.push(createBug(this.viewport, this.settings));
     }
