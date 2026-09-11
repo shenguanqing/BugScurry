@@ -54,7 +54,7 @@ BugScurry/
 │   └── tech-analysis.md / .zh-CN.md
 ├── .github/
 │   └── workflows/
-│       └── build-windows.yml  # Windows NSIS CI
+│       └── ci.yml             # 质量检查 + Windows NSIS + macOS DMG + tag 发布
 ├── src/
 │   ├── main.ts
 │   ├── App.vue                # 覆盖层外壳（画布、命中、托盘）
@@ -147,12 +147,17 @@ pnpm tauri build      # 打包安装包
 | macOS | `src-tauri/target/release/bundle/dmg/` · `macos/` |
 | Windows | `src-tauri/target/release/bundle/nsis/` |
 
-CI（GitHub Actions）会把 Windows NSIS 安装包拷到仓库根目录 `release/` 并上传 Artifact（`BugScurry-windows-x64`）。该目录已 gitignore，**不是** Tauri 默认输出路径。
+CI（GitHub Actions）会跑 typecheck + 测试、`cargo check`，并构建：
+- Windows NSIS → Artifact `BugScurry-windows-x64`
+- macOS DMG（及 app zip）→ Artifact `BugScurry-macos-arm64`
+
+推送 `v*` 标签时还会创建 GitHub Release 并挂上安装包。变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
 ```bash
-gh workflow run build-windows.yml
+gh workflow run ci.yml
 gh run watch <run-id>
 gh run download <run-id> -n BugScurry-windows-x64 -D release
+gh run download <run-id> -n BugScurry-macos-arm64 -D release
 ```
 
 ### 发布前检查

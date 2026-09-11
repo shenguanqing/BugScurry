@@ -54,7 +54,7 @@ BugScurry/
 │   └── tech-analysis.md / .zh-CN.md
 ├── .github/
 │   └── workflows/
-│       └── build-windows.yml  # Windows NSIS CI build
+│       └── ci.yml             # Quality + Windows NSIS + macOS DMG + tag Release
 ├── src/
 │   ├── main.ts
 │   ├── App.vue                # Overlay shell (canvas, hit-test, tray)
@@ -147,12 +147,17 @@ Local `pnpm tauri build` writes to Tauri’s bundle dir:
 | macOS | `src-tauri/target/release/bundle/dmg/` · `macos/` |
 | Windows | `src-tauri/target/release/bundle/nsis/` |
 
-CI (GitHub Actions) copies the Windows NSIS installer into `release/` and uploads it as an artifact (`BugScurry-windows-x64`). That folder is gitignored and is **not** Tauri’s default output path.
+CI (GitHub Actions) runs typecheck + tests, `cargo check`, then builds:
+- Windows NSIS → artifact `BugScurry-windows-x64`
+- macOS DMG (+ app zip) → artifact `BugScurry-macos-arm64`
+
+Pushing a tag `v*` also creates a GitHub Release and attaches those installers. See [CHANGELOG.md](CHANGELOG.md).
 
 ```bash
-gh workflow run build-windows.yml
+gh workflow run ci.yml
 gh run watch <run-id>
 gh run download <run-id> -n BugScurry-windows-x64 -D release
+gh run download <run-id> -n BugScurry-macos-arm64 -D release
 ```
 
 ### Release checklist

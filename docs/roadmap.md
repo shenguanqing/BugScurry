@@ -48,7 +48,9 @@ Ship a playable loop first; every milestone must be runnable and checkable.
 - [x] Species registry (cockroach, ant, spider, fly, ladybug)
 - [x] Platform matrix notes
 - [x] Unit tests for core pure logic (`pnpm test`)
-- [x] CI: typecheck + tests + cargo check + Windows NSIS build
+- [x] CI: typecheck + tests + cargo check + Windows NSIS + macOS DMG
+- [x] Tag-triggered GitHub Release (`v*`) + CHANGELOG
+- [ ] Version bump / release pipeline dry-run beyond 0.1.0
 
 ## Later (not blocking)
 

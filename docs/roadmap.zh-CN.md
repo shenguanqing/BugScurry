@@ -48,7 +48,9 @@
 - [x] 虫种注册表（蟑螂、蚂蚁、蜘蛛、苍蝇、瓢虫）
 - [x] 平台验证矩阵更新
 - [x] 核心纯逻辑单元测试（`pnpm test`）
-- [x] CI：typecheck + 测试 + cargo check + Windows NSIS 构建
+- [x] CI：typecheck + 测试 + cargo check + Windows NSIS + macOS DMG
+- [x] `v*` 标签触发 GitHub Release + CHANGELOG
+- [ ] 0.1.0 之后的版本号 / 发布流水线演练
 
 ### 后续可选（未阻塞当前版本）
 
