@@ -165,9 +165,14 @@ jobs:
           name: BugScurry-macos-arm64
           path: dist-release
 
+      - name: Resolve version label
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          name: BugScurry ${{ steps.ver.outputs.version }}
           files: dist-release/*
           generate_release_notes: true
         env:
