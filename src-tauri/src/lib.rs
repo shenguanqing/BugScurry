@@ -3,8 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tauri::{
-    Emitter, Manager, Monitor, PhysicalPosition, PhysicalSize, RunEvent, WebviewUrl,
-    WebviewWindowBuilder, WindowEvent,
+    Emitter, Manager, Monitor, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 
 mod tray;
@@ -26,15 +25,53 @@ fn primary_monitor_or_first(app: &tauri::AppHandle) -> Option<Monitor> {
         .or_else(|| app.available_monitors().ok().and_then(|mut list| list.pop()))
 }
 
+/// Desktop bounds in global logical points for the display matching this monitor.
+#[cfg(target_os = "macos")]
+fn cg_logical_bounds_for_monitor(monitor: &Monitor) -> Option<(f64, f64, f64, f64)> {
+    use core_graphics::display::CGDisplay;
+    let scale = monitor.scale_factor().max(0.01);
+    let tao_x = f64::from(monitor.position().x);
+    let tao_y = f64::from(monitor.position().y);
+
+    let displays = CGDisplay::active_displays().ok()?;
+    for id in displays {
+        let display = CGDisplay::new(id);
+        let b = display.bounds();
+        // tao reports position as CGDisplayBounds.origin * scale
+        let px = b.origin.x * scale;
+        let py = b.origin.y * scale;
+        if (px - tao_x).abs() < 2.0 && (py - tao_y).abs() < 2.0 {
+            return Some((b.origin.x, b.origin.y, b.size.width, b.size.height));
+        }
+    }
+    None
+}
+
 fn fit_overlay_to_monitor(window: &tauri::WebviewWindow, monitor: &Monitor) {
+    // Prefer true desktop logical bounds — avoids tao size double-scaling
+    // and mixed-DPI position errors that clip secondary displays.
+    #[cfg(target_os = "macos")]
+    {
+        if let Some((x, y, w, h)) = cg_logical_bounds_for_monitor(monitor) {
+            if w > 1.0 && h > 1.0 {
+                let _ = window.set_position(tauri::LogicalPosition::new(x, y));
+                let _ = window.set_size(tauri::LogicalSize::new(w, h));
+                return;
+            }
+        }
+    }
+
+    let scale = monitor.scale_factor().max(0.01);
     let pos = *monitor.position();
     let size = *monitor.size();
-    if let Err(err) = window.set_position(PhysicalPosition::new(pos.x, pos.y)) {
-        eprintln!("set_position failed: {err}");
-    }
-    if let Err(err) = window.set_size(PhysicalSize::new(size.width, size.height)) {
-        eprintln!("set_size failed: {err}");
-    }
+    let _ = window.set_position(tauri::LogicalPosition::new(
+        f64::from(pos.x) / scale,
+        f64::from(pos.y) / scale,
+    ));
+    let _ = window.set_size(tauri::LogicalSize::new(
+        f64::from(size.width) / scale,
+        f64::from(size.height) / scale,
+    ));
 }
 
 /// True global cursor in physical pixels.

@@ -48,11 +48,25 @@ function resizeCanvas() {
   canvas.style.height = `${vp.height}px`;
 }
 
-async function refreshViewport() {
-  const fitted = await fitWindowToDisplay();
-  viewport.value = fitted;
+function refreshViewportSync() {
+  const width = window.innerWidth || document.documentElement.clientWidth || 1440;
+  const height = window.innerHeight || document.documentElement.clientHeight || 900;
+  const dpr = window.devicePixelRatio || 1;
+  viewport.value = { width, height, dpr };
   resizeCanvas();
-  manager?.setViewport(fitted);
+  manager?.setViewport(viewport.value);
+}
+
+async function refreshViewport() {
+  refreshViewportSync();
+  try {
+    const fitted = await fitWindowToDisplay();
+    viewport.value = fitted;
+    resizeCanvas();
+    manager?.setViewport(fitted);
+  } catch {
+    // keep sync values
+  }
 }
 
 function setClickable(next: boolean) {
@@ -123,6 +137,11 @@ onMounted(async () => {
     const label = getCurrentWindow().label;
     if (label === "overlay") {
       await applyMonitorMode(loaded.monitorMode);
+      // Secondary overlays are created/resized after this; give them a beat
+      // then re-read CSS viewport.
+      window.setTimeout(() => {
+        refreshViewportSync();
+      }, 120);
     }
   } catch {
     // ignore
@@ -137,6 +156,8 @@ onMounted(async () => {
   loop.start();
 
   window.addEventListener("pointerdown", onPointerDown);
+  window.addEventListener("resize", refreshViewportSync);
+  window.addEventListener("load", refreshViewportSync);
 
   unlistenCursor = await listenCursorLocal((pos) => {
     if (!manager) return;
@@ -169,6 +190,8 @@ onMounted(async () => {
 onUnmounted(() => {
   loop?.stop();
   window.removeEventListener("pointerdown", onPointerDown);
+  window.removeEventListener("resize", refreshViewportSync);
+  window.removeEventListener("load", refreshViewportSync);
   unlistenCursor?.();
   unlistenTray?.();
   unlistenSettings?.();

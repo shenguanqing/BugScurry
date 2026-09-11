@@ -34,13 +34,10 @@ export async function fitWindowToDisplay(): Promise<{
   height: number;
   dpr: number;
 }> {
-  const { getCurrentWindow } = await import("@tauri-apps/api/window");
-  const win = getCurrentWindow();
-  const dpr = await win.scaleFactor();
-  const size = await win.innerSize();
-  return {
-    width: size.width / dpr,
-    height: size.height / dpr,
-    dpr,
-  };
+  // CSS viewport is the most reliable source for canvas layout size,
+  // especially on secondary monitors with different DPI.
+  const width = window.innerWidth || document.documentElement.clientWidth || 1440;
+  const height = window.innerHeight || document.documentElement.clientHeight || 900;
+  const dpr = window.devicePixelRatio || 1;
+  return { width, height, dpr };
 }
