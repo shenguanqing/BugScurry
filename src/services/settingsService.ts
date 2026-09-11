@@ -32,6 +32,7 @@ export function clampSettings(input: Partial<Settings>): Settings {
   next.particles = !!next.particles;
   next.autostart = !!next.autostart;
   next.monitorMode = next.monitorMode === "all" ? "all" : "primary";
+  next.species = typeof next.species === "string" && next.species ? next.species : "random";
   return next;
 }
 

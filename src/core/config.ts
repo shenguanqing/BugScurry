@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS: Settings = {
   particles: true,
   autostart: false,
   monitorMode: "primary",
+  species: "random",
 };
 
 export const LIMITS = {
@@ -27,12 +28,13 @@ export const LIMITS = {
 export const BASE_SPEED = 70;
 
 /** Hit radius multiplier relative to drawn body size. */
-export const HIT_RADIUS_SCALE = 1.35;
+export const HIT_RADIUS_SCALE = 1.3;
 
-export const SQUISH_DURATION = 0.32;
-export const DEATH_FADE_DURATION = 1.15;
-export const STAIN_LIFE = 2.8;
-export const EDGE_MARGIN = 18;
+export const SQUISH_DURATION = 0.28;
+export const DEATH_FADE_DURATION = 1.05;
+export const STAIN_LIFE = 3.2;
+export const EDGE_MARGIN = 20;
 export const MAX_DT = 0.05;
-export const MAX_PARTICLES = 24;
-export const MAX_STAINS = 12;
+export const MAX_PARTICLES = 40;
+export const MAX_STAINS = 14;
+export const STUCK_TIMEOUT = 0.35;

@@ -20,6 +20,8 @@ export interface Bug {
   turnBias: number;
   /** edge-hug preference 0..1, higher = likes walls */
   edgeAffinity: number;
+  /** seconds spent barely moving near an edge */
+  stuckTime: number;
   seed: number;
 }
 
@@ -30,6 +32,7 @@ export interface Stain {
   size: number;
   life: number;
   maxLife: number;
+  species: string;
 }
 
 export interface Particle {
@@ -40,6 +43,7 @@ export interface Particle {
   life: number;
   maxLife: number;
   size: number;
+  color: string;
 }
 
 export interface Viewport {
@@ -58,6 +62,8 @@ export interface Settings {
   particles: boolean;
   autostart: boolean;
   monitorMode: "primary" | "all";
+  /** "random" or a species id */
+  species: string;
 }
 
 export type TrayCommand =

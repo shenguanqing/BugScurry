@@ -1,5 +1,6 @@
 import { BASE_SPEED } from "./config";
 import { Rng, randomSeed } from "./rng";
+import { getSpecies, pickSpeciesId } from "../species";
 import type { Bug, Settings, Viewport } from "./types";
 
 let nextId = 1;
@@ -11,6 +12,9 @@ export function createBug(
 ): Bug {
   const margin = 56;
   const spawnAtEdge = rng.chance(0.5);
+  const speciesId = pickSpeciesId(settings.species, () => rng.next());
+  const species = getSpecies(speciesId);
+  const traits = species?.traits;
 
   let x: number;
   let y: number;
@@ -41,20 +45,25 @@ export function createBug(
     heading = rng.range(0, Math.PI * 2);
   }
 
+  const bodyScale = traits?.bodyScale ?? 1;
+  const speedMul = traits?.speedMul ?? 1;
+  const edgeAffinity = traits?.edgeAffinity ?? 0.5;
+
   return {
     id: `bug-${nextId++}`,
-    species: "cockroach",
+    species: speciesId,
     x,
     y,
     heading,
-    speed: BASE_SPEED * settings.speed * rng.range(0.82, 1.18),
-    size: 15 * settings.size * rng.range(0.88, 1.12),
+    speed: BASE_SPEED * settings.speed * speedMul * rng.range(0.82, 1.18),
+    size: 15 * settings.size * bodyScale * rng.range(0.88, 1.12),
     state: "crawling",
     legPhase: rng.next(),
     stateTimer: rng.range(0.5, 2.2),
     deathProgress: 0,
     turnBias: rng.range(-0.3, 0.3),
-    edgeAffinity: rng.range(0.25, 0.9),
+    edgeAffinity: edgeAffinity * rng.range(0.85, 1.15),
+    stuckTime: 0,
     seed: rng.next(),
   };
 }

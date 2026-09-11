@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted, reactive, ref } from "vue";
 import { LIMITS } from "../core/config";
 import type { Settings } from "../core/types";
+import { listSpecies } from "../species";
 import {
   applyMonitorMode,
   loadSettings,
@@ -9,6 +10,11 @@ import {
   sendOverlayCommand,
   setAutostart,
 } from "../services/settingsService";
+
+const speciesOptions = [
+  { id: "random", label: "随机", emoji: "🎲" },
+  ...listSpecies().map((s) => ({ id: s.id, label: s.label, emoji: s.emoji })),
+];
 
 const settings = reactive<Settings>({
   count: 1,
@@ -20,6 +26,7 @@ const settings = reactive<Settings>({
   particles: true,
   autostart: false,
   monitorMode: "primary",
+  species: "random",
 });
 
 const savedFlash = ref(false);
@@ -74,6 +81,11 @@ async function setMonitorMode(mode: Settings["monitorMode"]) {
   }
 }
 
+function setSpecies(id: string) {
+  settings.species = id;
+  void persist();
+}
+
 async function clearAll() {
   await sendOverlayCommand("clear");
 }
@@ -103,6 +115,28 @@ onUnmounted(() => {
         {{ savedFlash ? "已保存" : "实时生效" }}
       </span>
     </header>
+
+    <section class="card">
+      <div class="row head">
+        <div>
+          <label>虫子类型</label>
+          <p class="hint">换一批不太一样的住户</p>
+        </div>
+      </div>
+      <div class="species-grid">
+        <button
+          v-for="opt in speciesOptions"
+          :key="opt.id"
+          type="button"
+          class="species"
+          :class="{ active: settings.species === opt.id }"
+          @click="setSpecies(opt.id)"
+        >
+          <span class="species-emoji">{{ opt.emoji }}</span>
+          <span>{{ opt.label }}</span>
+        </button>
+      </div>
+    </section>
 
     <section class="card">
       <div class="row head">
