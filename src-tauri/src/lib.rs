@@ -101,10 +101,10 @@ fn global_cursor_physical(_app: &tauri::AppHandle) -> Option<(f64, f64)> {
 
 /// One global poller. Each overlay gets its own local coords via `emit_to`.
 ///
-/// CGEvent location is in global display **points** (top-left origin).
-/// Tauri window position/size are **physical pixels**. Convert origin/size
-/// to points before subtracting — otherwise Retina (scale=2) primary
-/// displays get coordinates cut in half and miss hit tests.
+/// macOS: CGEvent is global **points**; window origin/size are physical —
+/// subtract origin/scale from points (do NOT divide the result again).
+/// Windows: cursor and window geometry are both **physical pixels** —
+/// use (cursor - origin) / scale.
 fn spawn_global_cursor_poller(app: tauri::AppHandle, running: Arc<AtomicBool>) {
     std::thread::spawn(move || {
         while running.load(Ordering::Relaxed) {
@@ -124,14 +124,26 @@ fn spawn_global_cursor_poller(app: tauri::AppHandle, running: Arc<AtomicBool>) {
                         continue;
                     };
 
-                    // Physical → logical/points
-                    let origin_x_pts = f64::from(origin.x) / scale;
-                    let origin_y_pts = f64::from(origin.y) / scale;
                     let w = f64::from(size.width) / scale;
                     let h = f64::from(size.height) / scale;
 
-                    let lx = gx - origin_x_pts;
-                    let ly = gy - origin_y_pts;
+                    let (lx, ly) = {
+                        #[cfg(target_os = "macos")]
+                        {
+                            (
+                                gx - f64::from(origin.x) / scale,
+                                gy - f64::from(origin.y) / scale,
+                            )
+                        }
+                        #[cfg(not(target_os = "macos"))]
+                        {
+                            (
+                                (gx - f64::from(origin.x)) / scale,
+                                (gy - f64::from(origin.y)) / scale,
+                            )
+                        }
+                    };
+
                     let inside = lx >= 0.0 && ly >= 0.0 && lx <= w && ly <= h;
                     let _ = win.emit_to(
                         &label,
@@ -222,9 +234,22 @@ fn apply_monitor_mode(app: &tauri::AppHandle, mode: &str) {
     }
 }
 
+fn set_overlays_always_on_top(app: &tauri::AppHandle, on: bool) {
+    for (label, win) in app.webview_windows() {
+        if label.starts_with("overlay") {
+            let _ = win.set_always_on_top(on);
+        }
+    }
+}
+
 fn open_or_focus_settings(app: &tauri::AppHandle) {
+    // Full-screen always-on-top overlays can sit above settings on Windows.
+    // Drop them a level while the settings window is open.
+    set_overlays_always_on_top(app, false);
+
     if let Some(win) = app.get_webview_window("settings") {
         let _ = win.show();
+        let _ = win.set_always_on_top(true);
         let _ = win.set_focus();
         return;
     }
@@ -233,13 +258,18 @@ fn open_or_focus_settings(app: &tauri::AppHandle) {
         .title("BugScurry 设置")
         .inner_size(420.0, 640.0)
         .resizable(false)
+        .decorations(true)
+        .transparent(false)
         .center()
         .always_on_top(true)
         .skip_taskbar(false)
+        .focused(true)
         .visible(true)
         .build()
     {
         Ok(win) => {
+            let _ = win.set_always_on_top(true);
+            let _ = win.show();
             let _ = win.set_focus();
         }
         Err(err) => eprintln!("open settings failed: {err}"),
@@ -334,12 +364,19 @@ pub fn run() {
         .on_window_event(|window, event| {
             let label = window.label();
             if label == "settings" {
-                if let WindowEvent::CloseRequested { api, .. } = event {
-                    let _ = window.hide();
-                    api.prevent_close();
+                match event {
+                    WindowEvent::CloseRequested { api, .. } => {
+                        // Actually close — hide+prevent_close left a stuck blank window on Windows.
+                        let _ = window.hide();
+                        api.prevent_close();
+                        set_overlays_always_on_top(window.app_handle(), true);
+                    }
+                    WindowEvent::Focused(false) => {
+                        // Keep overlays pass-through when settings is not focused.
+                    }
+                    _ => {}
                 }
             }
-            // Sticky tray popup: hide when it loses focus (click outside).
             if label == "tray-popup" {
                 if let WindowEvent::Focused(false) = event {
                     let _ = window.hide();

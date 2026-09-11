@@ -30,6 +30,20 @@
         "shadow": false,
         "fullscreen": false,
         "center": false
+      },
+      {
+        "label": "settings",
+        "title": "BugScurry 设置",
+        "url": "settings.html",
+        "width": 420,
+        "height": 640,
+        "visible": false,
+        "decorations": true,
+        "resizable": false,
+        "alwaysOnTop": true,
+        "center": true,
+        "skipTaskbar": false,
+        "focusable": true
       }
     ],
     "security": {
