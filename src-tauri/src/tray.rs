@@ -1,11 +1,12 @@
 use tauri::{
     menu::{Menu, MenuItem},
-    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    tray::TrayIconBuilder,
     Emitter, Manager,
 };
 
 pub fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "toggle_visibility", "显示 / 隐藏虫子", true, None::<&str>)?;
+    // ⇧⌘= / Ctrl+Shift+= is the portable "Command/Ctrl + +".
     let add = MenuItem::with_id(app, "add_one", "增加一只", true, Some("CmdOrCtrl+Shift+="))?;
     let remove = MenuItem::with_id(app, "remove_one", "减少一只", true, Some("CmdOrCtrl+-"))?;
     let regen = MenuItem::with_id(app, "regenerate", "重新生成", true, Some("CmdOrCtrl+R"))?;
@@ -16,17 +17,15 @@ pub fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
 
     let _tray = TrayIconBuilder::with_id("main-tray")
         .icon(
-            app.default_window_icon()
-                .cloned()
-                .unwrap_or_else(|| {
-                    tauri::image::Image::from_bytes(include_bytes!("../icons/32x32.png"))
-                        .expect("tray icon")
-                }),
+            tauri::image::Image::from_bytes(include_bytes!("../icons/tray-32.png"))
+                .expect("tray icon"),
         )
+        // Menu-bar template icons recolor with system appearance.
         .icon_as_template(true)
         .tooltip("BugScurry")
         .menu(&menu)
-        .show_menu_on_left_click(false)
+        // Left-click shows the menu (same as right-click).
+        .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "quit" => app.exit(0),
             "open_settings" => {
@@ -40,18 +39,6 @@ pub fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
             id => {
                 if let Some(window) = app.get_webview_window("overlay") {
                     let _ = window.emit("tray-command", id);
-                }
-            }
-        })
-        .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click {
-                button: MouseButton::Left,
-                button_state: MouseButtonState::Up,
-                ..
-            } = event
-            {
-                if let Some(window) = tray.app_handle().get_webview_window("overlay") {
-                    let _ = window.emit("tray-command", "toggle_visibility");
                 }
             }
         })
