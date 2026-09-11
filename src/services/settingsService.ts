@@ -33,7 +33,21 @@ export function clampSettings(input: Partial<Settings>): Settings {
   next.autostart = !!next.autostart;
   next.monitorMode = next.monitorMode === "all" ? "all" : "primary";
   next.species = typeof next.species === "string" && next.species ? next.species : "random";
+  next.theme = next.theme === "light" || next.theme === "dark" ? next.theme : "auto";
   return next;
+}
+
+/** Apply theme to a document element (settings / popup windows). */
+export function applyThemeToDocument(
+  doc: Document,
+  theme: Settings["theme"],
+): void {
+  const root = doc.documentElement;
+  root.dataset.theme = theme;
+  if (theme === "auto") {
+    root.removeAttribute("data-theme");
+    root.dataset.theme = "auto";
+  }
 }
 
 export async function loadSettings(): Promise<Settings> {

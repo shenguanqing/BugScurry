@@ -5,6 +5,7 @@ import type { Settings } from "../core/types";
 import { listSpecies } from "../species";
 import {
   applyMonitorMode,
+  applyThemeToDocument,
   loadSettings,
   saveSettings,
   sendOverlayCommand,
@@ -27,6 +28,7 @@ const settings = reactive<Settings>({
   autostart: false,
   monitorMode: "primary",
   species: "random",
+  theme: "auto",
 });
 
 const savedFlash = ref(false);
@@ -86,6 +88,12 @@ function setSpecies(id: string) {
   void persist();
 }
 
+function setTheme(theme: Settings["theme"]) {
+  settings.theme = theme;
+  applyThemeToDocument(document, theme);
+  void persist();
+}
+
 async function clearAll() {
   await sendOverlayCommand("clear");
 }
@@ -97,6 +105,7 @@ async function regenerate() {
 onMounted(async () => {
   const loaded = await loadSettings();
   Object.assign(settings, loaded);
+  applyThemeToDocument(document, settings.theme);
 });
 
 onUnmounted(() => {
@@ -238,11 +247,43 @@ onUnmounted(() => {
     <section class="card">
       <div class="row head">
         <div>
+          <label>外观</label>
+          <p class="hint">浅色 / 深色 / 跟随系统</p>
+        </div>
+      </div>
+      <div class="segmented">
+        <button
+          type="button"
+          :class="{ active: settings.theme === 'light' }"
+          @click="setTheme('light')"
+        >
+          浅色
+        </button>
+        <button
+          type="button"
+          :class="{ active: settings.theme === 'dark' }"
+          @click="setTheme('dark')"
+        >
+          深色
+        </button>
+        <button
+          type="button"
+          :class="{ active: settings.theme === 'auto' }"
+          @click="setTheme('auto')"
+        >
+          自动
+        </button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="row head">
+        <div>
           <label>多显示器</label>
           <p class="hint">当前屏幕 / 所有屏幕</p>
         </div>
       </div>
-      <div class="segmented">
+      <div class="segmented two">
         <button
           type="button"
           :class="{ active: settings.monitorMode === 'primary' }"

@@ -56,7 +56,7 @@ export function createBug(
     y,
     heading,
     speed: BASE_SPEED * settings.speed * speedMul * rng.range(0.82, 1.18),
-    size: 15 * settings.size * bodyScale * rng.range(0.88, 1.12),
+    size: 15 * settings.size * bodyScale * rng.range(0.97, 1.03),
     state: "crawling",
     legPhase: rng.next(),
     stateTimer: rng.range(0.5, 2.2),

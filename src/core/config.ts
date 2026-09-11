@@ -11,6 +11,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autostart: false,
   monitorMode: "primary",
   species: "random",
+  theme: "auto",
 };
 
 export const LIMITS = {

@@ -26,6 +26,7 @@ export interface Bug {
 }
 
 export interface Stain {
+  heading: number;
   id: string;
   x: number;
   y: number;
@@ -64,6 +65,8 @@ export interface Settings {
   monitorMode: "primary" | "all";
   /** "random" or a species id */
   species: string;
+  /** UI theme: light | dark | auto (follow system) */
+  theme: "light" | "dark" | "auto";
 }
 
 export type TrayCommand =

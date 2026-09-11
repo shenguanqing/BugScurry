@@ -1,7 +1,7 @@
 import type { Bug } from "../core/types";
 
 export interface SpeciesTraits {
-  /** Relative body length factor */
+  /** Logical size multiplier; standard species use 1 for consistent sizing and hit areas. */
   bodyScale: number;
   /** Relative speed multiplier */
   speedMul: number;
@@ -10,6 +10,11 @@ export interface SpeciesTraits {
   /** Particle/squish tint */
   tint: string;
   stainColor: string;
+  /** Translucent fluid exposed under pressure; defaults to muted straw yellow. */
+  fluidColor?: string;
+  /** Matching wet highlight and thin liquid edge; colors may include alpha. */
+  fluidHighlight?: string;
+  fluidShadow?: string;
 }
 
 export interface Species {

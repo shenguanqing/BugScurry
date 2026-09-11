@@ -29,3 +29,11 @@ export function updateSquish(bug: Bug, dt: number): void {
 export function isBugDead(bug: Bug): boolean {
   return bug.state === "dying" && bug.deathProgress >= 1;
 }
+
+/** Shared pressure envelope for anatomy and effects; continuous across states. */
+export function squishPressure(bug: Bug): number {
+  if (bug.state === "dying") return 1;
+  if (bug.state !== "squishing") return 0;
+  const t = Math.min(1, Math.max(0, bug.deathProgress / 0.38));
+  return 1 - Math.pow(1 - t, 3);
+}

@@ -1,33 +1,7 @@
+import { squishPressure } from "../core/squish";
 import type { Bug } from "../core/types";
 import { registerSpecies } from "./registry";
-
-function drawLegs(
-  ctx: CanvasRenderingContext2D,
-  s: number,
-  phase: number,
-  pairs: number,
-  spread: number,
-): void {
-  ctx.lineCap = "round";
-  for (let i = 0; i < pairs; i++) {
-    const along = (i - (pairs - 1) / 2) * s * 0.22;
-    const liftL = Math.sin(phase + i * 1.2) * s * 0.12;
-    const liftR = Math.sin(phase + i * 1.2 + Math.PI) * s * 0.12;
-    const len = s * spread;
-    // left
-    ctx.beginPath();
-    ctx.moveTo(along, -s * 0.12);
-    ctx.lineTo(along + len * 0.35, -s * 0.12 - len * 0.55 + liftL);
-    ctx.lineTo(along + len * 0.15, -s * 0.12 - len + liftL);
-    ctx.stroke();
-    // right
-    ctx.beginPath();
-    ctx.moveTo(along, s * 0.12);
-    ctx.lineTo(along + len * 0.35, s * 0.12 + len * 0.55 + liftR);
-    ctx.lineTo(along + len * 0.15, s * 0.12 + len + liftR);
-    ctx.stroke();
-  }
-}
+import { ellipse, legs, line, shell } from "./drawing";
 
 registerSpecies({
   id: "cockroach",
@@ -39,50 +13,51 @@ registerSpecies({
     edgeAffinity: 0.55,
     tint: "#5c4030",
     stainColor: "#3b2a1a",
+    fluidColor: "#c1b66dbd",
+    fluidHighlight: "#f7edc6dc",
+    fluidShadow: "#897d4299",
   },
   draw(ctx, bug: Bug, alpha: number) {
-    const s = bug.size;
+    // Calibrated by body mass, excluding legs, wings and antennae.
+    const s = bug.size * 1.10;
     const phase = bug.legPhase * Math.PI * 2;
+    const pressure = squishPressure(bug);
+    ctx.save();
+    ctx.scale(s, s * 0.78);
     ctx.globalAlpha = alpha;
-    ctx.strokeStyle = "#1a120c";
-    ctx.lineWidth = Math.max(1, s * 0.07);
-    drawLegs(ctx, s, phase, 3, 0.95);
-
-    const grad = ctx.createLinearGradient(-s * 0.7, 0, s * 0.3, 0);
-    grad.addColorStop(0, "#3a2a1c");
-    grad.addColorStop(0.5, "#4a3728");
-    grad.addColorStop(1, "#6a4e38");
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.ellipse(-s * 0.18, 0, s * 0.58, s * 0.34, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = "rgba(255,255,255,0.12)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.ellipse(-s * 0.22, 0, s * 0.4, s * 0.12, 0, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.fillStyle = "#2c1e14";
-    ctx.beginPath();
-    ctx.ellipse(s * 0.22, 0, s * 0.28, s * 0.22, 0, 0, Math.PI * 2);
-    ctx.ellipse(s * 0.5, 0, s * 0.18, s * 0.14, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = "#111";
-    ctx.beginPath();
-    ctx.arc(s * 0.57, -s * 0.07, s * 0.04, 0, Math.PI * 2);
-    ctx.arc(s * 0.57, s * 0.07, s * 0.04, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = "#1a120c";
-    ctx.lineWidth = Math.max(1, s * 0.05);
-    const w = Math.sin(phase * 1.4) * 0.15;
-    ctx.beginPath();
-    ctx.moveTo(s * 0.62, -s * 0.04);
-    ctx.quadraticCurveTo(s, -s * 0.25 + w * s, s * 1.15, -s * 0.1);
-    ctx.moveTo(s * 0.62, s * 0.04);
-    ctx.quadraticCurveTo(s, s * 0.25 - w * s, s * 1.15, s * 0.1);
-    ctx.stroke();
+    legs(ctx, phase, 3, 0.66, "#885143", true, pressure);
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(0.56, side * 0.09);
+      ctx.bezierCurveTo(1.12, side * 0.55, 1.20, side * 0.72, 0.88, side * (0.81 + Math.sin(phase * 0.4) * 0.025));
+      ctx.strokeStyle = "#cfb3a080";
+      ctx.lineWidth = 0.033;
+      ctx.stroke();
+      ctx.strokeStyle = "#875d50";
+      ctx.lineWidth = 0.016;
+      ctx.stroke();
+    }
+    line(ctx, "#654026", 0.03, -0.64, -0.12, -0.83, -0.2);
+    line(ctx, "#654026", 0.03, -0.64, 0.12, -0.83, 0.2);
+    shell(ctx, -0.19, 0, 0.65, 0.27, "#a86655", "#4c2023", "#24151b", pressure);
+    // Paired leathery forewings and fine longitudinal veins.
+    for (const side of [-1, 1]) {
+      for (let i = 1; i <= 4; i++) {
+        const y = side * i * 0.052;
+        ctx.strokeStyle = "#c77c6333";
+        ctx.lineWidth = 0.013;
+        ctx.beginPath();
+        ctx.moveTo(0.12, y * 0.5);
+        ctx.quadraticCurveTo(-0.25, y, -0.62 + i * 0.035, y * 0.7);
+        ctx.stroke();
+      }
+    }
+    line(ctx, "#21151d", 0.02, 0.2, 0, -0.69, 0);
+    shell(ctx, 0.48, 0, 0.17, 0.15, "#956337", "#53351e", "#2f2117", pressure);
+    shell(ctx, 0.24, 0, 0.20, 0.22, "#d0a385", "#82564b", "#44292c", pressure);
+    ellipse(ctx, 0.26, 0, 0.125, 0.14, "#3d242a");
+    ellipse(ctx, 0.52, -0.11, 0.052, 0.035, "#161611");
+    ellipse(ctx, 0.52, 0.11, 0.052, 0.035, "#161611");
+    ctx.restore();
   },
 });

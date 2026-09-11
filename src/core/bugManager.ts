@@ -51,14 +51,23 @@ export class BugManager {
   }
 
   applySettings(settings: Settings): void {
-    const speciesChanged = settings.species !== this.settings.species;
+    const prev = this.settings;
+    const speciesChanged = settings.species !== prev.species;
+    const countChanged = Math.round(settings.count) !== Math.round(prev.count);
     this.settings = settings;
-    this.suppressed = false;
+
     if (speciesChanged) {
-      // Respawn so the new species mix applies cleanly
+      this.suppressed = false;
       this.regenerate();
       return;
     }
+
+    // Only an explicit count change lifts "cleared" state.
+    // Theme / sound / etc. must not respawn bugs after 全部清除.
+    if (countChanged) {
+      this.suppressed = false;
+    }
+
     this.syncCount();
   }
 
@@ -109,12 +118,12 @@ export class BugManager {
     if (bug.state === "squishing" || bug.state === "dying") return false;
     startSquish(bug);
     const species = getSpecies(bug.species);
-    const tint = species?.traits.tint ?? "#5c4030";
-    const stainColor = species?.traits.stainColor ?? "#3b2a1a";
+    const fluidColor = species?.traits.fluidColor ?? "#b3a45b";
 
     if (this.settings.stains) {
       this.stains.push({
         id: `stain-${this.effectId++}`,
+        heading: bug.heading,
         x: bug.x,
         y: bug.y,
         size: bug.size * 0.95,
@@ -123,24 +132,24 @@ export class BugManager {
         species: bug.species,
       });
       if (this.stains.length > MAX_STAINS) this.stains.shift();
-      void stainColor;
     }
 
     if (this.settings.particles) {
       const rng = new Rng(randomSeed());
-      const n = 10 + Math.floor(rng.next() * 8);
+      const n = 4 + Math.floor(rng.next() * 4);
       for (let i = 0; i < n; i++) {
         const ang = rng.range(0, Math.PI * 2);
-        const sp = rng.range(60, 180);
+        const sp = bug.size * rng.range(1.5, 3.5);
+        const life = rng.range(0.22, 0.38);
         this.particles.push({
           x: bug.x,
           y: bug.y,
           vx: Math.cos(ang) * sp,
-          vy: Math.sin(ang) * sp - rng.range(10, 40),
-          life: rng.range(0.28, 0.55),
-          maxLife: 0.55,
-          size: rng.range(1.4, 3.2),
-          color: tint,
+          vy: Math.sin(ang) * sp,
+          life,
+          maxLife: life,
+          size: bug.size * rng.range(0.025, 0.055),
+          color: fluidColor,
         });
       }
       if (this.particles.length > MAX_PARTICLES * 2) {
@@ -159,8 +168,10 @@ export class BugManager {
       p.life -= dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
-      p.vy += 220 * dt; // gravity
-      p.vx *= 1 - dt * 2.5;
+      // Friction on the desktop plane arrests the small fragments quickly.
+      const drag = Math.exp(-14 * dt);
+      p.vx *= drag;
+      p.vy *= drag;
     }
     this.particles = this.particles.filter((p) => p.life > 0);
 

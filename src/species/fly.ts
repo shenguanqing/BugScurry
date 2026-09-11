@@ -1,62 +1,104 @@
+import { squishPressure } from "../core/squish";
 import type { Bug } from "../core/types";
 import { registerSpecies } from "./registry";
+import { ellipse, line, shell } from "./drawing";
+
+// Head points along +X. The wings spread outward from the thorax,
+// leaving the narrow abdomen visible between them, like the settings emoji.
+function drawWing(ctx: CanvasRenderingContext2D, side: number, phase: number, pressure: number): void {
+  ctx.save();
+  ctx.translate(0.12, side * 0.14);
+  ctx.scale(1, side);
+  ctx.rotate(-0.10 + Math.sin(phase * 3) * 0.018 + pressure * (side > 0 ? 0.3 : -0.18));
+  const membrane = ctx.createLinearGradient(0, 0, -0.9, 0.7);
+  membrane.addColorStop(0, "#b57532c9");
+  membrane.addColorStop(0.45, "#d5a562ae");
+  membrane.addColorStop(1, "#edd39ac9");
+  ctx.fillStyle = membrane;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(-0.17, 0.10, -0.47, 0.45, -0.81, 0.65);
+  ctx.bezierCurveTo(-1.05, 0.80, -1.19, 0.63, -1.10, 0.29);
+  ctx.bezierCurveTo(-1.03, 0.13, -0.83, 0.13, -0.61, 0.12);
+  ctx.bezierCurveTo(-0.37, 0.10, -0.13, 0.015, 0, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#76502dc9";
+  ctx.lineWidth = 0.018;
+  ctx.stroke();
+  // Long veins and cross-veins form the characteristic membrane cells.
+  line(ctx, "#80552dcc", 0.017, 0, 0, -0.31, 0.19, -0.66, 0.44, -1.05, 0.67);
+  line(ctx, "#80552dbb", 0.014, -0.07, 0.03, -0.43, 0.20, -0.78, 0.30, -1.10, 0.49);
+  line(ctx, "#80552dbb", 0.014, -0.31, 0.19, -0.58, 0.36, -0.68, 0.56, -0.83, 0.68);
+  line(ctx, "#80552daa", 0.012, -0.48, 0.23, -0.54, 0.35, -0.66, 0.44);
+  line(ctx, "#80552daa", 0.012, -0.78, 0.30, -0.82, 0.43, -0.98, 0.40);
+  line(ctx, "#80552daa", 0.012, -0.82, 0.43, -0.89, 0.57, -0.85, 0.70);
+  ctx.restore();
+}
+
+const LEG_POSES = [
+  [0.20, 0.12, 0.31, 0.32, 0.63, 0.27],
+  [0.05, 0.15, -0.15, 0.36, 0.12, 0.58],
+  [-0.08, 0.13, -0.48, 0.34, -0.66, 0.56],
+] as const;
 
 registerSpecies({
   id: "fly",
   label: "苍蝇",
   emoji: "🪰",
   traits: {
-    bodyScale: 0.7,
+    bodyScale: 1,
     speedMul: 1.4,
     edgeAffinity: 0.2,
     tint: "#3f3f46",
     stainColor: "#3f3f46",
+    fluidColor: "#d8d9c777",
+    fluidHighlight: "#ffffece0",
+    fluidShadow: "#92978566",
   },
   draw(ctx, bug: Bug, alpha: number) {
-    const s = bug.size * 0.75;
     const phase = bug.legPhase * Math.PI * 2;
-    ctx.globalAlpha = alpha;
-
-    // Wings (blur-ish)
+    const pressure = squishPressure(bug);
     ctx.save();
-    ctx.globalAlpha = alpha * 0.35;
-    ctx.fillStyle = "#e4e4e7";
-    const flap = 0.35 + Math.sin(phase * 6) * 0.25;
-    ctx.beginPath();
-    ctx.ellipse(-s * 0.05, -s * 0.45, s * 0.45, s * 0.18, -0.6 - flap, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(-s * 0.05, s * 0.45, s * 0.45, s * 0.18, 0.6 + flap, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-
-    ctx.strokeStyle = "#27272a";
-    ctx.lineWidth = Math.max(1, s * 0.05);
-    for (let i = 0; i < 3; i++) {
-      const along = (i - 1) * s * 0.15;
-      const lift = Math.sin(phase + i) * s * 0.08;
-      ctx.beginPath();
-      ctx.moveTo(along, -s * 0.08);
-      ctx.lineTo(along + s * 0.2, -s * 0.45 + lift);
-      ctx.moveTo(along, s * 0.08);
-      ctx.lineTo(along + s * 0.2, s * 0.45 - lift);
-      ctx.stroke();
+    // Match the other species by body mass rather than wing span.
+    ctx.scale(bug.size * 1.10, bug.size * 1.10);
+    ctx.globalAlpha = alpha;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (let i = 0; i < LEG_POSES.length; i++) {
+      const [rx, ry, kx, ky, originalTx, originalTy] = LEG_POSES[i];
+      const tx = kx + (originalTx - kx) * (1 - pressure * 0.7);
+      const ty = originalTy * (1 - pressure * 0.48);
+      for (const side of [-1, 1]) {
+        const step = Math.sin(phase + i * Math.PI + side * Math.PI / 2) * 0.035;
+        line(ctx, "#343028", 0.036, rx, side * ry, kx + step, side * ky);
+        line(ctx, "#484031", 0.023, kx + step, side * ky, tx + step, side * ty);
+        line(ctx, "#a2947666", 0.01, rx, side * ry, kx + step, side * ky);
+      }
     }
-
-    ctx.fillStyle = "#3f3f46";
-    ctx.beginPath();
-    ctx.ellipse(0, 0, s * 0.42, s * 0.28, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#52525b";
-    ctx.beginPath();
-    ctx.ellipse(s * 0.32, 0, s * 0.2, s * 0.2, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Compound eyes
-    ctx.fillStyle = "#a1a1aa";
-    ctx.beginPath();
-    ctx.arc(s * 0.42, -s * 0.1, s * 0.12, 0, Math.PI * 2);
-    ctx.arc(s * 0.42, s * 0.1, s * 0.12, 0, Math.PI * 2);
-    ctx.fill();
+    drawWing(ctx, -1, phase, pressure);
+    drawWing(ctx, 1, phase, pressure);
+    // Tapered, dark abdomen remains unobscured between the two wings.
+    shell(ctx, -0.40, 0, 0.46, 0.16, "#8a7960", "#3b3328", "#161814", pressure);
+    for (let i = 0; i < 4; i++) {
+      const x = -0.65 + i * 0.15;
+      const halfWidth = i === 0 ? 0.11 : 0.145;
+      line(ctx, "#17191499", 0.027, x, -halfWidth, x - 0.015, 0, x, halfWidth);
+    }
+    line(ctx, "#c0a77544", 0.025, -0.22, -0.035, -0.67, -0.025);
+    shell(ctx, 0.12, 0, 0.255, 0.195, "#b0ada0", "#65665c", "#292e27", pressure);
+    // Housefly thorax: fine longitudinal dark stripes, not a green shell.
+    for (const y of [-0.105, -0.035, 0.035, 0.105]) {
+      line(ctx, "#30352e88", 0.016, -0.065, y * 0.8, 0.13, y, 0.30, y * 0.65);
+    }
+    shell(ctx, 0.41, 0, 0.17, 0.19, "#76786a", "#414638", "#20251d", pressure);
+    for (const side of [-1, 1]) {
+      shell(ctx, 0.44, side * 0.125, 0.13, 0.115, "#e4aaa0", "#a95d53", "#542c29", pressure);
+      ellipse(ctx, 0.49, side * 0.12 - 0.028, 0.052, 0.025, "#f8d7c85c", -0.4);
+      // Compact antennae end just ahead of the eyes.
+      line(ctx, "#302d24", 0.022, 0.55, side * 0.032, 0.62, side * 0.048);
+    }
+    line(ctx, "#2b2d24", 0.038, 0.56, 0, 0.63, 0);
+    ctx.restore();
   },
 });
