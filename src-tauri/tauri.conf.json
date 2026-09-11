@@ -29,7 +29,8 @@
         "resizable": false,
         "shadow": false,
         "fullscreen": false,
-        "center": false
+        "center": false,
+        "visibleOnAllWorkspaces": true
       },
       {
         "label": "settings",

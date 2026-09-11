@@ -1,60 +1,63 @@
-# 开发路线图
+# Roadmap
 
-原则：先做出可玩的最小闭环，再扩能力；每个里程碑都可运行、可验收。
+[中文](roadmap.zh-CN.md)
 
-## M0 — 仓库与规范
+Ship a playable loop first; every milestone must be runnable and checkable.
 
-- [x] Git 仓库初始化
-- [x] 需求 / 架构 / 技术分析文档
-- [x] README、LICENSE、.gitignore
-- [x] 首次 commit 并 push 到 main
+## M0 — Repo & docs
 
-## M1 — MVP：一只虫可捏死
+- [x] Git init
+- [x] Requirements / architecture / tech analysis
+- [x] README, LICENSE, .gitignore
+- [x] First commit on `main`
 
-- [x] Tauri 2 + Vue 3 工程
-- [x] 透明覆盖层 + Canvas 蟑螂
-- [x] 随机爬行 / 停顿 / 转向 / 朝向
-- [x] 穿透 + 点击捏死 + 重生
-- [x] 基础托盘菜单
+## M1 — MVP: one bug, squishable
 
-## M2 — 多虫 + 设置
+- [x] Tauri 2 + Vue 3 project
+- [x] Transparent overlay + canvas cockroach
+- [x] Random crawl / pause / turn / heading
+- [x] Pass-through + click squish
+- [x] Basic tray menu
 
-- [x] 设置窗口（数量、大小、速度、随机度）
-- [x] 清除 / 重生 / 即时同步
-- [x] store 持久化
-- [x] 关设置不退出
+## M2 — Many bugs + settings
 
-## M3 — 手感与效果
+- [x] Settings window (count, size, speed, randomness)
+- [x] Clear / regenerate / live sync
+- [x] Store persistence
+- [x] Closing settings does not quit
 
-- [x] 沿边缘游走
-- [x] squish 形变打磨
-- [x] Web Audio 音效（可关）
-- [x] 死亡痕迹 / 粒子（可关）
+## M3 — Feel & FX
 
-## M4 — 多显示器与系统集成
+- [x] Edge-hugging
+- [x] Squish polish
+- [x] Optional Web Audio
+- [x] Optional stains / particles
 
-- [x] 当前屏幕 / 所有屏幕
-- [x] 开机启动
-- [x] 隐藏时降低轮询
-- [x] 窗口相对坐标命中
+## M4 — Multi-monitor & system
 
-## M5 — 打包与扩展点
+- [x] Current / all screens
+- [x] Autostart
+- [x] Lower idle polling when hidden
+- [x] Window-local hit testing
 
-- [x] README 打包命令与产物路径
-- [x] 虫种注册表骨架
-- [x] 平台验证矩阵更新
+## M5 — Packaging & extension points
 
-### 后续可选（未阻塞当前版本）
+- [x] README build paths
+- [x] Species registry
+- [x] Platform matrix notes
 
-- [ ] Windows 实机全量验证
-- [ ] macOS 签名 / 公证流水线
-- [ ] Ant / Spider / Fly / Ladybug 虫种
-- [ ] 设置里选择虫种
+## Later (not blocking)
 
-## 完成定义（DoD）
+- [ ] Full Windows soak test
+- [ ] macOS signing / notarization pipeline
+- [ ] Ant / spider / fly / ladybug polish
+- [x] No auto-respawn after squish
+- [ ] Overlay on all macOS Spaces (implemented; needs soak)
 
-1. `pnpm typecheck` 通过
-2. `pnpm build` 通过
-3. `cargo check` 通过
-4. macOS 实机跑通覆盖层与设置
-5. 文档与代码一致
+## Definition of done
+
+1. `pnpm typecheck` passes
+2. `pnpm build` passes
+3. `cargo check` passes
+4. Overlay + settings verified on macOS
+5. Docs match the code

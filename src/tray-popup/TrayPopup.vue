@@ -3,16 +3,30 @@ import { onMounted, onUnmounted, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { clampSettings, loadSettings, saveSettings } from "../services/settingsService";
+import { t } from "../i18n";
+import {
+  applyUiLocale,
+  clampSettings,
+  loadSettings,
+  saveSettings,
+} from "../services/settingsService";
 import type { Settings } from "../core/types";
 
 const count = ref(1);
 const visible = ref(true);
+const localeVersion = ref(0);
 let unlisten: UnlistenFn | null = null;
+
+function tt(key: string): string {
+  void localeVersion.value;
+  return t(key);
+}
 
 async function refreshFromSettings() {
   const s = await loadSettings();
   count.value = s.count;
+  await applyUiLocale(s.locale);
+  localeVersion.value++;
 }
 
 async function addOne() {
@@ -67,11 +81,11 @@ onUnmounted(() => {
   <div class="popup" @contextmenu.prevent>
     <header>
       <strong>BugScurry</strong>
-      <button type="button" class="close" title="关闭" @click="closeSelf">×</button>
+      <button type="button" class="close" :title="tt('popup.close')" @click="closeSelf">×</button>
     </header>
 
     <section class="row">
-      <span class="label">虫子</span>
+      <span class="label">{{ tt("popup.bugs") }}</span>
       <div class="stepper">
         <button type="button" @click="removeOne">−</button>
         <span class="count">{{ count }}</span>
@@ -81,13 +95,13 @@ onUnmounted(() => {
 
     <section class="actions">
       <button type="button" @click="toggleVisibility">
-        {{ visible ? "隐藏虫子" : "显示虫子" }}
+        {{ visible ? tt("popup.hide") : tt("popup.show") }}
       </button>
-      <button type="button" @click="regenerate">重新生成</button>
-      <button type="button" @click="openSettings">设置…</button>
-      <button type="button" class="danger" @click="quitApp">退出</button>
+      <button type="button" @click="regenerate">{{ tt("action.regenerate") }}</button>
+      <button type="button" @click="openSettings">{{ tt("tray.settings") }}</button>
+      <button type="button" class="danger" @click="quitApp">{{ tt("tray.quit") }}</button>
     </section>
 
-    <footer>点击外部关闭 · ⌘+ 增加</footer>
+    <footer>{{ tt("popup.footer") }}</footer>
   </div>
 </template>

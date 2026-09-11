@@ -1,160 +1,162 @@
-# BugScurry 产品需求文档（PRD）
+# BugScurry Requirements (PRD)
 
-状态：已冻结为 MVP 前需求基线  
-平台：macOS、Windows  
-产品形态：后台常驻的桌面覆盖层应用
+[中文](requirements.zh-CN.md)
 
-## 1. 产品定位
+Status: product baseline for MVP+  
+Platforms: macOS, Windows  
+Form factor: background desktop overlay app
 
-BugScurry 在用户桌面上显示若干只「真的像在屏幕上爬」的小虫。虫子出现在透明、无边框、始终置顶的覆盖层上，默认不影响正常操作；用户可以点击虫子将其「捏死」，并可选播放音效与残留痕迹。
+## 1. Product
 
-一句话：**桌面小虫宠物 / 恶搞挂件**，轻量、可关、可调、可扩展虫种。
+BugScurry shows small bugs crawling on the user’s desktop. They appear on a transparent, borderless, always-on-top overlay and do not block normal work. The user can click a bug to squish it, with optional sound and leftover marks.
 
-## 2. 用户场景
+One-liner: **desktop bug pet / joke widget** — light, toggleable, adjustable, extensible species.
 
-- 用户希望桌面多一点「活物」和幽默感；
-- 后台常驻，不抢焦点、不挡点击；
-- 随时从托盘 / Menu Bar 调数量、清屏、进设置；
-- 未来可切换不同虫种（蟑螂、蚂蚁、蜘蛛、苍蝇、瓢虫）。
+## 2. User scenarios
 
-## 3. 功能需求
+- Add life and humor to the desktop
+- Stay in the background without stealing focus or clicks
+- Change count, clear screen, open settings from tray / menu bar
+- Switch species (cockroach, ant, spider, fly, ladybug)
 
-### 3.1 覆盖层窗口
+## 3. Functional requirements
 
-| 编号 | 需求 | 优先级 |
-|------|------|--------|
-| F-WIN-01 | 透明背景、无边框、始终置顶 | P0 |
-| F-WIN-02 | 不出现在任务栏 / Dock 的常规窗口列表（可设置） | P0 |
-| F-WIN-03 | 覆盖指定显示器的可视区域；支持「当前屏幕 / 所有屏幕」 | P0（MVP 可先单屏） |
-| F-WIN-04 | 非虫子区域鼠标事件穿透到下层应用 | P0 |
-| F-WIN-05 | 虫子区域可接收点击 | P0 |
-| F-WIN-06 | 窗口不抢键盘焦点，不干扰全屏应用与游戏 | P0 |
-| F-WIN-07 | 正确处理 macOS Retina 与 Windows DPI Scaling | P0 |
+### 3.1 Overlay window
 
-### 3.2 虫子生成与生命周期
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| F-WIN-01 | Transparent, borderless, always on top | P0 |
+| F-WIN-02 | Not a normal taskbar / Dock window | P0 |
+| F-WIN-03 | Cover a display; “current screen” / “all screens” | P0 (MVP may start single-display) |
+| F-WIN-04 | Clicks pass through except on bugs | P0 |
+| F-WIN-05 | Bug area accepts clicks | P0 |
+| F-WIN-06 | No keyboard focus steal | P0 |
+| F-WIN-07 | Correct Retina / Windows DPI scaling | P0 |
 
-| 编号 | 需求 | 优先级 |
-|------|------|--------|
-| F-BUG-01 | 可同时存在多只虫，默认数量可配置（1–50） | P0 |
-| F-BUG-02 | 出生位置：屏幕边缘或屏幕内部随机 | P0 |
-| F-BUG-03 | 数量增减立即生效，无需重启 | P0 |
-| F-BUG-04 | 点击「重新生成」：清除现有并按当前设置重生 | P0 |
-| F-BUG-05 | 点击「全部清除」：清空所有虫子 | P0 |
-| F-BUG-06 | 捏死后短暂淡出，可在设置关闭后自动补位重生（保持数量） | P0 |
-| F-BUG-07 | 支持多种虫类型的数据结构与注册表（先实现一种） | P1 架构，P2 功能 |
+### 3.2 Lifecycle
 
-### 3.3 运动与行为
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| F-BUG-01 | 1–50 bugs, configurable count | P0 |
+| F-BUG-02 | Spawn on edges or inside the screen | P0 |
+| F-BUG-03 | Count changes apply immediately | P0 |
+| F-BUG-04 | Regenerate clears and respawns from settings | P0 |
+| F-BUG-05 | Clear all | P0 |
+| F-BUG-06 | **Squished bugs are not auto-replaced.** New bugs only after count increase, tray `+`, or regenerate | P0 |
+| F-BUG-07 | Species registry (ship one, extend later) | P1 architecture |
 
-| 编号 | 需求 | 优先级 |
-|------|------|--------|
-| F-MOV-01 | 随机方向爬行，速度有轻微随机变化 | P0 |
-| F-MOV-02 | 偶尔停顿 | P0 |
-| F-MOV-03 | 偶尔改变方向 | P0 |
-| F-MOV-04 | 可沿屏幕边缘移动（边界行为） | P1 |
-| F-MOV-05 | 不允许移动到屏幕可视区域之外 | P0 |
-| F-MOV-06 | 多只虫行为不同步（独立状态与随机种子） | P0 |
-| F-MOV-07 | 身体朝向自动跟随移动方向旋转 | P0 |
-| F-MOV-08 | 运动看起来像昆虫，而不是简单图片平移（加噪声、微抖动、腿部动画等） | P0 |
-| F-MOV-09 | 隐藏虫子或应用暂停时停止模拟与渲染 | P0 |
+### 3.3 Motion
 
-### 3.4 捏死（Squish）
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| F-MOV-01 | Random heading, slight speed noise | P0 |
+| F-MOV-02 | Occasional pause | P0 |
+| F-MOV-03 | Occasional direction change | P0 |
+| F-MOV-04 | Edge sliding | P1 |
+| F-MOV-05 | Never leave the visible area | P0 |
+| F-MOV-06 | Independent per-bug RNG | P0 |
+| F-MOV-07 | Body rotates with heading | P0 |
+| F-MOV-08 | Insect-like motion (noise, leg phase), not a sliding sprite | P0 |
+| F-MOV-09 | Stop update/render when hidden | P0 |
 
-| 编号 | 需求 | 优先级 |
-|------|------|--------|
-| F-SQ-01 | 点击虫子后立即停止移动 | P0 |
-| F-SQ-02 | 播放很短的压扁 / squish 动画 | P0 |
-| F-SQ-03 | 轻微压扁、缩放、形变 | P0 |
-| F-SQ-04 | 可选：轻微污渍痕迹（禁止血腥） | P1 |
-| F-SQ-05 | 可选音效「啪 / squish」 | P1 |
-| F-SQ-06 | 约 1–2 秒内虫子与痕迹淡出消失 | P0 |
-| F-SQ-07 | 可选：点击瞬间轻微粒子效果 | P2 |
+### 3.4 Squish
 
-### 3.5 设置窗口
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| F-SQ-01 | Stop moving on click | P0 |
+| F-SQ-02 | Short squish animation | P0 |
+| F-SQ-03 | Flatten / scale / deform | P0 |
+| F-SQ-04 | Optional non-gory stain | P1 |
+| F-SQ-05 | Optional short sound | P1 |
+| F-SQ-06 | Fade out within ~1–2s | P0 |
+| F-SQ-07 | Optional particles | P2 |
 
-设置窗口为独立小窗口；**关闭设置不退出应用**。
+### 3.5 Settings window
 
-| 编号 | 需求 | 优先级 |
-|------|------|--------|
-| F-SET-01 | 虫子数量：1～50，滑杆或步进 | P0 |
-| F-SET-02 | + / - 动态增加、减少虫子 | P0 |
-| F-SET-03 | 虫子大小 | P1 |
-| F-SET-04 | 爬行速度 | P1 |
-| F-SET-05 | 随机程度 | P1 |
-| F-SET-06 | 是否播放音效 | P1 |
-| F-SET-07 | 是否显示死亡痕迹 | P1 |
-| F-SET-08 | 一键「全部清除」 | P0 |
-| F-SET-09 | 一键「重新生成」 | P0 |
-| F-SET-10 | 开机启动 | P1 |
-| F-SET-11 | 始终运行 | P1 |
-| F-SET-12 | 多显示器：当前屏幕 / 所有屏幕 | P1 |
-| F-SET-13 | 设置修改即时生效并持久化 | P0 |
+Independent small window. **Closing settings must not quit the app.**
 
-### 3.6 托盘 / Menu Bar
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| F-SET-01 | Count 1–50 | P0 |
+| F-SET-02 | + / − | P0 |
+| F-SET-03 | Size (live on existing bugs) | P1 |
+| F-SET-04 | Speed | P1 |
+| F-SET-05 | Randomness | P1 |
+| F-SET-06 | Sound on/off | P1 |
+| F-SET-07 | Stains on/off | P1 |
+| F-SET-08 | Clear all | P0 |
+| F-SET-09 | Regenerate | P0 |
+| F-SET-10 | Autostart | P1 |
+| F-SET-11 | Always run | P1 |
+| F-SET-12 | Current screen / all screens | P1 |
+| F-SET-13 | Immediate effect + persistence | P0 |
 
-| 编号 | 需求 | 优先级 |
-|------|------|--------|
-| F-TRAY-01 | macOS 使用 Menu Bar 图标 | P0 |
-| F-TRAY-02 | Windows 使用 System Tray 图标 | P0 |
-| F-TRAY-03 | 菜单：显示 / 隐藏虫子 | P0 |
-| F-TRAY-04 | 菜单：增加一只 | P0 |
-| F-TRAY-05 | 菜单：减少一只 | P0 |
-| F-TRAY-06 | 菜单：重新生成 | P0 |
-| F-TRAY-07 | 菜单：设置 | P0 |
-| F-TRAY-08 | 菜单：退出 | P0 |
-| F-TRAY-09 | 关闭设置窗口不退出程序 | P0 |
+### 3.6 Tray / menu bar
 
-## 4. 非功能需求
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| F-TRAY-01 | macOS menu bar icon | P0 |
+| F-TRAY-02 | Windows system tray icon | P0 |
+| F-TRAY-03 | Show / hide bugs | P0 |
+| F-TRAY-04 | Add one | P0 |
+| F-TRAY-05 | Remove one | P0 |
+| F-TRAY-06 | Regenerate | P0 |
+| F-TRAY-07 | Settings | P0 |
+| F-TRAY-08 | Quit | P0 |
+| F-TRAY-09 | Closing settings does not quit | P0 |
 
-### 4.1 性能
+## 4. Non-functional
 
-| 编号 | 需求 |
-|------|------|
-| N-PERF-01 | 动画目标 60 FPS |
-| N-PERF-02 | 至少 50 只虫同时运行仍流畅 |
-| N-PERF-03 | 避免每帧触发大量 Vue 响应式更新 |
-| N-PERF-04 | 动画优先 `requestAnimationFrame` |
-| N-PERF-05 | 控制 CPU / GPU 占用；空闲时接近静默 |
-| N-PERF-06 | 隐藏或暂停时停止不必要计算 |
+### Performance
 
-### 4.2 兼容性
+| ID | Requirement |
+|----|-------------|
+| N-PERF-01 | Target 60 FPS |
+| N-PERF-02 | Smooth with 50 bugs |
+| N-PERF-03 | No per-frame Vue reactive churn |
+| N-PERF-04 | Prefer `requestAnimationFrame` |
+| N-PERF-05 | Low idle CPU/GPU |
+| N-PERF-06 | Skip work when hidden |
 
-| 编号 | 需求 |
-|------|------|
-| N-COMP-01 | macOS：Apple Silicon + Intel |
-| N-COMP-02 | Windows：x64；ARM64 尽力兼容 |
-| N-COMP-03 | macOS Retina 正确 |
-| N-COMP-04 | Windows DPI Scaling 正确（100% / 125% / 150% / 200%） |
-| N-COMP-05 | 多显示器不同分辨率 |
+### Compatibility
 
-### 4.3 体验原则
+| ID | Requirement |
+|----|-------------|
+| N-COMP-01 | macOS Apple Silicon + Intel |
+| N-COMP-02 | Windows x64 (ARM64 best-effort) |
+| N-COMP-03 | Retina correct |
+| N-COMP-04 | DPI 100/125/150/200% |
+| N-COMP-05 | Mixed-resolution multi-monitor |
 
-- 现代、轻量、有一点幽默感；
-- 不血腥、不恐怖、不吓儿童；
-- 默认不妨碍用户；一切强交互都可关；
-- 透明覆盖层上的视觉元素对比度足够，但在深/浅色桌面上都可读。
+### Experience
 
-### 4.4 可维护性
+- Modern, light, slightly humorous
+- Not gory or frightening
+- Non-blocking by default; strong interactions optional
+- Readable on light and dark wallpapers
 
-- 模块边界清晰（见架构文档）；
-- TypeScript 严格模式；
-- 业务逻辑不堆在 Vue 组件内；
-- 新虫种应通过配置/注册扩展，而不是改核心循环。
+### Maintainability
 
-## 5. 明确不做（本阶段）
+- Clear module boundaries (see architecture)
+- TypeScript strict
+- Logic outside Vue components
+- Species via registry, not core-loop forks
 
-- 虫子之间的复杂社会行为（编队、围攻）；
-- 联网、账号、云同步；
-- 3D 渲染；
-- 血腥/惊悚模式；
-- 移动端。
+## 5. Out of scope (this stage)
 
-## 6. 验收标准（MVP）
+- Complex multi-bug social behavior
+- Network / accounts / cloud sync
+- 3D
+- Horror modes
+- Mobile
 
-1. 启动后出现透明覆盖层与至少 1 只虫；
-2. 虫子随机爬行、自动转向、偶尔停顿；
-3. 透明区域点击可穿透到桌面；
-4. 点击虫子触发 squish，并在 1–2 秒内消失；
-5. 消失后按设置数量补位重生；
-6. 设置窗口可开关数量，立即生效；
-7. 托盘 / Menu Bar 菜单可用，退出能真正退出；
-8. 关闭设置窗口后应用仍在运行。
+## 6. MVP acceptance
+
+1. Overlay + at least one bug on launch
+2. Random crawl, turn, pause
+3. Transparent areas pass clicks to the desktop
+4. Click squishes and removes the bug in 1–2s
+5. Squished bugs are not auto-replaced
+6. Settings count applies immediately
+7. Tray menu works; quit exits
+8. Closing settings leaves the app running

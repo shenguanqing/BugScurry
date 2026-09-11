@@ -4,6 +4,7 @@ import { Store } from "@tauri-apps/plugin-store";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { DEFAULT_SETTINGS, LIMITS } from "../core/config";
 import type { Settings } from "../core/types";
+import { setLocalePref, syncTrayLocale } from "../i18n";
 
 export const SETTINGS_EVENT = "settings-changed";
 export const COMMAND_EVENT = "overlay-command";
@@ -34,7 +35,15 @@ export function clampSettings(input: Partial<Settings>): Settings {
   next.monitorMode = next.monitorMode === "all" ? "all" : "primary";
   next.species = typeof next.species === "string" && next.species ? next.species : "random";
   next.theme = next.theme === "light" || next.theme === "dark" ? next.theme : "auto";
+  next.locale =
+    next.locale === "zh-CN" || next.locale === "en" ? next.locale : "auto";
   return next;
+}
+
+/** Resolve locale pref → zh-CN/en, update reactive locale, refresh tray labels. */
+export async function applyUiLocale(pref: Settings["locale"]): Promise<void> {
+  const locale = setLocalePref(pref);
+  await syncTrayLocale(locale);
 }
 
 /** Apply theme to a document element (settings / popup windows). */
@@ -75,6 +84,7 @@ export async function saveSettings(settings: Settings): Promise<void> {
   } catch (err) {
     console.error("save settings failed", err);
   }
+  await applyUiLocale(next.locale);
   await emit(SETTINGS_EVENT, next);
 }
 

@@ -302,15 +302,20 @@ output {
   border-bottom: 1px solid var(--line);
   background: transparent;
   color: var(--ink);
-  padding: 12px 0;
+  padding: 10px 0;
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
   text-align: left;
 }
 
+.toggles .toggle:first-child {
+  padding-top: 0;
+}
+
 .toggles .toggle:last-child {
   border-bottom: 0;
+  padding-bottom: 0;
 }
 
 .toggle em {

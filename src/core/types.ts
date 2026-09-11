@@ -67,6 +67,8 @@ export interface Settings {
   species: string;
   /** UI theme: light | dark | auto (follow system) */
   theme: "light" | "dark" | "auto";
+  /** UI language: zh-CN | en | auto */
+  locale: "zh-CN" | "en" | "auto";
 }
 
 export type TrayCommand =

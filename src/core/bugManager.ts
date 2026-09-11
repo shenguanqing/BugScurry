@@ -53,7 +53,8 @@ export class BugManager {
   applySettings(settings: Settings): void {
     const prev = this.settings;
     const speciesChanged = settings.species !== prev.species;
-    const countChanged = Math.round(settings.count) !== Math.round(prev.count);
+    const prevCount = Math.max(0, Math.round(prev.count));
+    const nextCount = Math.max(0, Math.round(settings.count));
     const sizeRatio =
       prev.size > 0 && settings.size > 0 ? settings.size / prev.size : 1;
     this.settings = settings;
@@ -72,23 +73,29 @@ export class BugManager {
       }
     }
 
-    // Only an explicit count change lifts "cleared" state.
-    // Theme / sound / etc. must not respawn bugs after 全部清除.
-    if (countChanged) {
+    // Only explicit count edits change population.
+    // Squished bugs stay dead — do not top-up back to `count`.
+    if (nextCount > prevCount) {
       this.suppressed = false;
+      while (this.bugs.length < nextCount) {
+        this.bugs.push(createBug(this.viewport, this.settings));
+      }
+    } else if (nextCount < this.bugs.length) {
+      this.suppressed = false;
+      while (this.bugs.length > nextCount) {
+        this.bugs.pop();
+      }
     }
-
-    this.syncCount();
   }
 
   syncCount(): void {
     if (this.suppressed) return;
     const target = Math.max(0, Math.round(this.settings.count));
-    while (this.bugs.length < target) {
-      this.bugs.push(createBug(this.viewport, this.settings));
-    }
     while (this.bugs.length > target) {
       this.bugs.pop();
+    }
+    while (this.bugs.length < target) {
+      this.bugs.push(createBug(this.viewport, this.settings));
     }
   }
 
@@ -187,12 +194,8 @@ export class BugManager {
 
     for (const bug of this.bugs) updateSquish(bug, dt);
     this.bugs = this.bugs.filter((b) => !isBugDead(b));
-
-    if (this.suppressed) return;
-    const target = Math.max(0, Math.round(this.settings.count));
-    while (this.bugs.length < target) {
-      this.bugs.push(createBug(this.viewport, this.settings));
-    }
+    // Intentionally no auto-replace: user can squish every bug; new ones
+    // only appear via count increase, tray +, or 重新生成.
   }
 
   tick(dt: number): void {

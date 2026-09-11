@@ -15,6 +15,7 @@ import {
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   applyMonitorMode,
+  applyUiLocale,
   listenOverlayCommands,
   listenSettings,
   loadSettings,
@@ -129,6 +130,7 @@ onMounted(async () => {
   await refreshViewport();
   const loaded = await loadSettings();
   settings.value = loaded;
+  await applyUiLocale(loaded.locale);
   manager = new BugManager(loaded, viewport.value);
   resizeCanvas();
 

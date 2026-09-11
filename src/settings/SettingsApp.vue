@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, reactive, ref } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { LIMITS } from "../core/config";
 import type { Settings } from "../core/types";
-import { listSpecies } from "../species";
+import { t } from "../i18n";
 import {
   applyMonitorMode,
   applyThemeToDocument,
+  applyUiLocale,
   listenSettings,
   loadSettings,
   saveSettings,
@@ -14,10 +15,24 @@ import {
   setAutostart,
 } from "../services/settingsService";
 
-const speciesOptions = [
-  { id: "random", label: "随机", emoji: "🎲" },
-  ...listSpecies().map((s) => ({ id: s.id, label: s.label, emoji: s.emoji })),
-];
+/** Force re-render of t() strings when locale changes. */
+const localeVersion = ref(0);
+function tt(key: string): string {
+  void localeVersion.value;
+  return t(key);
+}
+
+const speciesOptions = computed(() => {
+  void localeVersion.value;
+  return [
+    { id: "random", label: t("species.random"), emoji: "🎲" },
+    { id: "cockroach", label: t("species.cockroach"), emoji: "🪳" },
+    { id: "ant", label: t("species.ant"), emoji: "🐜" },
+    { id: "spider", label: t("species.spider"), emoji: "🕷" },
+    { id: "fly", label: t("species.fly"), emoji: "🪰" },
+    { id: "ladybug", label: t("species.ladybug"), emoji: "🐞" },
+  ];
+});
 
 const settings = reactive<Settings>({
   count: 1,
@@ -31,17 +46,18 @@ const settings = reactive<Settings>({
   monitorMode: "primary",
   species: "random",
   theme: "auto",
+  locale: "auto",
 });
 
 const savedFlash = ref(false);
 let flashTimer: number | undefined;
 let unlistenSettings: UnlistenFn | null = null;
-/** Ignore the next settings-changed if we caused it (avoid echo loops). */
 let ignoreNextBroadcast = false;
 
 async function persist() {
   ignoreNextBroadcast = true;
   await saveSettings({ ...settings });
+  localeVersion.value++;
   savedFlash.value = true;
   window.clearTimeout(flashTimer);
   flashTimer = window.setTimeout(() => {
@@ -100,6 +116,12 @@ function setTheme(theme: Settings["theme"]) {
   void persist();
 }
 
+async function setLocale(locale: Settings["locale"]) {
+  settings.locale = locale;
+  await persist();
+  localeVersion.value++;
+}
+
 async function clearAll() {
   await sendOverlayCommand("clear");
 }
@@ -112,8 +134,9 @@ onMounted(async () => {
   const loaded = await loadSettings();
   Object.assign(settings, loaded);
   applyThemeToDocument(document, settings.theme);
+  await applyUiLocale(settings.locale);
+  localeVersion.value++;
 
-  // Tray / overlay can change count etc.; keep this window in sync.
   unlistenSettings = await listenSettings((next) => {
     if (ignoreNextBroadcast) {
       ignoreNextBroadcast = false;
@@ -121,6 +144,8 @@ onMounted(async () => {
     }
     Object.assign(settings, next);
     applyThemeToDocument(document, settings.theme);
+    void applyUiLocale(settings.locale);
+    localeVersion.value++;
   });
 });
 
@@ -135,18 +160,18 @@ onUnmounted(() => {
     <header class="header">
       <div>
         <h1>BugScurry</h1>
-        <p class="tagline">桌面小虫控制台 · 不弄脏屏幕</p>
+        <p class="tagline">{{ tt("app.tagline") }}</p>
       </div>
       <span class="badge" :class="{ on: savedFlash }">
-        {{ savedFlash ? "已保存" : "实时生效" }}
+        {{ savedFlash ? tt("badge.saved") : tt("badge.live") }}
       </span>
     </header>
 
     <section class="card">
       <div class="row head">
         <div>
-          <label>虫子类型</label>
-          <p class="hint">换一批不太一样的住户</p>
+          <label>{{ tt("species.title") }}</label>
+          <p class="hint">{{ tt("species.hint") }}</p>
         </div>
       </div>
       <div class="species-grid">
@@ -167,8 +192,8 @@ onUnmounted(() => {
     <section class="card">
       <div class="row head">
         <div>
-          <label>虫子数量</label>
-          <p class="hint">1 – {{ LIMITS.countMax }} 只，即时增减</p>
+          <label>{{ tt("count.title") }}</label>
+          <p class="hint">1 – {{ LIMITS.countMax }} · {{ tt("count.hint") }}</p>
         </div>
         <div class="stepper">
           <button type="button" class="btn ghost" @click="setCount(settings.count - 1)">−</button>
@@ -190,8 +215,8 @@ onUnmounted(() => {
     <section class="card">
       <div class="row">
         <div class="grow">
-          <label>虫子大小</label>
-          <p class="hint">看起来有多「壮」</p>
+          <label>{{ tt("size.title") }}</label>
+          <p class="hint">{{ tt("size.hint") }}</p>
         </div>
         <output>{{ settings.size.toFixed(2) }}×</output>
       </div>
@@ -207,8 +232,8 @@ onUnmounted(() => {
 
       <div class="row spacer">
         <div class="grow">
-          <label>爬行速度</label>
-          <p class="hint">慢吞吞 → 夺命狂奔</p>
+          <label>{{ tt("speed.title") }}</label>
+          <p class="hint">{{ tt("speed.hint") }}</p>
         </div>
         <output>{{ settings.speed.toFixed(2) }}×</output>
       </div>
@@ -224,8 +249,8 @@ onUnmounted(() => {
 
       <div class="row spacer">
         <div class="grow">
-          <label>随机程度</label>
-          <p class="hint">越高越神经质</p>
+          <label>{{ tt("randomness.title") }}</label>
+          <p class="hint">{{ tt("randomness.hint") }}</p>
         </div>
         <output>{{ Math.round(settings.randomness * 100) }}%</output>
       </div>
@@ -243,20 +268,26 @@ onUnmounted(() => {
     <section class="card">
       <div class="toggles">
         <button type="button" class="toggle" :class="{ on: settings.sound }" @click="toggle('sound')">
-          <span>捏死音效</span>
-          <em>{{ settings.sound ? "开" : "关" }}</em>
+          <span>{{ tt("toggle.sound") }}</span>
+          <em>{{ settings.sound ? tt("toggle.on") : tt("toggle.off") }}</em>
         </button>
         <button type="button" class="toggle" :class="{ on: settings.stains }" @click="toggle('stains')">
-          <span>死亡痕迹</span>
-          <em>{{ settings.stains ? "开" : "关" }}</em>
+          <span>{{ tt("toggle.stains") }}</span>
+          <em>{{ settings.stains ? tt("toggle.on") : tt("toggle.off") }}</em>
         </button>
-        <button type="button" class="toggle" :class="{ on: settings.particles }" title="捏死瞬间向外飞溅的小液珠；地面汁液由死亡痕迹控制" @click="toggle('particles')">
-          <span>液珠飞溅</span>
-          <em>{{ settings.particles ? "开" : "关" }}</em>
+        <button
+          type="button"
+          class="toggle"
+          :class="{ on: settings.particles }"
+          :title="tt('toggle.particles.tip')"
+          @click="toggle('particles')"
+        >
+          <span>{{ tt("toggle.particles") }}</span>
+          <em>{{ settings.particles ? tt("toggle.on") : tt("toggle.off") }}</em>
         </button>
         <button type="button" class="toggle" :class="{ on: settings.autostart }" @click="toggleAutostart">
-          <span>开机启动</span>
-          <em>{{ settings.autostart ? "开" : "关" }}</em>
+          <span>{{ tt("toggle.autostart") }}</span>
+          <em>{{ settings.autostart ? tt("toggle.on") : tt("toggle.off") }}</em>
         </button>
       </div>
     </section>
@@ -264,31 +295,19 @@ onUnmounted(() => {
     <section class="card">
       <div class="row head">
         <div>
-          <label>外观</label>
-          <p class="hint">浅色 / 深色 / 跟随系统</p>
+          <label>{{ tt("theme.title") }}</label>
+          <p class="hint">{{ tt("theme.hint") }}</p>
         </div>
       </div>
       <div class="segmented">
-        <button
-          type="button"
-          :class="{ active: settings.theme === 'light' }"
-          @click="setTheme('light')"
-        >
-          浅色
+        <button type="button" :class="{ active: settings.theme === 'light' }" @click="setTheme('light')">
+          {{ tt("theme.light") }}
         </button>
-        <button
-          type="button"
-          :class="{ active: settings.theme === 'dark' }"
-          @click="setTheme('dark')"
-        >
-          深色
+        <button type="button" :class="{ active: settings.theme === 'dark' }" @click="setTheme('dark')">
+          {{ tt("theme.dark") }}
         </button>
-        <button
-          type="button"
-          :class="{ active: settings.theme === 'auto' }"
-          @click="setTheme('auto')"
-        >
-          自动
+        <button type="button" :class="{ active: settings.theme === 'auto' }" @click="setTheme('auto')">
+          {{ tt("theme.auto") }}
         </button>
       </div>
     </section>
@@ -296,8 +315,8 @@ onUnmounted(() => {
     <section class="card">
       <div class="row head">
         <div>
-          <label>多显示器</label>
-          <p class="hint">当前屏幕 / 所有屏幕</p>
+          <label>{{ tt("monitor.title") }}</label>
+          <p class="hint">{{ tt("monitor.hint") }}</p>
         </div>
       </div>
       <div class="segmented two">
@@ -306,25 +325,45 @@ onUnmounted(() => {
           :class="{ active: settings.monitorMode === 'primary' }"
           @click="setMonitorMode('primary')"
         >
-          当前屏幕
+          {{ tt("monitor.primary") }}
         </button>
         <button
           type="button"
           :class="{ active: settings.monitorMode === 'all' }"
           @click="setMonitorMode('all')"
         >
-          所有屏幕
+          {{ tt("monitor.all") }}
+        </button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="row head">
+        <div>
+          <label>{{ tt("language.title") }}</label>
+          <p class="hint">{{ tt("language.hint") }}</p>
+        </div>
+      </div>
+      <div class="segmented">
+        <button type="button" :class="{ active: settings.locale === 'auto' }" @click="setLocale('auto')">
+          {{ tt("language.auto") }}
+        </button>
+        <button type="button" :class="{ active: settings.locale === 'zh-CN' }" @click="setLocale('zh-CN')">
+          {{ tt("language.zh-CN") }}
+        </button>
+        <button type="button" :class="{ active: settings.locale === 'en' }" @click="setLocale('en')">
+          {{ tt("language.en") }}
         </button>
       </div>
     </section>
 
     <section class="actions">
-      <button type="button" class="btn primary" @click="regenerate">重新生成</button>
-      <button type="button" class="btn danger" @click="clearAll">全部清除</button>
+      <button type="button" class="btn primary" @click="regenerate">{{ tt("action.regenerate") }}</button>
+      <button type="button" class="btn danger" @click="clearAll">{{ tt("action.clear") }}</button>
     </section>
 
     <footer class="footer">
-      关闭本窗口不会退出应用 · 托盘菜单仍可控制
+      {{ tt("footer") }}
     </footer>
   </div>
 </template>

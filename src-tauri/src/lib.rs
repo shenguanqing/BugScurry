@@ -163,6 +163,8 @@ fn spawn_global_cursor_poller(app: tauri::AppHandle, running: Arc<AtomicBool>) {
 
 fn configure_overlay_window(window: &tauri::WebviewWindow, monitor: &Monitor) {
     let _ = window.set_ignore_cursor_events(true);
+    // Follow the user across Mission Control Spaces.
+    let _ = window.set_visible_on_all_workspaces(true);
     fit_overlay_to_monitor(window, monitor);
 }
 
@@ -224,6 +226,7 @@ fn apply_monitor_mode(app: &tauri::AppHandle, mode: &str) {
             .resizable(false)
             .shadow(false)
             .visible(true)
+            .visible_on_all_workspaces(true)
             .build()
         {
             Ok(win) => {
@@ -297,6 +300,17 @@ fn apply_monitor_mode_cmd(app: tauri::AppHandle, mode: String) {
 }
 
 #[tauri::command]
+fn apply_locale(
+    app: tauri::AppHandle,
+    locale: String,
+    labels: Option<tray::TrayLabels>,
+) {
+    let _ = locale;
+    let labels = labels.unwrap_or_default();
+    let _ = tray::apply_tray_labels(&app, labels);
+}
+
+#[tauri::command]
 fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
@@ -343,6 +357,7 @@ pub fn run() {
             get_overlay_scale,
             open_settings_window,
             apply_monitor_mode_cmd,
+            apply_locale,
             quit_app,
             popup_add_one,
             popup_remove_one,

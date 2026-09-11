@@ -1,96 +1,175 @@
 # BugScurry
 
-桌面小虫宠物：透明覆盖层上自由爬行的小虫，点击即可「捏死」。
+Desktop bugs that crawl on top of your screen. Click one to squish it.
 
-支持 macOS 与 Windows。应用以后台常驻为主，通过 Menu Bar / 系统托盘控制。
+Cross-platform desktop app for **macOS** and **Windows**. Runs in the background and is controlled from the menu bar / system tray.
 
-## 功能
+[中文文档](README.zh-CN.md)
 
-- 透明、无边框、始终置顶的桌面覆盖层
-- 默认鼠标穿透，悬停虫子时临时可点
-- 多只虫独立随机运动：爬行、停顿、转向、沿边缘游走
-- 点击捏死：squish 压扁、Web Audio「啪」、痕迹与粒子、自动补位
-- 设置窗口：数量 1–50、大小、速度、随机度、音效/痕迹/粒子、开机启动、多显示器
-- 托盘 / Menu Bar：显示隐藏、增减、重生、设置、退出
-- 关闭设置不退出应用
+## Features
 
-## 技术栈
+- Transparent, borderless, always-on-top desktop overlay
+- Mouse pass-through by default; only bugs are clickable
+- Multiple bugs with independent random motion (crawl, pause, turn, edge-hug)
+- Squish on click: flatten animation, optional Web Audio snap, stains, particles
+- Settings window: count 1–50, size, speed, randomness, sound/stains/particles, autostart, multi-monitor, light/dark/auto theme
+- Tray / Menu Bar: show-hide, add/remove, regenerate, settings, quit
+- Closing settings does not quit the app
+- Squished bugs are **not** auto-replaced (regenerate or raise count to spawn more)
+- Overlay follows macOS Mission Control Spaces
 
-| 层 | 选型 |
-|----|------|
-| 桌面壳 | [Tauri 2](https://tauri.app) |
-| 前端 | Vue 3 + TypeScript + Vite |
-| 包管理 | pnpm |
-| 渲染 | Canvas 2D |
-| 持久化 | tauri-plugin-store |
-| 自启动 | tauri-plugin-autostart |
+## Tech Stack
 
-选型说明见 [docs/tech-analysis.md](docs/tech-analysis.md)。
+| Layer | Choice |
+|-------|--------|
+| Shell | [Tauri 2](https://tauri.app) |
+| UI | Vue 3 + TypeScript + Vite |
+| Package manager | pnpm |
+| Rendering | Canvas 2D |
+| Persistence | tauri-plugin-store |
+| Autostart | tauri-plugin-autostart |
 
-## 文档
+Why Tauri instead of Electron: see [docs/tech-analysis.md](docs/tech-analysis.md).
 
-| 文档 | 内容 |
-|------|------|
-| [docs/requirements.md](docs/requirements.md) | 产品与功能需求、验收标准 |
-| [docs/architecture.md](docs/architecture.md) | 模块划分、数据流、坐标与穿透协作 |
-| [docs/tech-analysis.md](docs/tech-analysis.md) | Tauri vs Electron 分析与决策 |
-| [docs/roadmap.md](docs/roadmap.md) | 里程碑与完成定义 |
-| [docs/platforms.md](docs/platforms.md) | 平台差异与测试矩阵 |
-| [AGENTS.md](AGENTS.md) | 协作与开发规范 |
+## Project Structure
 
-## 开发
+Single source of truth for the file tree. Design rationale and module duties live in [docs/architecture.md](docs/architecture.md) — not duplicated here as another tree.
 
-### 环境要求
+```text
+BugScurry/
+├── index.html                 # Overlay webview entry
+├── settings.html              # Settings window entry
+├── tray-popup.html            # Tray popup entry (legacy)
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+├── assets/
+│   └── icon-source.png        # App icon source (1024² with HIG padding)
+├── docs/
+│   ├── README.md              # Doc index (EN + 中文)
+│   ├── architecture.md / .zh-CN.md
+│   ├── platforms.md / .zh-CN.md
+│   ├── requirements.md / .zh-CN.md
+│   ├── roadmap.md / .zh-CN.md
+│   └── tech-analysis.md / .zh-CN.md
+├── .github/
+│   └── workflows/
+│       └── build-windows.yml  # Windows NSIS CI build
+├── src/
+│   ├── main.ts                # Overlay Vue bootstrap
+│   ├── App.vue                # Overlay shell (canvas, hit-test, tray)
+│   ├── core/
+│   │   ├── types.ts
+│   │   ├── config.ts
+│   │   ├── rng.ts
+│   │   ├── bug.ts             # Bug entity factory
+│   │   ├── bugManager.ts      # Spawn / clear / regenerate / squish
+│   │   ├── movement.ts        # Crawl AI
+│   │   ├── renderer.ts        # Canvas draw + squish / stains / particles
+│   │   ├── hitTest.ts
+│   │   ├── squish.ts
+│   │   ├── audio.ts
+│   │   └── loop.ts            # requestAnimationFrame loop
+│   ├── species/
+│   │   ├── registry.ts        # Species registry + traits
+│   │   ├── drawing.ts         # Shared canvas helpers
+│   │   ├── index.ts
+│   │   ├── cockroach.ts
+│   │   ├── ant.ts
+│   │   ├── spider.ts
+│   │   ├── fly.ts
+│   │   └── ladybug.ts
+│   ├── settings/
+│   │   ├── main.ts
+│   │   └── SettingsApp.vue    # Settings UI
+│   ├── tray-popup/
+│   │   ├── main.ts
+│   │   └── TrayPopup.vue
+│   ├── services/
+│   │   ├── tauriBridge.ts     # Overlay ↔ Tauri events / commands
+│   │   └── settingsService.ts # Store, theme, monitor mode
+│   └── styles/
+│       ├── overlay.css
+│       ├── settings.css
+│       └── tray-popup.css
+└── src-tauri/
+    ├── Cargo.toml
+    ├── tauri.conf.json
+    ├── capabilities/
+    │   └── default.json
+    ├── icons/                 # App + tray icons
+    └── src/
+        ├── main.rs
+        ├── lib.rs             # Windows, cursor poller, monitor fit, commands
+        └── tray.rs            # Menu bar / tray menu
+```
+
+## Docs
+
+All docs ship in English (`*.md`) and Chinese (`*.zh-CN.md`). Index: [docs/README.md](docs/README.md).
+
+| English | 中文 | Topic |
+|---------|------|-------|
+| [docs/requirements.md](docs/requirements.md) | [requirements.zh-CN.md](docs/requirements.zh-CN.md) | Requirements |
+| [docs/architecture.md](docs/architecture.md) | [architecture.zh-CN.md](docs/architecture.zh-CN.md) | Principles & modules |
+| [docs/tech-analysis.md](docs/tech-analysis.md) | [tech-analysis.zh-CN.md](docs/tech-analysis.zh-CN.md) | Tauri vs Electron |
+| [docs/roadmap.md](docs/roadmap.md) | [roadmap.zh-CN.md](docs/roadmap.zh-CN.md) | Milestones |
+| [docs/platforms.md](docs/platforms.md) | [platforms.zh-CN.md](docs/platforms.zh-CN.md) | Platform notes |
+| [AGENTS.md](AGENTS.md) | — | Collaboration rules |
+
+## Development
+
+### Prerequisites
 
 - Node.js 20+
 - pnpm 9+
-- Rust stable（`rustup`）
-- macOS：Xcode Command Line Tools
-- Windows：WebView2 Runtime、MSVC Build Tools
+- Rust stable (`rustup`)
+- macOS: Xcode Command Line Tools
+- Windows: WebView2 Runtime, MSVC Build Tools
 
-### 命令
+### Commands
 
 ```bash
-pnpm install          # 安装依赖
-pnpm tauri dev        # 开发运行
-pnpm typecheck        # TypeScript 检查
-pnpm build            # 前端构建
-pnpm tauri build      # 打包安装包
+pnpm install          # install dependencies
+pnpm tauri dev        # run in development
+pnpm typecheck        # TypeScript check
+pnpm build            # frontend production build
+pnpm tauri build      # platform installer
 ```
 
-### 打包产物
+### Build outputs
 
-`pnpm tauri build` 后：
+Local `pnpm tauri build` writes to Tauri’s bundle dir:
 
-- **macOS**：`src-tauri/target/release/bundle/dmg/`、`macos/`
-- **Windows**：`src-tauri/target/release/bundle/nsis/`
+| Platform | Path |
+|----------|------|
+| macOS | `src-tauri/target/release/bundle/dmg/` · `macos/` |
+| Windows | `src-tauri/target/release/bundle/nsis/` |
 
-发布前建议：
+CI (GitHub Actions) copies the Windows NSIS installer into `release/` and uploads it as an artifact (`BugScurry-windows-x64`). That folder is gitignored and is **not** Tauri’s default output path.
 
-1. 更新 `src-tauri/tauri.conf.json` 的 `version`
-2. macOS 配置签名与公证（Apple Developer）
-3. Windows 可选代码签名
-
-### 项目结构
-
-```
-src-tauri/           # 窗口、托盘、穿透、多显示器、自启动
-src/core/            # Bug / Movement / Renderer / HitTest / Squish / Audio / Loop
-src/settings/        # 设置窗口 UI
-src/species/         # 虫种注册表（首期蟑螂）
-src/services/        # 与 Tauri 通信、设置持久化
-docs/                # 需求、架构、路线图
+```bash
+gh workflow run build-windows.yml
+gh run watch <run-id>
+gh run download <run-id> -n BugScurry-windows-x64 -D release
 ```
 
-## 平台验证
+### Release checklist
 
-| 项 | macOS | Windows |
-|----|-------|---------|
-| 覆盖层显示 | 已验证 | 待验证 |
-| 穿透点击 / 捏死 | 待手动确认 | 待验证 |
-| 设置窗口 | 已验证 | 待验证 |
-| 多显示器 | 单屏已验证 | 待验证 |
+1. Bump `version` in `src-tauri/tauri.conf.json`
+2. macOS: signing & notarization (optional for local use)
+3. Windows: optional code signing (SmartScreen may warn on unsigned builds)
+
+## Platform notes
+
+| Concern | Approach |
+|---------|----------|
+| Mouse pass-through | Default `ignore_cursor_events`; enable only when hovering a bug |
+| Hit-test coords | macOS: CGEvent points; Windows: physical pixels |
+| Retina / DPI | Logical viewport from CSS `innerWidth` + `devicePixelRatio` |
+| Multi-monitor | One overlay window per display when “all screens” |
+| Mission Control Spaces | `visibleOnAllWorkspaces` on overlays |
 
 ## License
 
-见 [LICENSE](LICENSE)。
+See [LICENSE](LICENSE).
