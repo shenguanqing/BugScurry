@@ -64,6 +64,11 @@ fn global_cursor_physical(_app: &tauri::AppHandle) -> Option<(f64, f64)> {
 }
 
 /// One global poller. Each overlay gets its own local coords via `emit_to`.
+///
+/// CGEvent location is in global display **points** (top-left origin).
+/// Tauri window position/size are **physical pixels**. Convert origin/size
+/// to points before subtracting — otherwise Retina (scale=2) primary
+/// displays get coordinates cut in half and miss hit tests.
 fn spawn_global_cursor_poller(app: tauri::AppHandle, running: Arc<AtomicBool>) {
     std::thread::spawn(move || {
         while running.load(Ordering::Relaxed) {
@@ -82,10 +87,15 @@ fn spawn_global_cursor_poller(app: tauri::AppHandle, running: Arc<AtomicBool>) {
                     let Ok(size) = win.outer_size() else {
                         continue;
                     };
+
+                    // Physical → logical/points
+                    let origin_x_pts = f64::from(origin.x) / scale;
+                    let origin_y_pts = f64::from(origin.y) / scale;
                     let w = f64::from(size.width) / scale;
                     let h = f64::from(size.height) / scale;
-                    let lx = (gx - f64::from(origin.x)) / scale;
-                    let ly = (gy - f64::from(origin.y)) / scale;
+
+                    let lx = gx - origin_x_pts;
+                    let ly = gy - origin_y_pts;
                     let inside = lx >= 0.0 && ly >= 0.0 && lx <= w && ly <= h;
                     let _ = win.emit_to(
                         &label,
