@@ -6,7 +6,6 @@ use tauri::{
     Emitter, Manager, Monitor, PhysicalPosition, PhysicalSize, RunEvent, WebviewUrl,
     WebviewWindowBuilder, WindowEvent,
 };
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 mod tray;
 
@@ -271,7 +270,6 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(Arc::new(AtomicBool::new(true)))
         .invoke_handler(tauri::generate_handler![
             set_overlay_clickable,
@@ -294,47 +292,6 @@ pub fn run() {
             let running = handle.state::<Arc<AtomicBool>>().inner().clone();
             spawn_global_cursor_poller(handle.clone(), running);
             tray::setup_tray(handle)?;
-
-            // Command/Ctrl + +  and  Command/Ctrl + ,
-            let primary_mod = if cfg!(target_os = "macos") {
-                Modifiers::SUPER
-            } else {
-                Modifiers::CONTROL
-            };
-            // ⌘= / Ctrl+= is the "+" key on most layouts; also bind ⇧⌘= for US keyboards.
-            let add_one = Shortcut::new(Some(primary_mod), Code::Equal);
-            let add_one_shift = Shortcut::new(Some(primary_mod | Modifiers::SHIFT), Code::Equal);
-            let open_settings = Shortcut::new(Some(primary_mod), Code::Comma);
-
-            handle
-                .global_shortcut()
-                .on_shortcut(add_one, |app, _shortcut, event| {
-                    if event.state == ShortcutState::Pressed {
-                        if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
-                            let _ = window.emit("tray-command", "add_one");
-                        }
-                    }
-                })?;
-
-            let _ = handle.global_shortcut().on_shortcut(
-                add_one_shift,
-                |app, _shortcut, event| {
-                    if event.state == ShortcutState::Pressed {
-                        if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
-                            let _ = window.emit("tray-command", "add_one");
-                        }
-                    }
-                },
-            );
-
-            handle
-                .global_shortcut()
-                .on_shortcut(open_settings, |app, _shortcut, event| {
-                    if event.state == ShortcutState::Pressed {
-                        open_or_focus_settings(app);
-                    }
-                })?;
-
             Ok(())
         })
         .on_window_event(|window, event| {
