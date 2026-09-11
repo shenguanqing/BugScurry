@@ -13,7 +13,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-## [0.1.0] - 2026-09-12
+## [0.1.1] - 2026-09-12
+
+Engineering hardening after the first public baseline.
+
+### Added
+
+- Vitest unit tests for core pure logic (`pnpm test`, 39 cases)
+- CI (`ci.yml`): typecheck + tests, `cargo check`, Windows NSIS, macOS DMG
+- Tag-triggered GitHub Release (`v*`) attaching NSIS + DMG artifacts
+- `CHANGELOG.md`
+- `docs/README.zh-CN.md` Chinese docs index
+
+### Changed
+
+- Pause rAF + cursor poller while bugs are hidden (~0% idle CPU while hidden)
+- Settings window title follows UI language
+- macOS soak notes filled in `docs/platforms.md` (pass-through, squish, Spaces, multi-monitor)
+
+### Removed
+
+- Legacy tray-popup window / commands
+
+## [0.1.0] - 2026-09-11
 
 First public baseline: desktop bug overlay for macOS and Windows.
 
@@ -26,15 +48,12 @@ First public baseline: desktop bug overlay for macOS and Windows.
 - Squish FX: flatten animation, optional Web Audio snap, stains, particles
 - Multi-monitor: current screen / all screens; per-window hit-test coords
 - i18n (zh-CN / en) for settings, tray labels, and docs
-- Vitest unit tests for core pure logic (`pnpm test`)
-- CI: frontend typecheck + tests, `cargo check`, Windows NSIS build, macOS DMG build
-- Pause rAF + cursor poller while bugs are hidden (~0% idle CPU)
+- No auto-respawn after squish; closing settings does not quit
 
 ### Notes
 
-- Squished bugs are **not** auto-replaced
-- Closing the settings window does not quit the app
 - Production binaries must be built with `pnpm tauri build` (not bare `cargo build --release`)
 
-[Unreleased]: https://github.com/shenguanqing/BugScurry/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/shenguanqing/BugScurry/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/shenguanqing/BugScurry/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/shenguanqing/BugScurry/releases/tag/v0.1.0

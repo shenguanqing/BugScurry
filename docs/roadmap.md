@@ -50,7 +50,7 @@ Ship a playable loop first; every milestone must be runnable and checkable.
 - [x] Unit tests for core pure logic (`pnpm test`)
 - [x] CI: typecheck + tests + cargo check + Windows NSIS + macOS DMG
 - [x] Tag-triggered GitHub Release (`v*`) + CHANGELOG
-- [ ] Version bump / release pipeline dry-run beyond 0.1.0
+- [x] Release pipeline dry-run at v0.1.1
 
 ## Later (not blocking)
 
