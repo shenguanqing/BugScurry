@@ -20,6 +20,9 @@ function bug(overrides: Partial<Bug> = {}): Bug {
     edgeAffinity: 0.5,
     stuckTime: 0,
     seed: 0.5,
+    hp: 1,
+    maxHp: 1,
+    hurtTimer: 0,
     ...overrides,
   };
 }

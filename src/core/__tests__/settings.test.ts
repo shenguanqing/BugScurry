@@ -59,4 +59,10 @@ describe("clampSettings", () => {
     expect(s.stains).toBe(false);
     expect(typeof s.particles).toBe("boolean");
   });
+
+  it("defaults repellent on, honors explicit false", () => {
+    expect(clampSettings({}).repellent).toBe(true);
+    const s = clampSettings({ repellent: false });
+    expect(s.repellent).toBe(false);
+  });
 });

@@ -36,7 +36,17 @@ describe("createBug", () => {
 describe("species registry", () => {
   it("ships the built-in species", () => {
     const ids = listSpecies().map((s) => s.id).sort();
-    expect(ids).toEqual(["ant", "cockroach", "fly", "ladybug", "spider"]);
+    expect(ids).toEqual([
+      "ant",
+      "bee",
+      "butterfly",
+      "caterpillar",
+      "cockroach",
+      "fly",
+      "ladybug",
+      "mosquito",
+      "spider",
+    ]);
   });
 
   it("each species has draw + required traits", () => {

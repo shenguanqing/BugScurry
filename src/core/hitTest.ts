@@ -1,4 +1,4 @@
-import { HIT_RADIUS_SCALE } from "./config";
+import { HIT_RADIUS_CHASE, HIT_RADIUS_SCALE, REPELLENT_RADIUS } from "./config";
 import type { Bug, Viewport } from "./types";
 
 export function hitTestBug(
@@ -11,10 +11,13 @@ export function hitTestBug(
   for (let i = bugs.length - 1; i >= 0; i--) {
     const bug = bugs[i];
     if (bug.state === "squishing" || bug.state === "dying") continue;
-    const r = bug.size * HIT_RADIUS_SCALE;
     const dx = x - bug.x;
     const dy = y - bug.y;
-    if (dx * dx + dy * dy <= r * r) return bug;
+    const dist = Math.hypot(dx, dy);
+    // Already on top of it → wider hit radius so a chase still connects.
+    const scale = dist <= REPELLENT_RADIUS ? HIT_RADIUS_CHASE : HIT_RADIUS_SCALE;
+    const r = bug.size * scale;
+    if (dist <= r) return bug;
   }
   return null;
 }

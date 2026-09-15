@@ -1,18 +1,22 @@
+/* Light — iOS systemGroupedBackground + SF labels; Codex-quiet neutrals. */
 :root {
   color-scheme: light;
-  --bg: #f4f2ee;
-  --ink: #1c1917;
-  --muted: #78716c;
-  --card: rgba(255, 255, 255, 0.78);
+  --bg: #f2f2f7;
+  --ink: #1c1c1e;
+  --muted: rgba(60, 60, 67, 0.6);
+  --card: rgba(255, 255, 255, 0.86);
   --card-solid: #ffffff;
-  --line: rgba(28, 25, 23, 0.08);
-  --track: rgba(28, 25, 23, 0.1);
+  --line: rgba(60, 60, 67, 0.18);
+  --track: rgba(120, 120, 128, 0.16);
+  --fill: rgba(120, 120, 128, 0.12);
   --thumb: #ffffff;
-  --accent: #0a84ff;
-  --ok: #30d158;
-  --danger: #ff453a;
-  --shadow: 0 10px 30px rgba(28, 25, 23, 0.08);
-  --toggle-off: rgba(120, 120, 128, 0.28);
+  --accent: #007aff;
+  --ok: #34c759;
+  --danger: #ff3b30;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --toggle-off: rgba(120, 120, 128, 0.16);
+  --badge-idle: rgba(120, 120, 128, 0.12);
+  --badge-ok-bg: rgba(52, 199, 89, 0.14);
   font-family:
     -apple-system,
     BlinkMacSystemFont,
@@ -26,47 +30,65 @@
 /* Explicit light */
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #f4f2ee;
-  --ink: #1c1917;
-  --muted: #78716c;
-  --card: rgba(255, 255, 255, 0.78);
+  --bg: #f2f2f7;
+  --ink: #1c1c1e;
+  --muted: rgba(60, 60, 67, 0.6);
+  --card: rgba(255, 255, 255, 0.86);
   --card-solid: #ffffff;
-  --line: rgba(28, 25, 23, 0.08);
-  --track: rgba(28, 25, 23, 0.1);
+  --line: rgba(60, 60, 67, 0.18);
+  --track: rgba(120, 120, 128, 0.16);
+  --fill: rgba(120, 120, 128, 0.12);
   --thumb: #ffffff;
-  --shadow: 0 10px 30px rgba(28, 25, 23, 0.08);
-  --toggle-off: rgba(120, 120, 128, 0.28);
+  --accent: #007aff;
+  --ok: #34c759;
+  --danger: #ff3b30;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --toggle-off: rgba(120, 120, 128, 0.16);
+  --badge-idle: rgba(120, 120, 128, 0.12);
+  --badge-ok-bg: rgba(52, 199, 89, 0.14);
 }
 
-/* Explicit dark */
+/* Dark — iOS system black / secondaryGrouped, Codex near-black neutrals. */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #111318;
-  --ink: #f2f3f5;
-  --muted: #9aa0a8;
-  --card: rgba(32, 35, 44, 0.78);
-  --card-solid: #242830;
-  --line: rgba(255, 255, 255, 0.1);
-  --track: rgba(255, 255, 255, 0.12);
+  --bg: #000000;
+  --ink: #ffffff;
+  --muted: rgba(235, 235, 245, 0.6);
+  --card: rgba(28, 28, 30, 0.92);
+  --card-solid: #2c2c2e;
+  --line: rgba(84, 84, 88, 0.55);
+  --track: rgba(120, 120, 128, 0.32);
+  --fill: rgba(120, 120, 128, 0.22);
   --thumb: #ffffff;
-  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-  --toggle-off: rgba(120, 120, 128, 0.4);
+  --accent: #0a84ff;
+  --ok: #30d158;
+  --danger: #ff453a;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --toggle-off: rgba(120, 120, 128, 0.32);
+  --badge-idle: rgba(120, 120, 128, 0.24);
+  --badge-ok-bg: rgba(48, 209, 88, 0.18);
 }
 
 /* Auto: follow system */
 @media (prefers-color-scheme: dark) {
   :root[data-theme="auto"] {
     color-scheme: dark;
-    --bg: #111318;
-    --ink: #f2f3f5;
-    --muted: #9aa0a8;
-    --card: rgba(32, 35, 44, 0.78);
-    --card-solid: #242830;
-    --line: rgba(255, 255, 255, 0.1);
-    --track: rgba(255, 255, 255, 0.12);
+    --bg: #000000;
+    --ink: #ffffff;
+    --muted: rgba(235, 235, 245, 0.6);
+    --card: rgba(28, 28, 30, 0.92);
+    --card-solid: #2c2c2e;
+    --line: rgba(84, 84, 88, 0.55);
+    --track: rgba(120, 120, 128, 0.32);
+    --fill: rgba(120, 120, 128, 0.22);
     --thumb: #ffffff;
-    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-    --toggle-off: rgba(120, 120, 128, 0.4);
+    --accent: #0a84ff;
+    --ok: #30d158;
+    --danger: #ff453a;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --toggle-off: rgba(120, 120, 128, 0.32);
+    --badge-idle: rgba(120, 120, 128, 0.24);
+    --badge-ok-bg: rgba(48, 209, 88, 0.18);
   }
 }
 
@@ -80,10 +102,7 @@ body,
   margin: 0;
   width: 100%;
   min-height: 100%;
-  background:
-    radial-gradient(900px 500px at 15% -10%, rgba(10, 132, 255, 0.08), transparent 55%),
-    radial-gradient(700px 500px at 100% 0%, rgba(255, 159, 10, 0.06), transparent 50%),
-    var(--bg);
+  background: var(--bg);
   color: var(--ink);
 }
 
@@ -107,8 +126,8 @@ body {
 
 .header h1 {
   margin: 0;
-  font-size: 28px;
-  font-weight: 750;
+  font-size: 22px;
+  font-weight: 700;
   letter-spacing: -0.02em;
 }
 
@@ -121,43 +140,53 @@ body {
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 0;
   margin-top: 3px;
   padding: 5px 12px;
   border-radius: 999px;
-  background: rgba(138, 143, 152, 0.16);
+  background: var(--badge-idle);
   color: var(--muted);
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
 }
 
-.badge::before {
+.badge.on {
+  gap: 6px;
+  color: var(--ok);
+  background: var(--badge-ok-bg);
+}
+
+.badge.on::before {
   content: "";
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--ok);
+  flex-shrink: 0;
 }
 
-.badge.on {
-  color: var(--ok);
-  background: rgba(48, 209, 88, 0.16);
-}
-
-.badge.on::before {
-  background: var(--ok);
-}
-
+/* iOS inset-grouped: solid block on the gray page — no stroke, no shadow. */
 .card {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: 14px 16px;
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: var(--card-solid);
+  border: 0;
+  border-radius: 16px;
+  padding: 12px 14px;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   margin-bottom: 16px;
+}
+
+/* Shared focus ring for all interactive controls. */
+.species-wide:focus-visible,
+.species:focus-visible,
+.toggle-switch:focus-visible,
+.btn:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--card-solid),
+    0 0 0 4px var(--accent);
 }
 
 .row {
@@ -167,20 +196,22 @@ body {
   gap: 12px;
 }
 
-.row.spacer {
-  margin-top: 16px;
-  padding-top: 16px;
+/** One setting field: label row + optional slider / segmented control. */
+.field + .field {
+  margin-top: 12px;
+  padding-top: 12px;
   border-top: 1px solid var(--line);
 }
 
 .row.head {
-  margin: 0 0 12px 4px;
+  margin: 0 0 8px 2px;
 }
 
-.row.head label {
+.row.head label,
+.row.head .field-title {
   font-size: 13px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--ink);
 }
 
 .row.head .hint {
@@ -189,6 +220,7 @@ body {
 
 .grow {
   flex: 1;
+  min-width: 0;
 }
 
 label {
@@ -204,15 +236,16 @@ label {
 
 output {
   font-variant-numeric: tabular-nums;
-  color: var(--muted);
+  color: var(--ink);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
+  opacity: 0.72;
 }
 
 .stepper {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .count {
@@ -221,19 +254,16 @@ output {
   font-weight: 700;
   font-size: 15px;
   font-variant-numeric: tabular-nums;
+  color: var(--ink);
 }
 
 /* —— Sliders —— */
-.slider-row {
-  margin-top: 4px;
-}
-
 .slider {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
   height: 28px;
-  margin: 8px 0 0;
+  margin: 4px 0 0;
   background: transparent;
   cursor: pointer;
 }
@@ -293,44 +323,48 @@ output {
   display: grid;
 }
 
-.toggle {
+/* Row is layout only; the switch on the right is the button. */
+.toggle-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  border: 0;
   border-bottom: 1px solid var(--line);
-  background: transparent;
-  color: var(--ink);
   padding: 10px 0;
   font-size: 15px;
   font-weight: 500;
-  cursor: pointer;
-  text-align: left;
+  color: var(--ink);
 }
 
-.toggles .toggle:first-child {
+.toggles .toggle-row:first-child {
   padding-top: 0;
 }
 
-.toggles .toggle:last-child {
+.toggles .toggle-row:last-child {
   border-bottom: 0;
   padding-bottom: 0;
 }
 
-.toggle em {
-  font-style: normal;
+.toggle-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.toggle-switch {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  flex-shrink: 0;
   position: relative;
-  display: inline-block;
   width: 44px;
   height: 26px;
   border-radius: 999px;
   background: var(--toggle-off);
-  font-size: 0;
+  cursor: pointer;
   transition: background 0.18s ease;
 }
 
-.toggle em::after {
+.toggle-switch::after {
   content: "";
   position: absolute;
   top: 2px;
@@ -343,83 +377,158 @@ output {
   transition: transform 0.18s ease;
 }
 
-.toggle.on em {
+.toggle-switch.on {
   background: var(--ok);
 }
 
-.toggle.on em::after {
+.toggle-switch.on::after {
   transform: translateX(18px);
 }
 
-.segmented {
+/* Same list chrome as .toggles — only the control on the right differs. */
+.selects {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0;
-  margin-top: 10px;
-  padding: 3px;
-  border-radius: 12px;
-  background: var(--track);
 }
 
-.segmented.two {
-  grid-template-columns: 1fr 1fr;
+.select-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  padding: 10px 0;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
 }
 
-.segmented button {
+.selects .select-row:first-child {
+  padding-top: 0;
+}
+
+.selects .select-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.select-row label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.select-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-width: 58%;
+  flex-shrink: 0;
+}
+
+.select-wrap::after {
+  content: "";
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-right: 1.75px solid var(--muted);
+  border-bottom: 1.75px solid var(--muted);
+  transform: translateY(-65%) rotate(45deg);
+  pointer-events: none;
+}
+
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-width: 108px;
   border: 0;
   background: transparent;
   color: var(--muted);
-  border-radius: 9px;
-  padding: 8px 10px;
+  font-size: 15px;
+  font-weight: 400;
+  padding: 0 22px 0 4px;
+  cursor: pointer;
+  text-align: right;
+  text-align-last: right;
+}
+
+/* Kill WebKit's default blue ring when the popup opens / element is focused. */
+.select:focus,
+.select:focus-visible,
+.select:active,
+.select:focus option {
+  outline: none;
+  border: none;
+  box-shadow: none;
+}
+
+.species-wide {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: var(--fill);
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 10px 12px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  margin-bottom: 8px;
 }
 
-.segmented button.active {
-  background: var(--card-solid);
-  color: var(--ink);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+.species-wide.active {
+  background: var(--accent);
+  color: #fff;
 }
 
+/* Auto-fill so 3–4 columns adapt as species are added. */
 .species-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
   gap: 8px;
+  max-height: 232px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 
 .species {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
-  border: 1px solid var(--line);
-  background: rgba(28, 25, 23, 0.04);
+  gap: 4px;
+  border: 0;
+  background: var(--fill);
   color: var(--ink);
-  border-radius: 14px;
-  padding: 12px 6px;
-  font-size: 12px;
+  border-radius: 12px;
+  padding: 10px 4px 8px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-}
-
-:root[data-theme="dark"] .species {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root[data-theme="auto"] .species {
-    background: rgba(255, 255, 255, 0.04);
-  }
+  min-width: 0;
 }
 
 .species-emoji {
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1;
 }
 
+.species-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .species.active {
-  border-color: transparent;
   background: var(--accent);
   color: #fff;
 }
@@ -433,16 +542,14 @@ output {
 
 .btn {
   appearance: none;
-  border: 1px solid var(--line);
-  background: var(--card);
+  border: 0;
+  background: var(--fill);
   color: var(--ink);
-  border-radius: 14px;
+  border-radius: 12px;
   padding: 13px 12px;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   transition: transform 0.08s ease, opacity 0.15s ease;
 }
 
@@ -460,14 +567,22 @@ output {
 
 .btn.primary {
   background: var(--accent);
-  border-color: transparent;
   color: #fff;
 }
 
 .btn.danger {
-  background: rgba(255, 69, 58, 0.12);
-  border-color: rgba(255, 69, 58, 0.3);
+  background: rgba(255, 59, 48, 0.12);
   color: var(--danger);
+}
+
+:root[data-theme="dark"] .btn.danger {
+  background: rgba(255, 69, 58, 0.16);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="auto"] .btn.danger {
+    background: rgba(255, 69, 58, 0.16);
+  }
 }
 
 .footer {
@@ -475,4 +590,14 @@ output {
   text-align: center;
   color: var(--muted);
   font-size: 11.5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slider::-webkit-slider-thumb,
+  .slider:active::-webkit-slider-thumb,
+  .toggle-switch,
+  .toggle-switch::after,
+  .btn {
+    transition: none;
+  }
 }

@@ -29,8 +29,10 @@ export async function syncTrayLocale(locale: Locale): Promise<void> {
         add: t("tray.add"),
         remove: t("tray.remove"),
         regen: t("tray.regen"),
+        bait: t("tray.bait"),
         settings: t("tray.settings"),
         quit: t("tray.quit"),
+        stats: t("tray.stats"),
       },
     });
   } catch (err) {

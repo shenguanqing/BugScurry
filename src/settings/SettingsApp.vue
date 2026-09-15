@@ -5,6 +5,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LIMITS } from "../core/config";
 import type { Settings } from "../core/types";
 import { t } from "../i18n";
+import { listSpecies } from "../species";
 import {
   applyMonitorMode,
   applyThemeToDocument,
@@ -23,16 +24,17 @@ function tt(key: string): string {
   return t(key);
 }
 
+/** Built-in species from the registry — new species show up automatically. */
 const speciesOptions = computed(() => {
   void localeVersion.value;
-  return [
-    { id: "random", label: t("species.random"), emoji: "🎲" },
-    { id: "cockroach", label: t("species.cockroach"), emoji: "🪳" },
-    { id: "ant", label: t("species.ant"), emoji: "🐜" },
-    { id: "spider", label: t("species.spider"), emoji: "🕷" },
-    { id: "fly", label: t("species.fly"), emoji: "🪰" },
-    { id: "ladybug", label: t("species.ladybug"), emoji: "🐞" },
-  ];
+  return listSpecies()
+    .slice()
+    .sort((a, b) => a.label.localeCompare(b.label, "zh-CN"))
+    .map((s) => ({
+      id: s.id,
+      label: t(`species.${s.id}`) !== `species.${s.id}` ? t(`species.${s.id}`) : s.label,
+      emoji: s.emoji,
+    }));
 });
 
 const settings = reactive<Settings>({
@@ -43,6 +45,7 @@ const settings = reactive<Settings>({
   sound: true,
   stains: true,
   particles: true,
+  repellent: true,
   autostart: false,
   monitorMode: "primary",
   species: "random",
@@ -81,7 +84,7 @@ function onSlider(key: "size" | "speed" | "randomness" | "count", ev: Event) {
   }
 }
 
-function toggle(key: "sound" | "stains" | "particles") {
+function toggle(key: "sound" | "stains" | "particles" | "repellent") {
   settings[key] = !settings[key];
   void persist();
 }
@@ -117,11 +120,23 @@ function setTheme(theme: Settings["theme"]) {
   void persist();
 }
 
+function onThemeSelect(ev: Event) {
+  setTheme((ev.target as HTMLSelectElement).value as Settings["theme"]);
+}
+
 async function setLocale(locale: Settings["locale"]) {
   settings.locale = locale;
   await persist();
   localeVersion.value++;
   await syncWindowTitle();
+}
+
+function onLocaleSelect(ev: Event) {
+  void setLocale((ev.target as HTMLSelectElement).value as Settings["locale"]);
+}
+
+function onMonitorSelect(ev: Event) {
+  void setMonitorMode((ev.target as HTMLSelectElement).value as Settings["monitorMode"]);
 }
 
 async function clearAll() {
@@ -183,192 +198,254 @@ onUnmounted(() => {
     </header>
 
     <section class="card">
-      <div class="row head">
-        <div>
-          <label>{{ tt("species.title") }}</label>
-          <p class="hint">{{ tt("species.hint") }}</p>
+      <div class="field">
+        <div class="row head">
+          <div class="grow">
+            <span class="field-title">{{ tt("species.title") }}</span>
+            <p class="hint">{{ tt("species.hint") }}</p>
+          </div>
         </div>
-      </div>
-      <div class="species-grid">
         <button
-          v-for="opt in speciesOptions"
-          :key="opt.id"
           type="button"
-          class="species"
-          :class="{ active: settings.species === opt.id }"
-          @click="setSpecies(opt.id)"
+          class="species-wide"
+          :class="{ active: settings.species === 'random' }"
+          :aria-pressed="settings.species === 'random'"
+          @click="setSpecies('random')"
         >
-          <span class="species-emoji">{{ opt.emoji }}</span>
-          <span>{{ opt.label }}</span>
+          <span class="species-emoji">🎲</span>
+          <span>{{ tt("species.random") }}</span>
         </button>
+        <div class="species-grid" role="group" :aria-label="tt('species.title')">
+          <button
+            v-for="opt in speciesOptions"
+            :key="opt.id"
+            type="button"
+            class="species"
+            :class="{ active: settings.species === opt.id }"
+            :aria-pressed="settings.species === opt.id"
+            @click="setSpecies(opt.id)"
+          >
+            <span class="species-emoji">{{ opt.emoji }}</span>
+            <span class="species-label">{{ opt.label }}</span>
+          </button>
+        </div>
       </div>
     </section>
 
     <section class="card">
-      <div class="row head">
-        <div>
-          <label>{{ tt("count.title") }}</label>
-          <p class="hint">1 – {{ LIMITS.countMax }} · {{ tt("count.hint") }}</p>
+      <div class="field">
+        <div class="row head">
+          <div class="grow">
+            <label for="count-slider">{{ tt("count.title") }}</label>
+            <p class="hint">1 – {{ LIMITS.countMax }} · {{ tt("count.hint") }}</p>
+          </div>
+          <div class="stepper">
+            <button
+              type="button"
+              class="btn ghost"
+              :aria-label="tt('count.title') + ' −'"
+              @click="setCount(settings.count - 1)"
+            >−</button>
+            <span class="count">{{ settings.count }}</span>
+            <button
+              type="button"
+              class="btn ghost"
+              :aria-label="tt('count.title') + ' +'"
+              @click="setCount(settings.count + 1)"
+            >+</button>
+          </div>
         </div>
-        <div class="stepper">
-          <button type="button" class="btn ghost" @click="setCount(settings.count - 1)">−</button>
-          <span class="count">{{ settings.count }}</span>
-          <button type="button" class="btn ghost" @click="setCount(settings.count + 1)">+</button>
-        </div>
+        <input
+          id="count-slider"
+          class="slider"
+          type="range"
+          :min="LIMITS.countMin"
+          :max="LIMITS.countMax"
+          step="1"
+          :value="settings.count"
+          @input="onSlider('count', $event)"
+        />
       </div>
-      <input
-        class="slider"
-        type="range"
-        :min="LIMITS.countMin"
-        :max="LIMITS.countMax"
-        step="1"
-        :value="settings.count"
-        @input="onSlider('count', $event)"
-      />
-    </section>
 
-    <section class="card">
-      <div class="row">
-        <div class="grow">
-          <label>{{ tt("size.title") }}</label>
-          <p class="hint">{{ tt("size.hint") }}</p>
+      <div class="field">
+        <div class="row head">
+          <div class="grow">
+            <label for="size-slider">{{ tt("size.title") }}</label>
+            <p class="hint">{{ tt("size.hint") }}</p>
+          </div>
+          <output>{{ settings.size.toFixed(2) }}×</output>
         </div>
-        <output>{{ settings.size.toFixed(2) }}×</output>
+        <input
+          id="size-slider"
+          class="slider"
+          type="range"
+          :min="LIMITS.sizeMin"
+          :max="LIMITS.sizeMax"
+          step="0.05"
+          :value="settings.size"
+          @input="onSlider('size', $event)"
+        />
       </div>
-      <input
-        class="slider"
-        type="range"
-        :min="LIMITS.sizeMin"
-        :max="LIMITS.sizeMax"
-        step="0.05"
-        :value="settings.size"
-        @input="onSlider('size', $event)"
-      />
 
-      <div class="row spacer">
-        <div class="grow">
-          <label>{{ tt("speed.title") }}</label>
-          <p class="hint">{{ tt("speed.hint") }}</p>
+      <div class="field">
+        <div class="row head">
+          <div class="grow">
+            <label for="speed-slider">{{ tt("speed.title") }}</label>
+            <p class="hint">{{ tt("speed.hint") }}</p>
+          </div>
+          <output>{{ settings.speed.toFixed(2) }}×</output>
         </div>
-        <output>{{ settings.speed.toFixed(2) }}×</output>
+        <input
+          id="speed-slider"
+          class="slider"
+          type="range"
+          :min="LIMITS.speedMin"
+          :max="LIMITS.speedMax"
+          step="0.05"
+          :value="settings.speed"
+          @input="onSlider('speed', $event)"
+        />
       </div>
-      <input
-        class="slider"
-        type="range"
-        :min="LIMITS.speedMin"
-        :max="LIMITS.speedMax"
-        step="0.05"
-        :value="settings.speed"
-        @input="onSlider('speed', $event)"
-      />
 
-      <div class="row spacer">
-        <div class="grow">
-          <label>{{ tt("randomness.title") }}</label>
-          <p class="hint">{{ tt("randomness.hint") }}</p>
+      <div class="field">
+        <div class="row head">
+          <div class="grow">
+            <label for="randomness-slider">{{ tt("randomness.title") }}</label>
+            <p class="hint">{{ tt("randomness.hint") }}</p>
+          </div>
+          <output>{{ Math.round(settings.randomness * 100) }}%</output>
         </div>
-        <output>{{ Math.round(settings.randomness * 100) }}%</output>
+        <input
+          id="randomness-slider"
+          class="slider"
+          type="range"
+          :min="LIMITS.randomnessMin"
+          :max="LIMITS.randomnessMax"
+          step="0.01"
+          :value="settings.randomness"
+          @input="onSlider('randomness', $event)"
+        />
       </div>
-      <input
-        class="slider"
-        type="range"
-        :min="LIMITS.randomnessMin"
-        :max="LIMITS.randomnessMax"
-        step="0.01"
-        :value="settings.randomness"
-        @input="onSlider('randomness', $event)"
-      />
     </section>
 
     <section class="card">
       <div class="toggles">
-        <button type="button" class="toggle" :class="{ on: settings.sound }" @click="toggle('sound')">
-          <span>{{ tt("toggle.sound") }}</span>
-          <em>{{ settings.sound ? tt("toggle.on") : tt("toggle.off") }}</em>
-        </button>
-        <button type="button" class="toggle" :class="{ on: settings.stains }" @click="toggle('stains')">
-          <span>{{ tt("toggle.stains") }}</span>
-          <em>{{ settings.stains ? tt("toggle.on") : tt("toggle.off") }}</em>
-        </button>
-        <button
-          type="button"
-          class="toggle"
-          :class="{ on: settings.particles }"
-          :title="tt('toggle.particles.tip')"
-          @click="toggle('particles')"
-        >
-          <span>{{ tt("toggle.particles") }}</span>
-          <em>{{ settings.particles ? tt("toggle.on") : tt("toggle.off") }}</em>
-        </button>
-        <button type="button" class="toggle" :class="{ on: settings.autostart }" @click="toggleAutostart">
-          <span>{{ tt("toggle.autostart") }}</span>
-          <em>{{ settings.autostart ? tt("toggle.on") : tt("toggle.off") }}</em>
-        </button>
+        <div class="toggle-row">
+          <span class="toggle-label">{{ tt("toggle.sound") }}</span>
+          <button
+            type="button"
+            class="toggle-switch"
+            :class="{ on: settings.sound }"
+            role="switch"
+            :aria-checked="settings.sound"
+            :aria-label="tt('toggle.sound')"
+            @click="toggle('sound')"
+          ></button>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">{{ tt("toggle.stains") }}</span>
+          <button
+            type="button"
+            class="toggle-switch"
+            :class="{ on: settings.stains }"
+            role="switch"
+            :aria-checked="settings.stains"
+            :aria-label="tt('toggle.stains')"
+            @click="toggle('stains')"
+          ></button>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label" :title="tt('toggle.particles.tip')">{{ tt("toggle.particles") }}</span>
+          <button
+            type="button"
+            class="toggle-switch"
+            :class="{ on: settings.particles }"
+            role="switch"
+            :aria-checked="settings.particles"
+            :aria-label="tt('toggle.particles')"
+            :title="tt('toggle.particles.tip')"
+            @click="toggle('particles')"
+          ></button>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label" :title="tt('toggle.repellent.tip')">{{ tt("toggle.repellent") }}</span>
+          <button
+            type="button"
+            class="toggle-switch"
+            :class="{ on: settings.repellent }"
+            role="switch"
+            :aria-checked="settings.repellent"
+            :aria-label="tt('toggle.repellent')"
+            :title="tt('toggle.repellent.tip')"
+            @click="toggle('repellent')"
+          ></button>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">{{ tt("toggle.autostart") }}</span>
+          <button
+            type="button"
+            class="toggle-switch"
+            :class="{ on: settings.autostart }"
+            role="switch"
+            :aria-checked="settings.autostart"
+            :aria-label="tt('toggle.autostart')"
+            @click="toggleAutostart"
+          ></button>
+        </div>
       </div>
     </section>
 
     <section class="card">
-      <div class="row head">
-        <div>
-          <label>{{ tt("theme.title") }}</label>
-          <p class="hint">{{ tt("theme.hint") }}</p>
+      <div class="selects">
+        <div class="select-row">
+          <label for="theme-select">{{ tt("theme.title") }}</label>
+          <span class="select-wrap">
+            <select
+              id="theme-select"
+              class="select"
+              :value="settings.theme"
+              @change="onThemeSelect"
+            >
+              <option value="light">{{ tt("theme.light") }}</option>
+              <option value="dark">{{ tt("theme.dark") }}</option>
+              <option value="auto">{{ tt("theme.auto") }}</option>
+            </select>
+          </span>
         </div>
-      </div>
-      <div class="segmented">
-        <button type="button" :class="{ active: settings.theme === 'light' }" @click="setTheme('light')">
-          {{ tt("theme.light") }}
-        </button>
-        <button type="button" :class="{ active: settings.theme === 'dark' }" @click="setTheme('dark')">
-          {{ tt("theme.dark") }}
-        </button>
-        <button type="button" :class="{ active: settings.theme === 'auto' }" @click="setTheme('auto')">
-          {{ tt("theme.auto") }}
-        </button>
-      </div>
-    </section>
 
-    <section class="card">
-      <div class="row head">
-        <div>
-          <label>{{ tt("monitor.title") }}</label>
-          <p class="hint">{{ tt("monitor.hint") }}</p>
+        <div class="select-row">
+          <label for="monitor-select">{{ tt("monitor.title") }}</label>
+          <span class="select-wrap">
+            <select
+              id="monitor-select"
+              class="select"
+              :value="settings.monitorMode"
+              @change="onMonitorSelect"
+            >
+              <option value="primary">{{ tt("monitor.primary") }}</option>
+              <option value="all">{{ tt("monitor.all") }}</option>
+            </select>
+          </span>
         </div>
-      </div>
-      <div class="segmented two">
-        <button
-          type="button"
-          :class="{ active: settings.monitorMode === 'primary' }"
-          @click="setMonitorMode('primary')"
-        >
-          {{ tt("monitor.primary") }}
-        </button>
-        <button
-          type="button"
-          :class="{ active: settings.monitorMode === 'all' }"
-          @click="setMonitorMode('all')"
-        >
-          {{ tt("monitor.all") }}
-        </button>
-      </div>
-    </section>
 
-    <section class="card">
-      <div class="row head">
-        <div>
-          <label>{{ tt("language.title") }}</label>
-          <p class="hint">{{ tt("language.hint") }}</p>
+        <div class="select-row">
+          <label for="language-select">{{ tt("language.title") }}</label>
+          <span class="select-wrap">
+            <select
+              id="language-select"
+              class="select"
+              :value="settings.locale"
+              @change="onLocaleSelect"
+            >
+              <option value="auto">{{ tt("language.auto") }}</option>
+              <option value="zh-CN">{{ tt("language.zh-CN") }}</option>
+              <option value="zh-TW">{{ tt("language.zh-TW") }}</option>
+              <option value="en">{{ tt("language.en") }}</option>
+              <option value="ja">{{ tt("language.ja") }}</option>
+              <option value="ko">{{ tt("language.ko") }}</option>
+            </select>
+          </span>
         </div>
-      </div>
-      <div class="segmented">
-        <button type="button" :class="{ active: settings.locale === 'auto' }" @click="setLocale('auto')">
-          {{ tt("language.auto") }}
-        </button>
-        <button type="button" :class="{ active: settings.locale === 'zh-CN' }" @click="setLocale('zh-CN')">
-          {{ tt("language.zh-CN") }}
-        </button>
-        <button type="button" :class="{ active: settings.locale === 'en' }" @click="setLocale('en')">
-          {{ tt("language.en") }}
-        </button>
       </div>
     </section>
 

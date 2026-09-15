@@ -1,23 +1,76 @@
 import { createBug } from "./bug";
-import { MAX_PARTICLES, MAX_STAINS, STAIN_LIFE } from "./config";
+import {
+  BAIT_LIFE,
+  BAIT_NIBBLE_RADIUS,
+  COMBO_TEXT_LIFE,
+  COMBO_WINDOW,
+  MAX_BAITS,
+  MAX_FLOATS,
+  MAX_PARTICLES,
+  MAX_STAINS,
+  STAIN_LIFE,
+} from "./config";
 import { isBugDead, startSquish, updateSquish } from "./squish";
 import { Rng, randomSeed } from "./rng";
 import { getSpecies } from "../species";
-import type { Bug, Particle, Settings, Stain, Viewport } from "./types";
+import type {
+  Bait,
+  Bug,
+  DailyStats,
+  FloatText,
+  Particle,
+  Settings,
+  Stain,
+  Viewport,
+} from "./types";
+
+export type HitResult =
+  | { kind: "miss" }
+  | { kind: "hurt"; hpLeft: number; combo: number }
+  | { kind: "killed"; combo: number; fat: boolean };
+
+function localDateId(d = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function emptyDailyStats(): DailyStats {
+  return { date: localDateId(), kills: 0, bestCombo: 0 };
+}
+
+export function normalizeDailyStats(raw: unknown): DailyStats {
+  const empty = emptyDailyStats();
+  if (!raw || typeof raw !== "object") return empty;
+  const r = raw as Partial<DailyStats>;
+  if (r.date !== empty.date) return empty;
+  return {
+    date: empty.date,
+    kills: Math.max(0, Math.floor(Number(r.kills) || 0)),
+    bestCombo: Math.max(0, Math.floor(Number(r.bestCombo) || 0)),
+  };
+}
 
 export class BugManager {
   private bugs: Bug[] = [];
   private stains: Stain[] = [];
   private particles: Particle[] = [];
+  private baits: Bait[] = [];
+  private floats: FloatText[] = [];
   private settings: Settings;
   private viewport: Viewport;
   private visible = true;
   private suppressed = false;
   private effectId = 1;
+  private combo = 0;
+  private lastKillAt = 0;
+  private daily: DailyStats = emptyDailyStats();
 
-  constructor(settings: Settings, viewport: Viewport) {
+  constructor(settings: Settings, viewport: Viewport, daily?: DailyStats) {
     this.settings = settings;
     this.viewport = viewport;
+    if (daily) this.daily = normalizeDailyStats(daily);
     this.syncCount();
   }
 
@@ -31,6 +84,31 @@ export class BugManager {
 
   get particleList(): Particle[] {
     return this.particles;
+  }
+
+  get baitList(): Bait[] {
+    return this.baits;
+  }
+
+  get floatList(): FloatText[] {
+    return this.floats;
+  }
+
+  get currentCombo(): number {
+    return this.combo;
+  }
+
+  get dailyStats(): DailyStats {
+    return { ...this.daily };
+  }
+
+  setDailyStats(stats: DailyStats): void {
+    this.daily = normalizeDailyStats(stats);
+  }
+
+  /** Freshest crumb, if any — passed into movement as a heading bias. */
+  get activeBait(): Bait | null {
+    return this.baits.length > 0 ? this.baits[this.baits.length - 1] : null;
   }
 
   setVisible(visible: boolean): void {
@@ -47,6 +125,10 @@ export class BugManager {
       const pad = bug.size * 0.5;
       bug.x = Math.min(viewport.width - pad, Math.max(pad, bug.x));
       bug.y = Math.min(viewport.height - pad, Math.max(pad, bug.y));
+    }
+    for (const bait of this.baits) {
+      bait.x = Math.min(viewport.width - 12, Math.max(12, bait.x));
+      bait.y = Math.min(viewport.height - 12, Math.max(12, bait.y));
     }
   }
 
@@ -66,15 +148,12 @@ export class BugManager {
       return;
     }
 
-    // Live-rescale existing bugs so the size slider feels instant.
     if (sizeRatio !== 1 && Number.isFinite(sizeRatio)) {
       for (const bug of this.bugs) {
         bug.size = Math.max(4, bug.size * sizeRatio);
       }
     }
 
-    // Only explicit count edits change population.
-    // Squished bugs stay dead — do not top-up back to `count`.
     if (nextCount > prevCount) {
       this.suppressed = false;
       while (this.bugs.length < nextCount) {
@@ -116,6 +195,8 @@ export class BugManager {
     this.bugs = [];
     this.stains = [];
     this.particles = [];
+    this.baits = [];
+    this.floats = [];
     this.suppressed = true;
   }
 
@@ -124,6 +205,8 @@ export class BugManager {
     this.bugs = [];
     this.stains = [];
     this.particles = [];
+    this.baits = [];
+    this.floats = [];
     const rng = new Rng(randomSeed());
     const target = Math.max(1, Math.round(this.settings.count));
     for (let i = 0; i < target; i++) {
@@ -131,9 +214,52 @@ export class BugManager {
     }
   }
 
-  squish(bug: Bug): boolean {
-    if (bug.state === "squishing" || bug.state === "dying") return false;
-    startSquish(bug);
+  dropBait(): Bait {
+    const rng = new Rng(randomSeed());
+    const margin = 48;
+    const x = rng.range(margin, Math.max(margin + 1, this.viewport.width - margin));
+    const y = rng.range(margin, Math.max(margin + 1, this.viewport.height - margin));
+    const bait: Bait = {
+      id: `bait-${this.effectId++}`,
+      x,
+      y,
+      size: rng.range(5, 7.5),
+      life: BAIT_LIFE,
+      maxLife: BAIT_LIFE,
+    };
+    this.baits.push(bait);
+    while (this.baits.length > MAX_BAITS) this.baits.shift();
+    return bait;
+  }
+
+  private pushFloat(x: number, y: number, text: string, tier: number): void {
+    this.floats.push({
+      id: `float-${this.effectId++}`,
+      x,
+      y,
+      text,
+      life: COMBO_TEXT_LIFE,
+      maxLife: COMBO_TEXT_LIFE,
+      tier,
+    });
+    while (this.floats.length > MAX_FLOATS) this.floats.shift();
+  }
+
+  private bumpCombo(nowMs: number): number {
+    if (nowMs - this.lastKillAt <= COMBO_WINDOW * 1000) {
+      this.combo += 1;
+    } else {
+      this.combo = 1;
+    }
+    this.lastKillAt = nowMs;
+    this.daily.kills += 1;
+    if (this.combo > this.daily.bestCombo) {
+      this.daily.bestCombo = this.combo;
+    }
+    return this.combo;
+  }
+
+  private spawnKillBurst(bug: Bug, fat: boolean): void {
     const species = getSpecies(bug.species);
     const fluidColor = species?.traits.fluidColor ?? "#b3a45b";
 
@@ -153,11 +279,11 @@ export class BugManager {
 
     if (this.settings.particles) {
       const rng = new Rng(randomSeed());
-      const n = 6 + Math.floor(rng.next() * 3);
+      const n = fat ? 14 + Math.floor(rng.next() * 6) : 6 + Math.floor(rng.next() * 3);
       for (let i = 0; i < n; i++) {
         const ang = rng.range(0, Math.PI * 2);
-        const sp = bug.size * rng.range(7, 11);
-        const life = rng.range(0.45, 0.65);
+        const sp = bug.size * rng.range(fat ? 9 : 7, fat ? 14 : 11);
+        const life = rng.range(0.45, fat ? 0.85 : 0.65);
         this.particles.push({
           x: bug.x + Math.cos(ang) * bug.size * 0.3,
           y: bug.y + Math.sin(ang) * bug.size * 0.3,
@@ -165,7 +291,7 @@ export class BugManager {
           vy: Math.sin(ang) * sp,
           life,
           maxLife: life,
-          size: Math.max(0.8, bug.size * rng.range(0.055, 0.085)),
+          size: Math.max(0.8, bug.size * rng.range(0.055, fat ? 0.12 : 0.085)),
           color: fluidColor,
         });
       }
@@ -173,8 +299,62 @@ export class BugManager {
         this.particles.splice(0, this.particles.length - MAX_PARTICLES);
       }
     }
+  }
 
-    return true;
+  /**
+   * Click on a bug. Fat bugs take 3 hits; only the last one kills.
+   * Returns combo so the UI can pick a rising pitch.
+   */
+  hit(bug: Bug, nowMs: number = performance.now()): HitResult {
+    if (bug.state === "squishing" || bug.state === "dying") {
+      return { kind: "miss" };
+    }
+
+    const fat = bug.maxHp > 1;
+    if (bug.hp > 1) {
+      bug.hp -= 1;
+      bug.hurtTimer = 0.18;
+      // Small splash so each chip feels real.
+      if (this.settings.particles) {
+        const rng = new Rng(randomSeed());
+        const species = getSpecies(bug.species);
+        const fluidColor = species?.traits.fluidColor ?? "#b3a45b";
+        for (let i = 0; i < 4; i++) {
+          const ang = rng.range(0, Math.PI * 2);
+          const life = rng.range(0.2, 0.35);
+          this.particles.push({
+            x: bug.x + Math.cos(ang) * bug.size * 0.2,
+            y: bug.y + Math.sin(ang) * bug.size * 0.2,
+            vx: Math.cos(ang) * bug.size * rng.range(4, 8),
+            vy: Math.sin(ang) * bug.size * rng.range(4, 8),
+            life,
+            maxLife: life,
+            size: Math.max(0.7, bug.size * 0.05),
+            color: fluidColor,
+          });
+        }
+        if (this.particles.length > MAX_PARTICLES) {
+          this.particles.splice(0, this.particles.length - MAX_PARTICLES);
+        }
+      }
+      return { kind: "hurt", hpLeft: bug.hp, combo: this.combo };
+    }
+
+    startSquish(bug);
+    this.spawnKillBurst(bug, fat);
+    const combo = this.bumpCombo(nowMs);
+    if (combo >= 2) {
+      this.pushFloat(bug.x, bug.y - bug.size * 0.6, `${combo}×`, Math.min(combo, 8));
+    }
+    if (fat) {
+      this.pushFloat(bug.x, bug.y + bug.size * 0.2, "砰", 3);
+    }
+    return { kind: "killed", combo, fat };
+  }
+
+  /** Legacy one-shot path (tests / tray). */
+  squish(bug: Bug): boolean {
+    return this.hit(bug).kind === "killed";
   }
 
   private updateEffects(dt: number): void {
@@ -185,17 +365,36 @@ export class BugManager {
       p.life -= dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
-      // Friction on the desktop plane arrests the small fragments quickly.
       const drag = Math.exp(-9 * dt);
       p.vx *= drag;
       p.vy *= drag;
     }
     this.particles = this.particles.filter((p) => p.life > 0);
 
-    for (const bug of this.bugs) updateSquish(bug, dt);
+    for (const f of this.floats) {
+      f.life -= dt;
+      f.y -= 28 * dt;
+    }
+    this.floats = this.floats.filter((f) => f.life > 0);
+
+    for (const bait of this.baits) {
+      let nibbling = false;
+      for (const bug of this.bugs) {
+        if (bug.state === "squishing" || bug.state === "dying") continue;
+        if (Math.hypot(bug.x - bait.x, bug.y - bait.y) <= BAIT_NIBBLE_RADIUS) {
+          nibbling = true;
+          break;
+        }
+      }
+      bait.life -= dt * (nibbling ? 2.4 : 1);
+    }
+    this.baits = this.baits.filter((b) => b.life > 0);
+
+    for (const bug of this.bugs) {
+      if (bug.hurtTimer > 0) bug.hurtTimer = Math.max(0, bug.hurtTimer - dt);
+      updateSquish(bug, dt);
+    }
     this.bugs = this.bugs.filter((b) => !isBugDead(b));
-    // Intentionally no auto-replace: user can squish every bug; new ones
-    // only appear via count increase, tray +, or 重新生成.
   }
 
   tick(dt: number): void {

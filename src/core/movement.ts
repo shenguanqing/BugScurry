@@ -1,6 +1,16 @@
-import { EDGE_MARGIN, STUCK_TIMEOUT } from "./config";
+import {
+  BAIT_ATTRACT_RADIUS,
+  BAIT_NIBBLE_RADIUS,
+  BAIT_PULL,
+  EDGE_MARGIN,
+  REPELLENT_PANIC_RADIUS,
+  REPELLENT_RADIUS,
+  REPELLENT_SPEED_MAX,
+  REPELLENT_SPEED_MIN,
+  STUCK_TIMEOUT,
+} from "./config";
 import { Rng, randomSeed } from "./rng";
-import type { Bug, Settings, Viewport } from "./types";
+import type { Bait, Bug, CursorState, Settings, Viewport } from "./types";
 
 const TWO_PI = Math.PI * 2;
 
@@ -37,12 +47,40 @@ function cornerEscapeHeading(bug: Bug, viewport: Viewport, rng: Rng): number | n
   const nearY = Math.min(w.top, w.bottom) < EDGE_MARGIN + pad;
   if (!nearX || !nearY) return null;
 
-  // Aim into the free quadrant (away from both walls)
   const dx = w.left < w.right ? 1 : -1;
   const dy = w.top < w.bottom ? 1 : -1;
   const base = Math.atan2(dy, dx);
-  // Add a little variety so multiple bugs don't clump on the same diagonal
   return normalizeAngle(base + rng.range(-0.45, 0.45));
+}
+
+/**
+ * Cursor scare response. Always flees while the cursor is inside the
+ * repellent radius (bugs keep running). Panic = almost on top of them:
+ * full-speed bolt with a less coordinated heading.
+ */
+function cursorFlee(
+  bug: Bug,
+  settings: Settings,
+  cursor: CursorState | null,
+): { heading: number; urgency: number; panic: boolean } | null {
+  if (!settings.repellent || !cursor || !cursor.inside) return null;
+  const dx = bug.x - cursor.x;
+  const dy = bug.y - cursor.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist >= REPELLENT_RADIUS) return null;
+  const urgency = 1 - dist / Math.max(1, REPELLENT_RADIUS);
+  const heading = Math.atan2(dy, dx);
+  return { heading, urgency, panic: dist < REPELLENT_PANIC_RADIUS };
+}
+
+/** Heading + distance toward a live bait crumb, or null if out of range. */
+function baitSteer(bug: Bug, bait: Bait | null): { heading: number; dist: number } | null {
+  if (!bait || bait.life <= 0) return null;
+  const dx = bait.x - bug.x;
+  const dy = bait.y - bug.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist > BAIT_ATTRACT_RADIUS) return null;
+  return { heading: Math.atan2(dy, dx), dist };
 }
 
 export function updateBug(
@@ -51,6 +89,8 @@ export function updateBug(
   settings: Settings,
   viewport: Viewport,
   rng: Rng,
+  cursor: CursorState | null = null,
+  bait: Bait | null = null,
 ): void {
   if (bug.state === "squishing" || bug.state === "dying") return;
 
@@ -58,9 +98,17 @@ export function updateBug(
   bug.legPhase = (bug.legPhase + dt * (2.5 + bug.speed / 34)) % 1;
 
   const escapeNow = cornerEscapeHeading(bug, viewport, rng);
+  const flee = cursorFlee(bug, settings, cursor);
+  const towardBait = baitSteer(bug, bait);
 
   if (bug.state === "paused") {
-    if (escapeNow !== null) {
+    if (flee) {
+      bug.state = "crawling";
+      bug.heading = flee.heading;
+      bug.stateTimer = Math.max(bug.stateTimer, 0.4);
+      bug.turnBias = 0;
+      bug.stuckTime = 0;
+    } else if (escapeNow !== null) {
       bug.state = "crawling";
       bug.heading = escapeNow;
       bug.stateTimer = rng.range(0.7, 1.3);
@@ -70,11 +118,12 @@ export function updateBug(
       bug.state = "crawling";
       bug.stateTimer = rng.range(0.7, 2.6);
       bug.turnBias = rng.range(-1.0, 1.0) * settings.randomness;
+    } else {
+      return;
     }
-    return;
   }
 
-  if (bug.stateTimer <= 0 && escapeNow === null) {
+  if (bug.stateTimer <= 0 && escapeNow === null && !flee) {
     if (rng.chance(0.22 + settings.randomness * 0.35)) {
       bug.state = "paused";
       bug.stateTimer = rng.range(0.18, 0.75);
@@ -93,13 +142,40 @@ export function updateBug(
 
   let speedBoost = 1;
 
-  if (escapeNow !== null) {
-    // Strong, immediate exit from corners
+  if (flee) {
+    const pull = 14 + flee.urgency * 20;
+    bug.heading = steerToward(bug.heading, flee.heading, dt, pull);
+    if (flee.panic) {
+      // Startle: still running, but heading wobbles — less machine-precise.
+      bug.heading = normalizeAngle(bug.heading + (rng.next() - 0.5) * 7 * dt);
+    }
+    bug.state = "crawling";
+    bug.stateTimer = Math.max(bug.stateTimer, 0.35);
+    bug.turnBias = 0;
+    speedBoost =
+      REPELLENT_SPEED_MIN +
+      flee.urgency * (REPELLENT_SPEED_MAX - REPELLENT_SPEED_MIN);
+  } else if (escapeNow !== null) {
     bug.heading = escapeNow;
     bug.state = "crawling";
     bug.stateTimer = Math.max(bug.stateTimer, 0.8);
     bug.turnBias = 0;
     speedBoost = 1.45;
+  } else if (towardBait && towardBait.dist > BAIT_NIBBLE_RADIUS) {
+    // Soft bias toward the crumb — not a formation, just a heading pull.
+    const urgency = 1 - towardBait.dist / BAIT_ATTRACT_RADIUS;
+    const pull = BAIT_PULL * (0.55 + urgency * 0.9);
+    bug.heading = steerToward(bug.heading, towardBait.heading, dt, pull);
+    bug.state = "crawling";
+    bug.turnBias = 0;
+    speedBoost = 1 + urgency * 0.35;
+  } else if (towardBait && towardBait.dist <= BAIT_NIBBLE_RADIUS) {
+    // Nibbling: stop on the crumb.
+    bug.state = "paused";
+    bug.stateTimer = Math.max(bug.stateTimer, rng.range(0.25, 0.7));
+    bug.turnBias = 0;
+    bug.heading = steerToward(bug.heading, towardBait.heading, dt, 6);
+    return;
   } else {
     const w = wallDistances(bug, viewport);
     const m = EDGE_MARGIN + bug.size * 0.4;
@@ -109,7 +185,6 @@ export function updateBug(
     const nearBottom = w.bottom < m;
     const sides = [nearLeft, nearRight, nearTop, nearBottom].filter(Boolean).length;
 
-    // Single-wall: slide along it (don't face into the wall)
     if (sides === 1) {
       let target = bug.heading;
       if (nearLeft) target = Math.PI / 2;
@@ -117,7 +192,6 @@ export function updateBug(
       else if (nearTop) target = 0;
       else if (nearBottom) target = Math.PI;
 
-      // Alternate slide direction occasionally
       if (rng.chance(0.02)) target = normalizeAngle(target + Math.PI);
 
       const pull = 2.2 + bug.edgeAffinity * 4.5;
@@ -143,7 +217,6 @@ export function updateBug(
   bug.x = Math.min(viewport.width - pad, Math.max(pad, bug.x));
   bug.y = Math.min(viewport.height - pad, Math.max(pad, bug.y));
 
-  // Stuck watchdog: if barely moving near an edge, force a fresh inward heading
   const moved = Math.hypot(bug.x - prevX, bug.y - prevY);
   const w2 = wallDistances(bug, viewport);
   const nearEdge = Math.min(w2.left, w2.right, w2.top, w2.bottom) < EDGE_MARGIN * 2.2;
@@ -176,9 +249,11 @@ export function updateBugs(
   dt: number,
   settings: Settings,
   viewport: Viewport,
+  cursor: CursorState | null = null,
+  bait: Bait | null = null,
 ): void {
   const rng = new Rng(randomSeed());
   for (const bug of bugs) {
-    updateBug(bug, dt, settings, viewport, rng);
+    updateBug(bug, dt, settings, viewport, rng, cursor, bait);
   }
 }

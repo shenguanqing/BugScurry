@@ -11,6 +11,8 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
 }
 
 function finishDeath(manager: BugManager, bug: Bug): void {
+  // Population tests finish death regardless of randomly assigned spawn HP.
+  while (bug.hp > 1) manager.hit(bug);
   manager.squish(bug);
   manager.tick(SQUISH_DURATION + 0.01);
   manager.tick(DEATH_FADE_DURATION + 0.01);
@@ -96,6 +98,8 @@ describe("BugManager", () => {
   it("rejects double-squish on the same bug", () => {
     const m = new BugManager(makeSettings({ count: 1 }), viewport);
     const b = m.list[0];
+    // This case checks a normal bug; fat bugs intentionally survive a hit.
+    b.hp = b.maxHp = 1;
     expect(m.squish(b)).toBe(true);
     expect(m.squish(b)).toBe(false);
   });

@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sound: true,
   stains: true,
   particles: true,
+  repellent: true,
   autostart: false,
   monitorMode: "primary",
   species: "random",
@@ -30,7 +31,12 @@ export const LIMITS = {
 export const BASE_SPEED = 70;
 
 /** Hit radius multiplier relative to drawn body size. */
-export const HIT_RADIUS_SCALE = 1.3;
+export const HIT_RADIUS_SCALE = 1.35;
+/**
+ * More forgiving hit radius while the cursor is already close to a bug —
+ * chasing a fleeing bug should still land.
+ */
+export const HIT_RADIUS_CHASE = 2.15;
 
 export const SQUISH_DURATION = 0.28;
 export const DEATH_FADE_DURATION = 1.05;
@@ -40,3 +46,31 @@ export const MAX_DT = 0.05;
 export const MAX_PARTICLES = 40;
 export const MAX_STAINS = 14;
 export const STUCK_TIMEOUT = 0.35;
+/** CSS px radius around the cursor that scares bugs away. */
+export const REPELLENT_RADIUS = 72;
+/**
+ * Almost on top of the bug: it bolts at full speed with a less coordinated
+ * heading (startle), instead of freezing in place.
+ */
+export const REPELLENT_PANIC_RADIUS = 28;
+/** Flee speed multiplier at the edge of the radius. */
+export const REPELLENT_SPEED_MIN = 1.45;
+/** Flee speed multiplier when the cursor is very close. */
+export const REPELLENT_SPEED_MAX = 2.25;
+
+/** Cookie crumb attraction. */
+export const BAIT_LIFE = 7.5;
+export const BAIT_ATTRACT_RADIUS = 320;
+export const BAIT_NIBBLE_RADIUS = 16;
+export const BAIT_PULL = 3.4;
+export const MAX_BAITS = 1;
+
+/** Seconds between kills that still count as a combo chain. */
+export const COMBO_WINDOW = 2.0;
+export const COMBO_TEXT_LIFE = 0.9;
+/** Low-probability chonky bug: 2–3× size, 3 HP. */
+export const FAT_BUG_CHANCE = 0.06;
+export const FAT_BUG_HP = 3;
+export const FAT_BUG_SIZE_MIN = 2.0;
+export const FAT_BUG_SIZE_MAX = 3.0;
+export const MAX_FLOATS = 8;

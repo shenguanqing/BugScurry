@@ -28,6 +28,22 @@ export async function listenCursorLocal(
   return listen<CursorLocal>("cursor-local", (e) => cb(e.payload));
 }
 
+/** Update the disabled "today" line in the tray menu. */
+export async function setTrayStats(label: string): Promise<void> {
+  try {
+    await invoke("set_tray_stats", { label });
+  } catch (err) {
+    console.error("set_tray_stats failed", err);
+  }
+}
+
+/** Monitor hot-plug: primary overlay should rebuild the overlay layout. */
+export async function listenDisplaysChanged(
+  cb: () => void,
+): Promise<UnlistenFn> {
+  return listen("displays-changed", () => cb());
+}
+
 export async function listenTray(
   cb: (cmd: TrayCommand) => void,
 ): Promise<UnlistenFn> {

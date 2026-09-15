@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { HIT_RADIUS_CHASE, HIT_RADIUS_SCALE } from "../config";
 import { hitTestBug } from "../hitTest";
 import type { Bug, Viewport } from "../types";
 
@@ -21,6 +22,9 @@ function bug(overrides: Partial<Bug> = {}): Bug {
     edgeAffinity: 0.5,
     stuckTime: 0,
     seed: 0.5,
+    hp: 1,
+    maxHp: 1,
+    hurtTimer: 0,
     ...overrides,
   };
 }
@@ -46,5 +50,16 @@ describe("hitTestBug", () => {
     const dying = bug({ id: "dying", state: "dying" });
     const squishing = bug({ id: "squishing", state: "squishing" });
     expect(hitTestBug([dying, squishing], 100, 100, viewport)).toBeNull();
+  });
+
+  it("uses a wider chase radius when the click is already close", () => {
+    const b = bug({ size: 12 });
+    const chaseR = 12 * HIT_RADIUS_CHASE;
+    const baseR = 12 * HIT_RADIUS_SCALE;
+    // Between base and chase: still a hit because the cursor is close.
+    const mid = 100 + (baseR + chaseR) / 2;
+    expect(mid - 100).toBeGreaterThan(baseR);
+    expect(mid - 100).toBeLessThanOrEqual(chaseR);
+    expect(hitTestBug([b], mid, 100, viewport)).toBe(b);
   });
 });

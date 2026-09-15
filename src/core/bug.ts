@@ -1,4 +1,10 @@
-import { BASE_SPEED } from "./config";
+import {
+  BASE_SPEED,
+  FAT_BUG_CHANCE,
+  FAT_BUG_HP,
+  FAT_BUG_SIZE_MAX,
+  FAT_BUG_SIZE_MIN,
+} from "./config";
 import { Rng, randomSeed } from "./rng";
 import { getSpecies, pickSpeciesId } from "../species";
 import type { Bug, Settings, Viewport } from "./types";
@@ -48,6 +54,11 @@ export function createBug(
   const bodyScale = traits?.bodyScale ?? 1;
   const speedMul = traits?.speedMul ?? 1;
   const edgeAffinity = traits?.edgeAffinity ?? 0.5;
+  const fat = rng.chance(FAT_BUG_CHANCE);
+  const sizeMul = fat
+    ? rng.range(FAT_BUG_SIZE_MIN, FAT_BUG_SIZE_MAX)
+    : rng.range(0.97, 1.03);
+  const fatSpeed = fat ? rng.range(0.55, 0.75) : 1;
 
   return {
     id: `bug-${nextId++}`,
@@ -55,8 +66,9 @@ export function createBug(
     x,
     y,
     heading,
-    speed: BASE_SPEED * settings.speed * speedMul * rng.range(0.82, 1.18),
-    size: 15 * settings.size * bodyScale * rng.range(0.97, 1.03),
+    speed:
+      BASE_SPEED * settings.speed * speedMul * rng.range(0.82, 1.18) * fatSpeed,
+    size: 15 * settings.size * bodyScale * sizeMul,
     state: "crawling",
     legPhase: rng.next(),
     stateTimer: rng.range(0.5, 2.2),
@@ -65,5 +77,8 @@ export function createBug(
     edgeAffinity: edgeAffinity * rng.range(0.85, 1.15),
     stuckTime: 0,
     seed: rng.next(),
+    hp: fat ? FAT_BUG_HP : 1,
+    maxHp: fat ? FAT_BUG_HP : 1,
+    hurtTimer: 0,
   };
 }

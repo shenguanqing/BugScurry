@@ -2,13 +2,14 @@ import { MAX_DT } from "./config";
 import type { BugManager } from "./bugManager";
 import { updateBugs } from "./movement";
 import { render } from "./renderer";
-import type { Settings, Viewport } from "./types";
+import type { CursorState, Settings, Viewport } from "./types";
 
 export interface LoopHooks {
   manager: BugManager;
   getSettings: () => Settings;
   getViewport: () => Viewport;
   getCanvas: () => HTMLCanvasElement | null;
+  getCursor: () => CursorState;
 }
 
 export function createLoop(hooks: LoopHooks) {
@@ -22,27 +23,41 @@ export function createLoop(hooks: LoopHooks) {
     const dt = Math.min(MAX_DT, Math.max(0, rawDt));
     last = t;
 
-    const viewport = hooks.getViewport();
-    const settings = hooks.getSettings();
-    const manager = hooks.manager;
+    try {
+      const viewport = hooks.getViewport();
+      const settings = hooks.getSettings();
+      const manager = hooks.manager;
+      const cursor = hooks.getCursor();
 
-    if (manager.isVisible) {
-      updateBugs(manager.list, dt, settings, viewport);
-      manager.tick(dt);
+      if (manager.isVisible) {
+        updateBugs(
+          manager.list,
+          dt,
+          settings,
+          viewport,
+          cursor,
+          manager.activeBait,
+        );
+        manager.tick(dt);
 
-      const canvas = hooks.getCanvas();
-      if (canvas) {
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          render(
-            ctx,
-            manager.list,
-            manager.stainList,
-            manager.particleList,
-            viewport,
-          );
+        const canvas = hooks.getCanvas();
+        if (canvas) {
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            render(
+              ctx,
+              manager.list,
+              manager.stainList,
+              manager.particleList,
+              manager.baitList,
+              manager.floatList,
+              viewport,
+            );
+          }
         }
       }
+    } catch (err) {
+      console.error("frame error", err);
     }
 
     rafId = requestAnimationFrame(frame);

@@ -26,7 +26,7 @@ Ship a playable loop first; every milestone must be runnable and checkable.
 - [x] Clear / regenerate / live sync
 - [x] Store persistence
 - [x] Closing settings does not quit
-- [x] Species picker (random / cockroach / ant / spider / fly / ladybug)
+- [x] Species picker (random / cockroach / ant / spider / fly / ladybug / bee / caterpillar / butterfly / mosquito)
 
 ## M3 — Feel & FX
 
@@ -45,12 +45,23 @@ Ship a playable loop first; every milestone must be runnable and checkable.
 ## M5 — Packaging & extension points
 
 - [x] README build paths
-- [x] Species registry (cockroach, ant, spider, fly, ladybug)
+- [x] Species registry (cockroach, ant, spider, fly, ladybug, bee, caterpillar, butterfly, mosquito)
 - [x] Platform matrix notes
 - [x] Unit tests for core pure logic (`pnpm test`)
 - [x] CI: typecheck + tests + cargo check + Windows NSIS + macOS DMG
 - [x] Tag-triggered GitHub Release (`v*`) + CHANGELOG
 - [x] Release pipeline dry-run at v0.1.1
+
+## M6 — Interaction & light gamification (post v0.1.1)
+
+- [x] Extra species: bee, caterpillar, butterfly, mosquito (9 total + random)
+- [x] Flee from cursor (repellent); panic bolt when almost on top
+- [x] Chase hit radius while the cursor is close
+- [x] Cookie bait from the tray; bugs gather to nibble
+- [x] Combo: 2s chain floats + rising pitch; tray “Today” stats
+- [x] Fat bug: ~6% chance, 2–3× size, 3 HP, burst on kill
+- [x] i18n: zh-CN, zh-TW, en, ja, ko
+- [x] Settings UI toward iOS inset-grouped (borderless cards, list rows, selects)
 
 ## Later (not blocking)
 

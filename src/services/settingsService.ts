@@ -3,8 +3,9 @@ import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { Store } from "@tauri-apps/plugin-store";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { DEFAULT_SETTINGS } from "../core/config";
+import { emptyDailyStats, normalizeDailyStats } from "../core/bugManager";
 import { clampSettings } from "../core/settings";
-import type { Settings } from "../core/types";
+import type { DailyStats, Settings } from "../core/types";
 import { setLocalePref, syncTrayLocale } from "../i18n";
 
 export { clampSettings };
@@ -68,6 +69,27 @@ export async function saveSettings(settings: Settings): Promise<void> {
   }
   await applyUiLocale(next.locale);
   await emit(SETTINGS_EVENT, next);
+}
+
+const DAILY_KEY = "dailyStats";
+
+export async function loadDailyStats(): Promise<DailyStats | null> {
+  try {
+    const store = await getStore();
+    return normalizeDailyStats(await store.get(DAILY_KEY));
+  } catch {
+    return emptyDailyStats();
+  }
+}
+
+export async function saveDailyStats(stats: DailyStats): Promise<void> {
+  try {
+    const store = await getStore();
+    await store.set(DAILY_KEY, normalizeDailyStats(stats));
+    await store.save();
+  } catch (err) {
+    console.error("save daily stats failed", err);
+  }
 }
 
 export async function listenSettings(

@@ -110,12 +110,30 @@ fn global_cursor_physical(_app: &tauri::AppHandle) -> Option<(f64, f64)> {
 /// use (cursor - origin) / scale.
 fn spawn_global_cursor_poller(app: tauri::AppHandle, running: Arc<AtomicBool>) {
     std::thread::spawn(move || {
+        let mut tick: u32 = 0;
+        let mut last_display_fp = String::new();
         while running.load(Ordering::Relaxed) {
             if !CURSOR_POLLER_ENABLED.load(Ordering::Relaxed) {
-                // Bugs hidden: skip CGEvent sampling entirely.
                 std::thread::sleep(Duration::from_millis(100));
                 continue;
             }
+
+            // Hot-plug watchdog: rebuild overlay layout so orphaned windows close.
+            tick = tick.wrapping_add(1);
+            if tick % 32 == 0 {
+                let fp = monitor_fingerprint(&app);
+                if fp != last_display_fp {
+                    if last_display_fp.is_empty() {
+                        last_display_fp = fp;
+                    } else {
+                        last_display_fp = fp;
+                        if let Some(win) = app.get_webview_window(OVERLAY_LABEL) {
+                            let _ = win.emit("displays-changed", ());
+                        }
+                    }
+                }
+            }
+
             if let Some((gx, gy)) = global_cursor_physical(&app) {
                 for (label, win) in app.webview_windows() {
                     if !label.starts_with("overlay") {
@@ -167,6 +185,30 @@ fn spawn_global_cursor_poller(app: tauri::AppHandle, running: Arc<AtomicBool>) {
             std::thread::sleep(Duration::from_millis(16));
         }
     });
+}
+
+/// Stable id of the current monitor set (name + origin + size).
+fn monitor_fingerprint(app: &tauri::AppHandle) -> String {
+    let mut parts: Vec<String> = app
+        .available_monitors()
+        .ok()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|m| {
+            let p = m.position();
+            let s = m.size();
+            format!(
+                "{}@{}x{}:{}x{}",
+                m.name().map(|s| s.as_str()).unwrap_or(""),
+                p.x,
+                p.y,
+                s.width,
+                s.height
+            )
+        })
+        .collect();
+    parts.sort();
+    parts.join("|")
 }
 
 fn configure_overlay_window(window: &tauri::WebviewWindow, monitor: &Monitor) {
@@ -319,6 +361,11 @@ fn apply_locale(
 }
 
 #[tauri::command]
+fn set_tray_stats(app: tauri::AppHandle, label: String) {
+    let _ = tray::apply_tray_stats(&app, label);
+}
+
+#[tauri::command]
 fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
@@ -343,6 +390,7 @@ pub fn run() {
             open_settings_window,
             apply_monitor_mode_cmd,
             apply_locale,
+            set_tray_stats,
             quit_app,
             set_cursor_poller_enabled
         ])

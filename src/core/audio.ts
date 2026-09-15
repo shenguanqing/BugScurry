@@ -19,10 +19,13 @@ export function ensureAudio(): void {
   if (ac && ac.state === "suspended") void ac.resume();
 }
 
-export function playSquishSound(): void {
+export function playSquishSound(combo = 1): void {
   const ac = getCtx();
   if (!ac) return;
   const t = ac.currentTime;
+  // Pentatonic-ish climb so a streak feels musical without assets.
+  const step = Math.min(Math.max(combo, 1) - 1, 10);
+  const pitchMul = 1 + step * 0.08;
 
   // Short noise burst
   const bufferSize = Math.floor(ac.sampleRate * 0.08);
@@ -37,7 +40,7 @@ export function playSquishSound(): void {
 
   const filter = ac.createBiquadFilter();
   filter.type = "bandpass";
-  filter.frequency.value = 900;
+  filter.frequency.value = 900 * pitchMul;
   filter.Q.value = 0.7;
 
   const gain = ac.createGain();
@@ -54,8 +57,8 @@ export function playSquishSound(): void {
   // Soft thump
   const osc = ac.createOscillator();
   osc.type = "sine";
-  osc.frequency.setValueAtTime(160, t);
-  osc.frequency.exponentialRampToValueAtTime(60, t + 0.1);
+  osc.frequency.setValueAtTime(160 * pitchMul, t);
+  osc.frequency.exponentialRampToValueAtTime(60 * pitchMul, t + 0.1);
   const og = ac.createGain();
   og.gain.setValueAtTime(0.0001, t);
   og.gain.exponentialRampToValueAtTime(0.12, t + 0.01);
@@ -64,4 +67,23 @@ export function playSquishSound(): void {
   og.connect(ac.destination);
   osc.start(t);
   osc.stop(t + 0.14);
+}
+
+/** Dull thud for chipping a fat bug. */
+export function playHurtSound(): void {
+  const ac = getCtx();
+  if (!ac) return;
+  const t = ac.currentTime;
+  const osc = ac.createOscillator();
+  osc.type = "triangle";
+  osc.frequency.setValueAtTime(110, t);
+  osc.frequency.exponentialRampToValueAtTime(55, t + 0.07);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.1, t + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+  osc.connect(g);
+  g.connect(ac.destination);
+  osc.start(t);
+  osc.stop(t + 0.1);
 }

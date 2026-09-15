@@ -13,11 +13,18 @@ export function clampSettings(input: Partial<Settings>): Settings {
   next.sound = !!next.sound;
   next.stains = !!next.stains;
   next.particles = !!next.particles;
+  next.repellent = !!next.repellent;
   next.autostart = !!next.autostart;
   next.monitorMode = next.monitorMode === "all" ? "all" : "primary";
   next.species = typeof next.species === "string" && next.species ? next.species : "random";
   next.theme = next.theme === "light" || next.theme === "dark" ? next.theme : "auto";
   next.locale =
-    next.locale === "zh-CN" || next.locale === "en" ? next.locale : "auto";
+    next.locale === "zh-CN" ||
+    next.locale === "zh-TW" ||
+    next.locale === "en" ||
+    next.locale === "ja" ||
+    next.locale === "ko"
+      ? next.locale
+      : "auto";
   return next;
 }

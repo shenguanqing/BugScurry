@@ -1,6 +1,6 @@
 import { squishPressure } from "./squish";
 import { getSpecies } from "../species";
-import type { Bug, Particle, Stain, Viewport } from "./types";
+import type { Bait, Bug, FloatText, Particle, Stain, Viewport } from "./types";
 
 // ---------------------------------------------------------------------------
 // Deterministic pseudo-randomness (no external RNG state, no per-frame flicker)
@@ -39,7 +39,7 @@ function smoothBlobPath(
   ctx.beginPath();
   const last = pts[pts.length - 1];
   ctx.moveTo((last.x + pts[0].x) / 2, (last.y + pts[0].y) / 2);
-  for (let i = 0; i < pts.length; i++) {
+  for (let i = 0; i < points; i++) {
     const p0 = pts[i];
     const p1 = pts[(i + 1) % pts.length];
     const mx = (p0.x + p1.x) / 2;
@@ -61,7 +61,6 @@ function applySquishTransform(ctx: CanvasRenderingContext2D, bug: Bug): number {
 
   const t = bug.state === "dying" ? 1 : bug.deathProgress;
   const pressure = squishPressure(bug);
-  // A small, damped release; no elastic bounce or change at the state boundary.
   const release = Math.max(0, (t - 0.42) / 0.58);
   const spread = pressure * (1 - 0.12 * release);
   ctx.translate(bug.size * (bug.seed - 0.5) * 0.09 * spread, 0);
@@ -77,15 +76,33 @@ function applySquishTransform(ctx: CanvasRenderingContext2D, bug: Bug): number {
 export function drawBug(ctx: CanvasRenderingContext2D, bug: Bug): void {
   ctx.save();
   const alpha = applySquishTransform(ctx, bug);
+
+  // Fat bug: slightly chunkier read + hurt flash.
+  if (bug.maxHp > 1) {
+    ctx.scale(1.04, 1.08);
+  }
+  if (bug.hurtTimer > 0) {
+    const k = bug.hurtTimer / 0.18;
+    ctx.globalAlpha = alpha * (1 - 0.35 * k);
+  }
+
   const species = getSpecies(bug.species);
-  // Keep the original species silhouette and frozen gait throughout death.
-  // Replacing it with a generic blob loses wings, shell and leg anatomy.
   if (species) species.draw(ctx, bug, alpha);
+
+  if (bug.hurtTimer > 0 && species) {
+    const k = bug.hurtTimer / 0.18;
+    ctx.globalAlpha = alpha * 0.45 * k;
+    ctx.globalCompositeOperation = "source-atop";
+    ctx.fillStyle = "#ff6b4a";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, bug.size * 0.95, bug.size * 0.7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
+  }
 
   if (species && (bug.state === "squishing" || bug.state === "dying")) {
     const pressure = squishPressure(bug);
     const s = bug.size;
-    // Fine displaced shell seams give the compressed body an uneven surface.
     ctx.globalAlpha = alpha * pressure * 0.65;
     ctx.strokeStyle = species.traits.stainColor ?? "#3b2a1a";
     ctx.lineWidth = Math.max(0.45, s * 0.018);
@@ -97,6 +114,47 @@ export function drawBug(ctx: CanvasRenderingContext2D, bug: Bug): void {
     ctx.lineTo(s * 0.04, s * 0.13);
     ctx.stroke();
   }
+  ctx.restore();
+}
+
+export function drawBait(ctx: CanvasRenderingContext2D, bait: Bait): void {
+  const t = Math.max(0, bait.life / bait.maxLife);
+  // Fade in quickly, linger, then dissolve.
+  const alpha = Math.min(1, (1 - t) * 8 + 0.25) * Math.min(1, t * 4);
+  const seed = hashStr(bait.id) * 1000;
+  const s = bait.size;
+
+  ctx.save();
+  ctx.translate(bait.x, bait.y);
+  ctx.rotate(hash(seed) * Math.PI);
+
+  // Soft shadow
+  ctx.globalAlpha = alpha * 0.2;
+  ctx.fillStyle = "#000";
+  ctx.beginPath();
+  ctx.ellipse(1.5, 2, s * 1.05, s * 0.7, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Crumb body
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = "#c9a66b";
+  smoothBlobPath(ctx, 0, 0, s, s * 0.78, seed, 8, 0.4);
+  ctx.fill();
+  ctx.strokeStyle = "#8a6234";
+  ctx.lineWidth = 0.6;
+  ctx.stroke();
+
+  // Chips
+  ctx.fillStyle = "#4a2c1a";
+  for (let i = 0; i < 3; i++) {
+    const a = hash(seed + i * 3.1) * Math.PI * 2;
+    const d = s * (0.25 + hash(seed + i * 1.7) * 0.35);
+    const r = s * (0.14 + hash(seed + i * 5.3) * 0.08);
+    ctx.beginPath();
+    ctx.ellipse(Math.cos(a) * d, Math.sin(a) * d * 0.75, r, r * 0.85, a, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   ctx.restore();
 }
 
@@ -113,14 +171,11 @@ export function drawStain(ctx: CanvasRenderingContext2D, stain: Stain): void {
   const spread = 1 - Math.pow(1 - Math.min(1, t * stain.maxLife / 0.1), 3);
   ctx.scale(0.65 + spread * 0.35, 0.65 + spread * 0.35);
 
-  // Main irregular puddle
   ctx.globalAlpha = alpha;
   ctx.fillStyle = color;
   smoothBlobPath(ctx, 0, 0, stain.size * 0.85, stain.size * 0.46, seed, 10, 0.34);
   ctx.fill();
 
-  // Small connected lobes squeeze out sideways from beneath the shell.
-  // Stable seeds retain their outline as the fluid spreads and settles.
   const fluid = species?.traits.fluidColor ?? "#b3a45b";
   const highlight = species?.traits.fluidHighlight ?? "#fff3cf";
   const shadow = species?.traits.fluidShadow ?? "#82743c";
@@ -136,7 +191,6 @@ export function drawStain(ctx: CanvasRenderingContext2D, stain: Stain): void {
     gradient.addColorStop(0, highlight);
     gradient.addColorStop(0.6, fluid);
     gradient.addColorStop(1, shadow);
-    // A short wet neck connects the expelled bead to the compressed abdomen.
     ctx.globalAlpha = wetAlpha * 0.38;
     ctx.strokeStyle = fluid;
     ctx.lineWidth = ry * 0.85;
@@ -149,7 +203,6 @@ export function drawStain(ctx: CanvasRenderingContext2D, stain: Stain): void {
     ctx.fillStyle = gradient;
     smoothBlobPath(ctx, x, y, rx, ry, seed + i * 8.3, 8, 0.4);
     ctx.fill();
-    // Narrow meniscus and an offset highlight suggest a shallow liquid bead.
     ctx.globalAlpha = wetAlpha * 0.25;
     ctx.strokeStyle = shadow;
     ctx.lineWidth = Math.max(0.35, s * 0.012);
@@ -163,7 +216,6 @@ export function drawStain(ctx: CanvasRenderingContext2D, stain: Stain): void {
     ctx.stroke();
   }
 
-  // A few tiny beads travel a short distance, then remain with the wet mark.
   for (let i = 0; i < 3; i++) {
     const a = hash(seed + i * 6.6) * Math.PI * 2;
     const dist = s * (0.7 + hash(seed + i * 2.2) * 0.4) * spread;
@@ -190,7 +242,6 @@ export function drawParticles(ctx: CanvasRenderingContext2D, particles: Particle
     const a = Math.max(0, p.life / p.maxLife);
     const speed = Math.hypot(p.vx, p.vy);
     const angle = Math.atan2(p.vy, p.vx);
-    // Stretch fast droplets along their direction of travel for a motion-blurred, liquid feel
     const stretch = Math.min(2.6, 1 + speed * 0.006);
     const r = p.size * (0.75 + a * 0.25);
 
@@ -213,11 +264,33 @@ export function drawParticles(ctx: CanvasRenderingContext2D, particles: Particle
   }
 }
 
+export function drawFloats(ctx: CanvasRenderingContext2D, floats: FloatText[]): void {
+  for (const f of floats) {
+    const t = f.life / f.maxLife;
+    const alpha = Math.min(1, t * 2.2);
+    const scale = 1 + (1 - t) * 0.15;
+    const size = (f.tier >= 3 ? 18 : f.tier >= 2 ? 15 : 13) * scale;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = `700 ${size}px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineWidth = Math.max(2, size * 0.18);
+    ctx.strokeStyle = "rgba(20,16,12,0.75)";
+    ctx.strokeText(f.text, f.x, f.y);
+    ctx.fillStyle = f.tier >= 2 ? "#ffd666" : "#fff6e0";
+    ctx.fillText(f.text, f.x, f.y);
+    ctx.restore();
+  }
+}
+
 export function render(
   ctx: CanvasRenderingContext2D,
   bugs: Bug[],
   stains: Stain[],
   particles: Particle[],
+  baits: Bait[],
+  floats: FloatText[],
   viewport: Viewport,
 ): void {
   ctx.save();
@@ -225,8 +298,10 @@ export function render(
   ctx.clearRect(0, 0, viewport.width, viewport.height);
 
   for (const stain of stains) drawStain(ctx, stain);
+  for (const bait of baits) drawBait(ctx, bait);
   for (const bug of bugs) drawBug(ctx, bug);
   drawParticles(ctx, particles);
+  drawFloats(ctx, floats);
 
   ctx.restore();
 }
