@@ -329,8 +329,8 @@ output {
 
 /*
  * Shared list-row chrome (toggle + select).
- * min-height keeps rows even; the card's own padding is the only inset
- * above the first row and below the last (iOS inset-grouped).
+ * Height comes from 10px vertical padding + 26px control, so first/last
+ * can drop the outer pad and stay flush with the card inset.
  */
 .toggle-row,
 .select-row {
@@ -338,16 +338,21 @@ output {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  min-height: 44px;
-  padding: 0;
+  padding: 10px 0;
   border-bottom: 1px solid var(--line);
   font-size: 15px;
   font-weight: 500;
   color: var(--ink);
 }
 
+.toggles .toggle-row:first-child,
+.selects .select-row:first-child {
+  padding-top: 0;
+}
+
 .toggles .toggle-row:last-child,
 .selects .select-row:last-child {
+  padding-bottom: 0;
   border-bottom: 0;
 }
 
@@ -410,6 +415,8 @@ output {
   align-items: center;
   max-width: 58%;
   flex-shrink: 0;
+  /* Match the 26px toggle switch so list rows share one height. */
+  min-height: 26px;
 }
 
 .select-wrap::after {

@@ -88,7 +88,7 @@ fn build_menu(app: &tauri::AppHandle, labels: &TrayLabels) -> tauri::Result<Menu
         true,
         Some("CmdOrCtrl+,"),
     )?;
-    let quit = MenuItem::with_id(app, "quit", &labels.quit, true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", &labels.quit, true, Some("CmdOrCtrl+Q"))?;
     Menu::with_items(
         app,
         &[&stats, &show, &add, &remove, &regen, &bait, &settings, &quit],

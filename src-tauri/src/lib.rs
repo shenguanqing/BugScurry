@@ -421,6 +421,7 @@ fn register_global_shortcuts(app: &tauri::AppHandle) {
         "CmdOrCtrl+R",
         "CmdOrCtrl+B",
         "CmdOrCtrl+Comma",
+        "CmdOrCtrl+Q",
     ] {
         match spec.parse::<tauri_plugin_global_shortcut::Shortcut>() {
             Ok(sc) => {
@@ -472,6 +473,7 @@ pub fn run() {
                         Code::KeyR => "regenerate",
                         Code::KeyB => "drop_bait",
                         Code::Comma => "open_settings",
+                        Code::KeyQ => "quit",
                         _ => return,
                     };
                     emit_tray_command(app, cmd);
