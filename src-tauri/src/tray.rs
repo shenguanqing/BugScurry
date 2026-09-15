@@ -63,30 +63,14 @@ fn build_menu(app: &tauri::AppHandle, labels: &TrayLabels) -> tauri::Result<Menu
     };
     let stats = MenuItem::with_id(app, "today_stats", &stats_text, false, None::<&str>)?;
     let show = MenuItem::with_id(app, "toggle_visibility", &labels.toggle, true, None::<&str>)?;
-    let add = MenuItem::with_id(
-        app,
-        "add_one",
-        &labels.add,
-        true,
-        Some("CmdOrCtrl+Equal"),
-    )?;
-    let remove = MenuItem::with_id(app, "remove_one", &labels.remove, true, Some("CmdOrCtrl+-"))?;
-    let regen = MenuItem::with_id(app, "regenerate", &labels.regen, true, Some("CmdOrCtrl+R"))?;
-    let bait = MenuItem::with_id(
-        app,
-        "drop_bait",
-        &labels.bait,
-        true,
-        Some("CmdOrCtrl+B"),
-    )?;
-    let settings = MenuItem::with_id(
-        app,
-        "open_settings",
-        &labels.settings,
-        true,
-        Some("CmdOrCtrl+,"),
-    )?;
-    let quit = MenuItem::with_id(app, "quit", &labels.quit, true, Some("CmdOrCtrl+Q"))?;
+    // No menu accelerators: they only fire when the app is focused, and would
+    // double-fire with the OS-global shortcuts. Shortcuts live in lib.rs.
+    let add = MenuItem::with_id(app, "add_one", &labels.add, true, None::<&str>)?;
+    let remove = MenuItem::with_id(app, "remove_one", &labels.remove, true, None::<&str>)?;
+    let regen = MenuItem::with_id(app, "regenerate", &labels.regen, true, None::<&str>)?;
+    let bait = MenuItem::with_id(app, "drop_bait", &labels.bait, true, None::<&str>)?;
+    let settings = MenuItem::with_id(app, "open_settings", &labels.settings, true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", &labels.quit, true, None::<&str>)?;
     Menu::with_items(
         app,
         &[&stats, &show, &add, &remove, &regen, &bait, &settings, &quit],

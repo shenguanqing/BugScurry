@@ -375,6 +375,47 @@ fn set_cursor_poller_enabled(enabled: bool) {
     CURSOR_POLLER_ENABLED.store(enabled, Ordering::Relaxed);
 }
 
+/// Same command ids as the tray menu, used by OS-global shortcuts.
+fn emit_tray_command(app: &tauri::AppHandle, cmd: &str) {
+    if cmd == "open_settings" {
+        open_or_focus_settings(app);
+        return;
+    }
+    if cmd == "quit" {
+        app.exit(0);
+        return;
+    }
+    if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
+        let _ = window.emit("tray-command", cmd);
+    }
+}
+
+/// Register system-wide shortcuts. Tray menu accelerators only fire when the
+/// app is focused; the overlay is focusable:false so they never hit in the
+/// background (and in a Windows VM under Parallels).
+fn register_global_shortcuts(app: &tauri::AppHandle) {
+    use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+
+    #[cfg(target_os = "macos")]
+    let primary = Modifiers::SUPER;
+    #[cfg(not(target_os = "macos"))]
+    let primary = Modifiers::CONTROL;
+
+    let shortcuts = [
+        (Shortcut::new(Some(primary), Code::Equal), "add_one"),
+        (Shortcut::new(Some(primary), Code::Minus), "remove_one"),
+        (Shortcut::new(Some(primary), Code::KeyR), "regenerate"),
+        (Shortcut::new(Some(primary), Code::KeyB), "drop_bait"),
+        (Shortcut::new(Some(primary), Code::Comma), "open_settings"),
+    ];
+
+    for (sc, _) in &shortcuts {
+        if let Err(err) = app.global_shortcut().register(*sc) {
+            eprintln!("register shortcut failed {sc:?}: {err}");
+        }
+    }
+}
+
 pub fn run() {
     tauri::Builder::default()
         // Must be first: a second launch exits instead of stacking tray icons
@@ -391,6 +432,29 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    if event.state() != tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        return;
+                    }
+                    #[cfg(target_os = "macos")]
+                    let primary = tauri_plugin_global_shortcut::Modifiers::SUPER;
+                    #[cfg(not(target_os = "macos"))]
+                    let primary = tauri_plugin_global_shortcut::Modifiers::CONTROL;
+                    use tauri_plugin_global_shortcut::Code;
+                    let cmd = match (shortcut.mods, shortcut.key) {
+                        (m, Code::Equal) if m == primary => "add_one",
+                        (m, Code::Minus) if m == primary => "remove_one",
+                        (m, Code::KeyR) if m == primary => "regenerate",
+                        (m, Code::KeyB) if m == primary => "drop_bait",
+                        (m, Code::Comma) if m == primary => "open_settings",
+                        _ => return,
+                    };
+                    emit_tray_command(app, cmd);
+                })
+                .build(),
+        )
         .manage(Arc::new(AtomicBool::new(true)))
         .invoke_handler(tauri::generate_handler![
             set_overlay_clickable,
@@ -412,6 +476,7 @@ pub fn run() {
             let running = handle.state::<Arc<AtomicBool>>().inner().clone();
             spawn_global_cursor_poller(handle.clone(), running);
             tray::setup_tray(handle)?;
+            register_global_shortcuts(handle);
             Ok(())
         })
         .on_window_event(|window, event| {
