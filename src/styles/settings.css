@@ -327,7 +327,11 @@ output {
   display: grid;
 }
 
-/* Shared list-row chrome: toggles and selects are the same height. */
+/*
+ * Shared list-row chrome (toggle + select).
+ * min-height keeps rows even; the card's own padding is the only inset
+ * above the first row and below the last (iOS inset-grouped).
+ */
 .toggle-row,
 .select-row {
   display: flex;
@@ -340,11 +344,6 @@ output {
   font-size: 15px;
   font-weight: 500;
   color: var(--ink);
-}
-
-.toggles .toggle-row:first-child,
-.selects .select-row:first-child {
-  border-bottom-color: var(--line);
 }
 
 .toggles .toggle-row:last-child,
