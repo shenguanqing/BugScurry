@@ -377,6 +377,14 @@ fn set_cursor_poller_enabled(enabled: bool) {
 
 pub fn run() {
     tauri::Builder::default()
+        // Must be first: a second launch exits instead of stacking tray icons
+        // and a second overlay (which looked like +2 bugs per tray click).
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(win) = app.get_webview_window("settings") {
+                let _ = win.show();
+                let _ = win.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_autostart::init(

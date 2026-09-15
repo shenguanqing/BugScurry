@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Windows: register `tauri-plugin-single-instance` so a second launch exits (was stacking two tray icons and two overlays — tray add/remove looked like ±2 bugs)
+
 ## [0.2.0] - 2026-09-15
 
 Interaction, light gamification, more species, and broader i18n.
