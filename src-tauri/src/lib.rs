@@ -300,32 +300,16 @@ fn open_or_focus_settings(app: &tauri::AppHandle) {
     // Drop them a level while the settings window is open.
     set_overlays_always_on_top(app, false);
 
+    // The settings window is declared in tauri.conf.json. Never rebuild it
+    // with the same label — Tauri 2 can abort if the identifier is already
+    // registered (Windows crash on Ctrl+,).
     if let Some(win) = app.get_webview_window("settings") {
         let _ = win.show();
+        let _ = win.unminimize();
         let _ = win.set_always_on_top(true);
         let _ = win.set_focus();
-        return;
-    }
-
-    match WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
-        .title("BugScurry Settings")
-        .inner_size(420.0, 640.0)
-        .resizable(false)
-        .decorations(true)
-        .transparent(false)
-        .center()
-        .always_on_top(true)
-        .skip_taskbar(false)
-        .focused(true)
-        .visible(true)
-        .build()
-    {
-        Ok(win) => {
-            let _ = win.set_always_on_top(true);
-            let _ = win.show();
-            let _ = win.set_focus();
-        }
-        Err(err) => eprintln!("open settings failed: {err}"),
+    } else {
+        eprintln!("settings window not found; skip open");
     }
 }
 
@@ -392,16 +376,18 @@ fn emit_tray_command(app: &tauri::AppHandle, cmd: &str) {
         *last = Some((cmd.to_string(), now));
     }
 
-    if cmd == "open_settings" {
-        open_or_focus_settings(app);
-        return;
-    }
-    if cmd == "quit" {
-        app.exit(0);
-        return;
-    }
-    if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
-        let _ = window.emit("tray-command", cmd);
+    match cmd {
+        "open_settings" => open_or_focus_settings(app),
+        // app.exit alone can leave a tray ghost on Windows; force process end.
+        "quit" => {
+            app.exit(0);
+            std::process::exit(0);
+        }
+        other => {
+            if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
+                let _ = window.emit("tray-command", other);
+            }
+        }
     }
 }
 
@@ -458,16 +444,22 @@ pub fn run() {
             // macOS uses tray menu accelerators so the hook never steals ⌘ keys.
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
-                    if event.state() != tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                    // Never let a panic in the hotkey thread take the app down.
+                    let app = app.clone();
+                    let key = shortcut.key;
+                    let mods = shortcut.mods;
+                    let pressed = event.state()
+                        == tauri_plugin_global_shortcut::ShortcutState::Pressed;
+                    if !pressed {
                         return;
                     }
                     use tauri_plugin_global_shortcut::{Code, Modifiers};
-                    let mod_ok = shortcut.mods.contains(Modifiers::CONTROL)
-                        || shortcut.mods.contains(Modifiers::SUPER);
-                    if !mod_ok || shortcut.mods.contains(Modifiers::SHIFT) {
+                    if !(mods.contains(Modifiers::CONTROL) || mods.contains(Modifiers::SUPER))
+                        || mods.contains(Modifiers::SHIFT)
+                    {
                         return;
                     }
-                    let cmd = match shortcut.key {
+                    let cmd = match key {
                         Code::Equal => "add_one",
                         Code::Minus => "remove_one",
                         Code::KeyR => "regenerate",
@@ -476,7 +468,9 @@ pub fn run() {
                         Code::KeyQ => "quit",
                         _ => return,
                     };
-                    emit_tray_command(app, cmd);
+                    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+                        emit_tray_command(&app, cmd);
+                    }));
                 })
                 .build(),
         )
