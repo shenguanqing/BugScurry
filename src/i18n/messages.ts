@@ -62,7 +62,7 @@ export const messages: Record<Locale, Record<string, string>> = {
     "tray.regen": "重新生成",
     "tray.bait": "扔一块饼干",
     "tray.stats": "今日战绩",
-    "tray.settings": "设置…",
+    "tray.settings": "设置",
     "tray.quit": "退出",
   },
   "zh-TW": {
@@ -125,7 +125,7 @@ export const messages: Record<Locale, Record<string, string>> = {
     "tray.regen": "重新產生",
     "tray.bait": "丟一塊餅乾",
     "tray.stats": "今日戰績",
-    "tray.settings": "設定…",
+    "tray.settings": "設定",
     "tray.quit": "結束",
   },
   en: {
@@ -188,7 +188,7 @@ export const messages: Record<Locale, Record<string, string>> = {
     "tray.regen": "Regenerate",
     "tray.bait": "Drop a crumb",
     "tray.stats": "Today",
-    "tray.settings": "Settings…",
+    "tray.settings": "Settings",
     "tray.quit": "Quit",
   },
   ja: {
@@ -251,7 +251,7 @@ export const messages: Record<Locale, Record<string, string>> = {
     "tray.regen": "再生成",
     "tray.bait": "クッキーを落とす",
     "tray.stats": "今日の戦績",
-    "tray.settings": "設定…",
+    "tray.settings": "設定",
     "tray.quit": "終了",
   },
   ko: {
@@ -314,7 +314,7 @@ export const messages: Record<Locale, Record<string, string>> = {
     "tray.regen": "다시 생성",
     "tray.bait": "과자 부스러기 놓기",
     "tray.stats": "오늘 기록",
-    "tray.settings": "설정…",
+    "tray.settings": "설정",
     "tray.quit": "종료",
   },
 };

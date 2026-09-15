@@ -323,26 +323,33 @@ output {
   display: grid;
 }
 
-/* Row is layout only; the switch on the right is the button. */
-.toggle-row {
+.selects {
+  display: grid;
+}
+
+/* Shared list-row chrome: toggles and selects are the same height. */
+.toggle-row,
+.select-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   width: 100%;
+  min-height: 44px;
+  padding: 0;
   border-bottom: 1px solid var(--line);
-  padding: 10px 0;
   font-size: 15px;
   font-weight: 500;
   color: var(--ink);
 }
 
-.toggles .toggle-row:first-child {
-  padding-top: 0;
+.toggles .toggle-row:first-child,
+.selects .select-row:first-child {
+  border-bottom-color: var(--line);
 }
 
-.toggles .toggle-row:last-child {
+.toggles .toggle-row:last-child,
+.selects .select-row:last-child {
   border-bottom: 0;
-  padding-bottom: 0;
 }
 
 .toggle-label {
@@ -385,33 +392,11 @@ output {
   transform: translateX(18px);
 }
 
-/* Same list chrome as .toggles — only the control on the right differs. */
-.selects {
-  display: grid;
-}
-
 .select-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
   border: 0;
   border-bottom: 1px solid var(--line);
   background: transparent;
-  color: var(--ink);
-  padding: 10px 0;
-  font-size: 15px;
-  font-weight: 500;
   text-align: left;
-}
-
-.selects .select-row:first-child {
-  padding-top: 0;
-}
-
-.selects .select-row:last-child {
-  border-bottom: 0;
-  padding-bottom: 0;
 }
 
 .select-row label {

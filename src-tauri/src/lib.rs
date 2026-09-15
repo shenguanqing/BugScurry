@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use tauri::{
@@ -376,7 +376,22 @@ fn set_cursor_poller_enabled(enabled: bool) {
 }
 
 /// Same command ids as the tray menu, used by OS-global shortcuts.
+/// Short debounce: a focused app can deliver both the menu accelerator and
+/// the global shortcut for one keypress.
 fn emit_tray_command(app: &tauri::AppHandle, cmd: &str) {
+    {
+        use std::time::{Duration, Instant};
+        static LAST: Mutex<Option<(String, Instant)>> = Mutex::new(None);
+        let now = Instant::now();
+        let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((prev, t)) = last.as_ref() {
+            if prev == cmd && now.duration_since(*t) < Duration::from_millis(150) {
+                return;
+            }
+        }
+        *last = Some((cmd.to_string(), now));
+    }
+
     if cmd == "open_settings" {
         open_or_focus_settings(app);
         return;
@@ -390,31 +405,36 @@ fn emit_tray_command(app: &tauri::AppHandle, cmd: &str) {
     }
 }
 
-/// Register system-wide shortcuts. Tray menu accelerators only fire when the
-/// app is focused; the overlay is focusable:false so they never hit in the
-/// background (and in a Windows VM under Parallels).
+/// Register system-wide shortcuts.
+///
+/// macOS: do **not** register here. The tray menu already exposes
+/// CmdOrCtrl accelerators and NSStatusItem delivers them system-wide;
+/// a global-shortcut hook can steal the keypress before the menu sees it
+/// (user had to click around before anything ran).
+#[cfg(not(target_os = "macos"))]
 fn register_global_shortcuts(app: &tauri::AppHandle) {
-    use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
-    #[cfg(target_os = "macos")]
-    let primary = Modifiers::SUPER;
-    #[cfg(not(target_os = "macos"))]
-    let primary = Modifiers::CONTROL;
-
-    let shortcuts = [
-        (Shortcut::new(Some(primary), Code::Equal), "add_one"),
-        (Shortcut::new(Some(primary), Code::Minus), "remove_one"),
-        (Shortcut::new(Some(primary), Code::KeyR), "regenerate"),
-        (Shortcut::new(Some(primary), Code::KeyB), "drop_bait"),
-        (Shortcut::new(Some(primary), Code::Comma), "open_settings"),
-    ];
-
-    for (sc, _) in &shortcuts {
-        if let Err(err) = app.global_shortcut().register(*sc) {
-            eprintln!("register shortcut failed {sc:?}: {err}");
+    for spec in [
+        "CmdOrCtrl+Equal",
+        "CmdOrCtrl+Minus",
+        "CmdOrCtrl+R",
+        "CmdOrCtrl+B",
+        "CmdOrCtrl+Comma",
+    ] {
+        match spec.parse::<tauri_plugin_global_shortcut::Shortcut>() {
+            Ok(sc) => {
+                if let Err(err) = app.global_shortcut().register(sc) {
+                    eprintln!("register shortcut {spec} failed: {err}");
+                }
+            }
+            Err(err) => eprintln!("parse shortcut {spec} failed: {err}"),
         }
     }
 }
+
+#[cfg(target_os = "macos")]
+fn register_global_shortcuts(_app: &tauri::AppHandle) {}
 
 pub fn run() {
     tauri::Builder::default()
@@ -433,22 +453,25 @@ pub fn run() {
             None,
         ))
         .plugin(
+            // Registered only on Windows/Linux (see register_global_shortcuts).
+            // macOS uses tray menu accelerators so the hook never steals ⌘ keys.
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
                     if event.state() != tauri_plugin_global_shortcut::ShortcutState::Pressed {
                         return;
                     }
-                    #[cfg(target_os = "macos")]
-                    let primary = tauri_plugin_global_shortcut::Modifiers::SUPER;
-                    #[cfg(not(target_os = "macos"))]
-                    let primary = tauri_plugin_global_shortcut::Modifiers::CONTROL;
-                    use tauri_plugin_global_shortcut::Code;
-                    let cmd = match (shortcut.mods, shortcut.key) {
-                        (m, Code::Equal) if m == primary => "add_one",
-                        (m, Code::Minus) if m == primary => "remove_one",
-                        (m, Code::KeyR) if m == primary => "regenerate",
-                        (m, Code::KeyB) if m == primary => "drop_bait",
-                        (m, Code::Comma) if m == primary => "open_settings",
+                    use tauri_plugin_global_shortcut::{Code, Modifiers};
+                    let mod_ok = shortcut.mods.contains(Modifiers::CONTROL)
+                        || shortcut.mods.contains(Modifiers::SUPER);
+                    if !mod_ok || shortcut.mods.contains(Modifiers::SHIFT) {
+                        return;
+                    }
+                    let cmd = match shortcut.key {
+                        Code::Equal => "add_one",
+                        Code::Minus => "remove_one",
+                        Code::KeyR => "regenerate",
+                        Code::KeyB => "drop_bait",
+                        Code::Comma => "open_settings",
                         _ => return,
                     };
                     emit_tray_command(app, cmd);
