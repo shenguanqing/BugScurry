@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use serde::Deserialize;
@@ -36,6 +37,20 @@ impl Default for TrayLabels {
 
 /// Last stats line shown in the tray (updated from the overlay).
 static TRAY_STATS: Mutex<String> = Mutex::new(String::new());
+/// Last labels from the frontend so stats refresh keeps the UI language.
+static LAST_LABELS: Mutex<Option<TrayLabels>> = Mutex::new(None);
+/// Ensure the OS tray icon is created at most once per process.
+static TRAY_CREATED: AtomicBool = AtomicBool::new(false);
+
+fn store_labels(labels: TrayLabels) {
+    let mut guard = LAST_LABELS.lock().unwrap_or_else(|e| e.into_inner());
+    *guard = Some(labels);
+}
+
+fn current_labels() -> TrayLabels {
+    let guard = LAST_LABELS.lock().unwrap_or_else(|e| e.into_inner());
+    guard.clone().unwrap_or_default()
+}
 
 fn build_menu(app: &tauri::AppHandle, labels: &TrayLabels) -> tauri::Result<Menu<tauri::Wry>> {
     let stats_text = {
@@ -99,7 +114,15 @@ fn on_menu_event(app: &tauri::AppHandle, id: &str) {
 }
 
 pub fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
+    // Only one OS tray icon per process. Overlay + settings both call
+    // apply_locale on startup; without this guard a second build() stacked
+    // a second icon (and a second add/remove target).
+    if TRAY_CREATED.swap(true, Ordering::SeqCst) {
+        return Ok(());
+    }
+
     let labels = TrayLabels::default();
+    store_labels(labels.clone());
     let menu = build_menu(app, &labels)?;
 
     let tray = TrayIconBuilder::with_id("main-tray")
@@ -121,8 +144,10 @@ pub fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
 
 /// Replace tray menu labels (called when UI language changes).
 pub fn apply_tray_labels(app: &tauri::AppHandle, labels: TrayLabels) -> tauri::Result<()> {
+    store_labels(labels.clone());
     let Some(tray) = app.tray_by_id("main-tray") else {
-        return setup_tray(app);
+        // Do not recreate here — setup_tray owns creation.
+        return Ok(());
     };
     let menu = build_menu(app, &labels)?;
     tray.set_menu(Some(menu))?;
@@ -138,7 +163,7 @@ pub fn apply_tray_stats(app: &tauri::AppHandle, label: String) -> tauri::Result<
     let Some(tray) = app.tray_by_id("main-tray") else {
         return Ok(());
     };
-    let menu = build_menu(app, &TrayLabels::default())?;
+    let menu = build_menu(app, &current_labels())?;
     tray.set_menu(Some(menu))?;
     Ok(())
 }
