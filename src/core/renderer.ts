@@ -1,4 +1,6 @@
 import { squishPressure } from "./squish";
+import { RAIN_LAYERS, RAIN_PROFILES, lightningFlash, rainWindAt } from "./weather";
+import type { RainKind } from "./types";
 import { getSpecies } from "../species";
 import type { Bait, Bug, FloatText, Particle, Stain, Viewport } from "./types";
 
@@ -74,8 +76,35 @@ function applySquishTransform(ctx: CanvasRenderingContext2D, bug: Bug): number {
 }
 
 export function drawBug(ctx: CanvasRenderingContext2D, bug: Bug): void {
+  // Warm post-meal glow (favorite snacks linger longer).
+  if (bug.satisfiedTimer > 0 && bug.state !== "dying" && bug.state !== "squishing") {
+    const k = Math.min(1, bug.satisfiedTimer / 3.5);
+    const r = bug.size * (1.2 + 0.1 * Math.sin(bug.legPhase * Math.PI * 2));
+    ctx.save();
+    ctx.translate(bug.x, bug.y);
+    const glow = ctx.createRadialGradient(0, 0, r * 0.15, 0, 0, r);
+    glow.addColorStop(0, `rgba(255, 204, 140, ${0.18 * k})`);
+    glow.addColorStop(0.55, `rgba(255, 190, 120, ${0.08 * k})`);
+    glow.addColorStop(1, "rgba(255, 190, 120, 0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   ctx.save();
   const alpha = applySquishTransform(ctx, bug);
+  const eatStyle = bug.eatingBaitId
+    ? getSpecies(bug.species)?.traits.eatStyle
+    : undefined;
+  // Bee hover bob / caterpillar body ripple while munching.
+  if (eatStyle === "hover") {
+    ctx.translate(0, Math.sin(bug.legPhase * Math.PI * 4) * 1.6);
+  } else if (eatStyle === "ripple") {
+    const w = 1 + Math.sin(bug.legPhase * Math.PI * 6) * 0.07;
+    ctx.scale(w, 2 - w);
+  }
 
   // Fat bug: slightly chunkier read + hurt flash.
   if (bug.maxHp > 1) {
@@ -115,6 +144,50 @@ export function drawBug(ctx: CanvasRenderingContext2D, bug: Bug): void {
     ctx.stroke();
   }
   ctx.restore();
+
+  if (bug.enjoyingFood && bug.eatingBaitId && bug.state === "paused") {
+    ctx.save();
+    ctx.translate(bug.x, bug.y - bug.size - 8 - Math.sin(bug.legPhase * Math.PI * 2) * 2);
+    ctx.beginPath();
+    ctx.moveTo(0, 3);
+    ctx.bezierCurveTo(-10, -2, -5, -9, 0, -4);
+    ctx.bezierCurveTo(5, -9, 10, -2, 0, 3);
+    ctx.fillStyle = "#f5789e";
+    ctx.strokeStyle = "#fff5f8";
+    ctx.lineWidth = 1;
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Ant haul: a crumb rides just ahead of the mandibles.
+  if (bug.carryKind && bug.state !== "dying" && bug.state !== "squishing") {
+    const s = bug.size * 0.28;
+    const ahead = bug.size * 0.55;
+    const x = bug.x + Math.cos(bug.heading) * ahead;
+    const y = bug.y + Math.sin(bug.heading) * ahead;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(bug.heading);
+    if (bug.carryKind === "sugar") {
+      ctx.fillStyle = "#fff8ed";
+      ctx.strokeStyle = "#aaa6ba";
+      ctx.lineWidth = 0.8;
+      ctx.fillRect(-s * 0.55, -s * 0.45, s * 1.1, s * 0.9);
+      ctx.strokeRect(-s * 0.55, -s * 0.45, s * 1.1, s * 0.9);
+    } else if (bug.carryKind === "fruit") {
+      ctx.fillStyle = "#f25f6b";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, s * 0.7, s * 0.55, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = "#c9a66b";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, s * 0.65, s * 0.48, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
 }
 
 export function drawBait(ctx: CanvasRenderingContext2D, bait: Bait): void {
@@ -135,8 +208,63 @@ export function drawBait(ctx: CanvasRenderingContext2D, bait: Bait): void {
   ctx.ellipse(1.5, 2, s * 1.05, s * 0.7, 0.3, 0, Math.PI * 2);
   ctx.fill();
 
-  // Crumb body
   ctx.globalAlpha = alpha;
+  if (bait.kind === "sugar") {
+    // A small faceted sugar cube, outlined for light desktops.
+    ctx.fillStyle = "#fff8ed";
+    ctx.strokeStyle = "#aaa6ba";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.rect(-s * 0.7, -s * 0.65, s * 1.4, s * 1.3);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#d8d3e2";
+    ctx.beginPath();
+    ctx.moveTo(s * 0.7, -s * 0.65);
+    ctx.lineTo(s, -s * 0.9);
+    ctx.lineTo(s, s * 0.4);
+    ctx.lineTo(s * 0.7, s * 0.65);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.7, -s * 0.65);
+    ctx.lineTo(-s * 0.4, -s * 0.9);
+    ctx.lineTo(s, -s * 0.9);
+    ctx.lineTo(s * 0.7, -s * 0.65);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+  if (bait.kind === "fruit") {
+    // Red berry with seeds and a green leaf; distinct from a brown crumb.
+    ctx.fillStyle = "#f25f6b";
+    ctx.strokeStyle = "#a63349";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, s);
+    ctx.bezierCurveTo(-s * 1.5, 0, -s, -s, 0, -s * 0.55);
+    ctx.bezierCurveTo(s, -s, s * 1.5, 0, 0, s);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#fff2bd";
+    for (const [x, y] of [[-0.35, -0.15], [0.3, -0.15], [0, 0.4]]) {
+      ctx.beginPath();
+      ctx.ellipse(x * s, y * s, 0.8, 1.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = "#67a84b";
+    ctx.beginPath();
+    ctx.ellipse(s * 0.2, -s * 0.65, s * 0.5, s * 0.22, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+
+  // Cookie crumb body
   ctx.fillStyle = "#c9a66b";
   smoothBlobPath(ctx, 0, 0, s, s * 0.78, seed, 8, 0.4);
   ctx.fill();
@@ -161,9 +289,27 @@ export function drawBait(ctx: CanvasRenderingContext2D, bait: Bait): void {
 export function drawStain(ctx: CanvasRenderingContext2D, stain: Stain): void {
   const t = 1 - stain.life / stain.maxLife;
   const alpha = Math.max(0, 0.28 * (1 - t * t));
+  const seed = hashStr(stain.id) * 1000;
+
+  // Fruit juice: soft pink blot, not a kill stain.
+  if (stain.species === "__juice") {
+    ctx.save();
+    ctx.translate(stain.x, stain.y);
+    ctx.globalAlpha = Math.max(0, 0.32 * (1 - t * t));
+    ctx.fillStyle = "#f06a7a";
+    smoothBlobPath(ctx, 0, 0, stain.size * 0.7, stain.size * 0.42, seed, 9, 0.38);
+    ctx.fill();
+    ctx.globalAlpha = Math.max(0, 0.18 * (1 - t));
+    ctx.fillStyle = "#ffb0b8";
+    ctx.beginPath();
+    ctx.ellipse(-stain.size * 0.12, -stain.size * 0.08, stain.size * 0.22, stain.size * 0.12, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+
   const species = getSpecies(stain.species);
   const color = species?.traits.stainColor ?? "#3b2a1a";
-  const seed = hashStr(stain.id) * 1000;
 
   ctx.save();
   ctx.translate(stain.x, stain.y);
@@ -284,6 +430,95 @@ export function drawFloats(ctx: CanvasRenderingContext2D, floats: FloatText[]): 
   }
 }
 
+/**
+ * Depth-layered rain scaled by storm kind. Deterministic per index so rain
+ * does not allocate or flicker between frames; alpha stays low enough to
+ * keep the desktop readable even in a downpour.
+ */
+export function drawRain(
+  ctx: CanvasRenderingContext2D,
+  viewport: Viewport,
+  timeSec: number,
+  kind: RainKind = "moderate",
+  windBase = 0.3,
+): void {
+  const profile = RAIN_PROFILES[kind];
+  const h = viewport.height;
+  const w = viewport.width;
+  const wind = rainWindAt(windBase, profile, timeSec);
+
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.fillStyle = "rgba(168, 190, 220, 0.55)";
+
+  let index = 0;
+  for (const layer of RAIN_LAYERS) {
+    const count = Math.max(4, Math.round(layer.count * profile.density));
+    const layerAlpha = Math.min(0.55, layer.alpha * profile.alphaMul);
+    ctx.strokeStyle = `rgba(168, 190, 220, ${layerAlpha})`;
+    ctx.lineWidth = layer.width;
+    for (let i = 0; i < count; i++) {
+      const seed = index * 17.13 + 3;
+      index++;
+      const speed = layer.speedMin + hash(seed) * (layer.speedMax - layer.speedMin);
+      const x0 = hash(seed + 1.7) * w;
+      const len =
+        (layer.lenMin + hash(seed + 2.9) * (layer.lenMax - layer.lenMin)) * profile.lengthMul;
+      // Per-drop lean around the shared wind so the field is not one rigid rake.
+      const slant = wind + (hash(seed + 4.1) - 0.5) * 0.16;
+      const span = h + len + 48;
+      const fall = (hash(seed + 5.3) * span + timeSec * speed) % span;
+      const y = fall - len - 24;
+      const x = x0 + Math.sin(timeSec * 0.33 + seed) * (2 + profile.windGust * 30);
+      const flicker = (0.7 + hash(seed + 6.5) * 0.5) * Math.min(1.15, profile.alphaMul);
+      ctx.globalAlpha = Math.min(0.95, flicker);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - slant * len, y + len);
+      ctx.stroke();
+
+      // Near-layer splash hint as a drop meets the floor.
+      if (layer.width > 1.2 && fall > h - 6 && fall < h + 6) {
+        ctx.globalAlpha = 0.2 * flicker;
+        ctx.beginPath();
+        ctx.ellipse(x - slant * len, h - 1.5, 1.6 + profile.density, 0.85, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // Cool wash scales with intensity so heavy rain dims the room slightly.
+  if (profile.wash > 0) {
+    ctx.globalAlpha = profile.wash;
+    ctx.fillStyle = "#5d7396";
+    ctx.fillRect(0, 0, w, h);
+  }
+  ctx.restore();
+}
+
+/** Full-screen lightning pulse for thunder storms (drawn above bugs). */
+export function drawLightning(
+  ctx: CanvasRenderingContext2D,
+  viewport: Viewport,
+  timeSec: number,
+): void {
+  const flash = lightningFlash(timeSec);
+  if (flash <= 0.02) return;
+  const w = viewport.width;
+  const h = viewport.height;
+  ctx.save();
+  // Cool sky flash with a short afterglow tint.
+  ctx.globalAlpha = Math.min(0.72, flash * 0.62);
+  ctx.fillStyle = "#dfe9ff";
+  ctx.fillRect(0, 0, w, h);
+  if (flash > 0.5) {
+    ctx.globalAlpha = (flash - 0.5) * 0.25;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+  }
+  ctx.restore();
+}
+
 export function render(
   ctx: CanvasRenderingContext2D,
   bugs: Bug[],
@@ -292,6 +527,8 @@ export function render(
   baits: Bait[],
   floats: FloatText[],
   viewport: Viewport,
+  rain: false | { kind: RainKind; wind: number } = false,
+  timeSec = 0,
 ): void {
   ctx.save();
   ctx.setTransform(viewport.dpr, 0, 0, viewport.dpr, 0, 0);
@@ -302,6 +539,12 @@ export function render(
   for (const bug of bugs) drawBug(ctx, bug);
   drawParticles(ctx, particles);
   drawFloats(ctx, floats);
+  if (rain) {
+    drawRain(ctx, viewport, timeSec, rain.kind, rain.wind);
+    if (RAIN_PROFILES[rain.kind].lightning) {
+      drawLightning(ctx, viewport, timeSec);
+    }
+  }
 
   ctx.restore();
 }

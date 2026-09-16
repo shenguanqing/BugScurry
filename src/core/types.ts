@@ -1,3 +1,8 @@
+export type Personality = "shy" | "greedy" | "lazy" | "curious";
+export type FoodKind = "cookie" | "sugar" | "fruit";
+export type DayPhase = "dawn" | "day" | "dusk" | "night";
+export type RainKind = "light" | "moderate" | "heavy" | "downpour" | "thunder";
+
 export type BugState =
   | "crawling"
   | "paused"
@@ -7,6 +12,17 @@ export type BugState =
 export interface Bug {
   id: string;
   species: string;
+  personality: Personality;
+  eatingBaitId: string | null;
+  enjoyingFood: boolean;
+  /** Seconds before willing to nibble again after skittish bugs bail. */
+  foodCooldown: number;
+  /** Post-meal glow remaining; favorite food lasts longer. */
+  satisfiedTimer: number;
+  /** Crumb hauled away after an ant-style carry peck. */
+  carryKind: FoodKind | null;
+  /** Seconds left hauling the crumb toward cover. */
+  carryTimer: number;
   x: number;
   y: number;
   /** radians */
@@ -35,9 +51,10 @@ export interface Bug {
   hurtTimer: number;
 }
 
-/** Cookie crumb that briefly attracts nearby bugs. */
+/** Temporary food that attracts nearby bugs. */
 export interface Bait {
   id: string;
+  kind: FoodKind;
   x: number;
   y: number;
   size: number;
@@ -91,6 +108,14 @@ export interface Settings {
   theme: "light" | "dark" | "auto";
   /** UI language: zh-CN | zh-TW | en | ja | ko | auto */
   locale: "zh-CN" | "zh-TW" | "en" | "ja" | "ko" | "auto";
+  /** Rain on/off. Bugs hug edges; streaks fall on the overlay. */
+  rain: boolean;
+  /** Current shower strength. Re-rolled each time rain starts. */
+  rainKind: RainKind;
+  /** Base wind lean for this shower, -1 (left) .. 1 (right). */
+  rainWind: number;
+  /** Let the app start/stop rain on its own schedule. */
+  autoRain: boolean;
 }
 
 /** Cursor position in the overlay window's local CSS pixels. */
@@ -126,4 +151,13 @@ export type TrayCommand =
   | "remove_one"
   | "regenerate"
   | "drop_bait"
+  | "drop_sugar"
+  | "drop_fruit"
+  | "rain_off"
+  | "rain_random"
+  | "rain_light"
+  | "rain_moderate"
+  | "rain_heavy"
+  | "rain_downpour"
+  | "rain_thunder"
   | "open_settings";

@@ -1,13 +1,13 @@
 import { createBug } from "./bug";
 import {
   BAIT_LIFE,
-  BAIT_NIBBLE_RADIUS,
   COMBO_TEXT_LIFE,
   COMBO_WINDOW,
   MAX_BAITS,
   MAX_FLOATS,
   MAX_PARTICLES,
   MAX_STAINS,
+  NIBBLE_FX_COOLDOWN,
   STAIN_LIFE,
 } from "./config";
 import { isBugDead, startSquish, updateSquish } from "./squish";
@@ -18,6 +18,7 @@ import type {
   Bug,
   DailyStats,
   FloatText,
+  FoodKind,
   Particle,
   Settings,
   Stain,
@@ -66,6 +67,7 @@ export class BugManager {
   private combo = 0;
   private lastKillAt = 0;
   private daily: DailyStats = emptyDailyStats();
+  private eatFxCool = 0;
 
   constructor(settings: Settings, viewport: Viewport, daily?: DailyStats) {
     this.settings = settings;
@@ -106,7 +108,7 @@ export class BugManager {
     this.daily = normalizeDailyStats(stats);
   }
 
-  /** Freshest crumb, if any — passed into movement as a heading bias. */
+  /** Freshest food, if any (for inspection; movement considers all food). */
   get activeBait(): Bait | null {
     return this.baits.length > 0 ? this.baits[this.baits.length - 1] : null;
   }
@@ -214,16 +216,21 @@ export class BugManager {
     }
   }
 
-  dropBait(): Bait {
+  dropBait(kind: FoodKind = "cookie"): Bait {
     const rng = new Rng(randomSeed());
     const margin = 48;
-    const x = rng.range(margin, Math.max(margin + 1, this.viewport.width - margin));
-    const y = rng.range(margin, Math.max(margin + 1, this.viewport.height - margin));
+    const live = this.bugs.filter((bug) => bug.state === "crawling" || bug.state === "paused");
+    const host = live.length ? live[rng.int(0, live.length - 1)] : null;
+    const x = Math.max(margin, Math.min(this.viewport.width - margin,
+      host ? host.x + rng.range(-100, 100) : rng.range(margin, this.viewport.width - margin)));
+    const y = Math.max(margin, Math.min(this.viewport.height - margin,
+      host ? host.y + rng.range(-100, 100) : rng.range(margin, this.viewport.height - margin)));
     const bait: Bait = {
       id: `bait-${this.effectId++}`,
+      kind,
       x,
       y,
-      size: rng.range(5, 7.5),
+      size: rng.range(9, 12),
       life: BAIT_LIFE,
       maxLife: BAIT_LIFE,
     };
@@ -378,15 +385,22 @@ export class BugManager {
     this.floats = this.floats.filter((f) => f.life > 0);
 
     for (const bait of this.baits) {
-      let nibbling = false;
+      let eater: Bug | null = null;
       for (const bug of this.bugs) {
         if (bug.state === "squishing" || bug.state === "dying") continue;
-        if (Math.hypot(bug.x - bait.x, bug.y - bait.y) <= BAIT_NIBBLE_RADIUS) {
-          nibbling = true;
+        if (bug.eatingBaitId === bait.id) {
+          eater = bug;
           break;
         }
       }
+      const nibbling = eater !== null;
+      const before = bait.life;
       bait.life -= dt * (nibbling ? 2.4 : 1);
+      if (nibbling && eater) this.spawnNibbleFx(eater, bait, dt);
+      // Fruit finishes with a sticky juice blot on the desktop.
+      if (before > 0 && bait.life <= 0 && nibbling && bait.kind === "fruit") {
+        this.spawnJuiceBlot(bait);
+      }
     }
     this.baits = this.baits.filter((b) => b.life > 0);
 
@@ -399,5 +413,65 @@ export class BugManager {
 
   tick(dt: number): void {
     this.updateEffects(dt);
+  }
+
+  /** Cookie crumbs / sugar sparks / fruit drips while a bug is on a snack. */
+  private spawnNibbleFx(eater: Bug, bait: Bait, dt: number): void {
+    this.eatFxCool -= dt;
+    if (this.eatFxCool > 0 || !this.settings.particles) return;
+    this.eatFxCool = NIBBLE_FX_COOLDOWN;
+
+    const rng = new Rng(randomSeed());
+    // Emit from the contact point between mouth and snack.
+    const mx = (eater.x + bait.x) * 0.5;
+    const my = (eater.y + bait.y) * 0.5 - 2;
+    const n = 1 + (rng.next() > 0.55 ? 1 : 0);
+    for (let i = 0; i < n; i++) {
+      const ang = -Math.PI / 2 + rng.range(-0.9, 0.9);
+      const sp = 8 + rng.next() * 14;
+      const life = rng.range(0.25, 0.45);
+      const kind = bait.kind;
+      const color =
+        kind === "cookie"
+          ? rng.next() > 0.5
+            ? "#c9a66b"
+            : "#a8844a"
+          : kind === "sugar"
+            ? rng.next() > 0.5
+              ? "#ffffff"
+              : "#e8f0ff"
+            : rng.next() > 0.5
+              ? "#f25f6b"
+              : "#ff8a96";
+      this.particles.push({
+        x: mx + rng.range(-3, 3),
+        y: my,
+        vx: Math.cos(ang) * sp * rng.range(0.4, 1),
+        vy: Math.sin(ang) * sp,
+        life,
+        maxLife: life,
+        size: kind === "sugar" ? rng.range(0.6, 1.1) : rng.range(0.9, 1.6),
+        color,
+      });
+    }
+    if (this.particles.length > MAX_PARTICLES) {
+      this.particles.splice(0, this.particles.length - MAX_PARTICLES);
+    }
+  }
+
+  /** Short-lived sticky blot where a fruit snack vanished. */
+  private spawnJuiceBlot(bait: Bait): void {
+    if (!this.settings.stains) return;
+    this.stains.push({
+      id: `juice-${this.effectId++}`,
+      heading: 0,
+      x: bait.x,
+      y: bait.y + 2,
+      size: bait.size * 1.35,
+      life: 2.4,
+      maxLife: 2.4,
+      species: "__juice",
+    });
+    if (this.stains.length > MAX_STAINS) this.stains.shift();
   }
 }

@@ -47,6 +47,8 @@ registerSpecies({
   label: "苍蝇",
   emoji: "🪰",
   traits: {
+    favoriteFood: "fruit",
+    eatStyle: "sip",
     bodyScale: 1,
     speedMul: 1.4,
     edgeAffinity: 0.2,

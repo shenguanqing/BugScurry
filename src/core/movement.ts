@@ -1,16 +1,25 @@
 import {
-  BAIT_ATTRACT_RADIUS,
   BAIT_NIBBLE_RADIUS,
   BAIT_PULL,
+  CARRY_DURATION_SEC,
   EDGE_MARGIN,
   REPELLENT_PANIC_RADIUS,
   REPELLENT_RADIUS,
   REPELLENT_SPEED_MAX,
   REPELLENT_SPEED_MIN,
+  SATISFIED_ANY_SEC,
+  SATISFIED_FAVORITE_SEC,
   STUCK_TIMEOUT,
 } from "./config";
-import { Rng, randomSeed } from "./rng";
+import { foodInterest, foodRadius, resolveEatPlan, selectBait } from "./feeding";
+import { PERSONALITY_TRAITS } from "./personality";
+import { activeRainMotion } from "./weather";
+import { getSpecies } from "../species";
+import { Rng } from "./rng";
 import type { Bait, Bug, CursorState, Settings, Viewport } from "./types";
+
+// Weak keys release random streams when their bugs are removed.
+const movementRngs = new WeakMap<Bug, Rng>();
 
 const TWO_PI = Math.PI * 2;
 
@@ -67,8 +76,9 @@ function cursorFlee(
   const dx = bug.x - cursor.x;
   const dy = bug.y - cursor.y;
   const dist = Math.hypot(dx, dy);
-  if (dist >= REPELLENT_RADIUS) return null;
-  const urgency = 1 - dist / Math.max(1, REPELLENT_RADIUS);
+  const radius = REPELLENT_RADIUS * PERSONALITY_TRAITS[bug.personality].fleeRadius;
+  if (dist >= radius) return null;
+  const urgency = 1 - dist / radius;
   const heading = Math.atan2(dy, dx);
   return { heading, urgency, panic: dist < REPELLENT_PANIC_RADIUS };
 }
@@ -79,7 +89,7 @@ function baitSteer(bug: Bug, bait: Bait | null): { heading: number; dist: number
   const dx = bait.x - bug.x;
   const dy = bait.y - bug.y;
   const dist = Math.hypot(dx, dy);
-  if (dist > BAIT_ATTRACT_RADIUS) return null;
+  if (dist > foodRadius(bug, bait)) return null;
   return { heading: Math.atan2(dy, dx), dist };
 }
 
@@ -94,12 +104,84 @@ export function updateBug(
 ): void {
   if (bug.state === "squishing" || bug.state === "dying") return;
 
+  const personality = PERSONALITY_TRAITS[bug.personality];
+  const species = getSpecies(bug.species);
+  const eatPlan = resolveEatPlan(bug.personality, species?.traits.eatStyle);
+  const prevEatingId = bug.eatingBaitId;
+  bug.eatingBaitId = null;
+  bug.enjoyingFood = false;
+  bug.foodCooldown = Math.max(0, bug.foodCooldown - dt);
+  bug.satisfiedTimer = Math.max(0, bug.satisfiedTimer - dt);
+  bug.carryTimer = Math.max(0, bug.carryTimer - dt);
+  if (bug.carryTimer <= 0) bug.carryKind = null;
   bug.stateTimer -= dt;
-  bug.legPhase = (bug.legPhase + dt * (2.5 + bug.speed / 34)) % 1;
+  bug.legPhase += dt * (2.5 + bug.speed / 34);
+  // Eating slows the walk cycle so nibbles read as munching, not sprinting.
+  if (bug.eatingBaitId || (bug.foodCooldown <= 0 && bug.state === "paused")) {
+    bug.legPhase += dt * 0.35;
+  }
+  bug.legPhase %= 1;
 
   const escapeNow = cornerEscapeHeading(bug, viewport, rng);
   const flee = cursorFlee(bug, settings, cursor);
   const towardBait = baitSteer(bug, bait);
+  const wet = activeRainMotion(settings);
+
+  if (
+    !bug.carryKind &&
+    !flee &&
+    bait &&
+    towardBait &&
+    towardBait.dist <= BAIT_NIBBLE_RADIUS &&
+    bug.foodCooldown <= 0
+  ) {
+    const favorite = species?.traits.favoriteFood === bait.kind;
+    // Probe styles pause longer on the first contact before the real bite.
+    const hold =
+      eatPlan.hold * (favorite ? 1.25 : 1) * (eatPlan.probe && prevEatingId !== bait.id ? 1.6 : 1);
+    const justStarted = prevEatingId !== bait.id;
+    if (justStarted) {
+      bug.state = "paused";
+      bug.stateTimer = hold;
+    } else if (eatPlan.cling) {
+      bug.stateTimer = Math.max(bug.stateTimer, hold * 0.55);
+    }
+    bug.turnBias = 0;
+    bug.eatingBaitId = bait.id;
+    bug.enjoyingFood = favorite;
+    bug.satisfiedTimer = Math.max(
+      bug.satisfiedTimer,
+      favorite ? SATISFIED_FAVORITE_SEC * 0.45 : SATISFIED_ANY_SEC * 0.45,
+    );
+    bug.heading = steerToward(bug.heading, towardBait.heading, dt, 6);
+
+    if (!eatPlan.cling && bug.stateTimer <= 0) {
+      bug.foodCooldown = eatPlan.cooldown;
+      bug.eatingBaitId = null;
+      bug.enjoyingFood = false;
+      bug.satisfiedTimer = Math.max(
+        bug.satisfiedTimer,
+        favorite ? SATISFIED_FAVORITE_SEC : SATISFIED_ANY_SEC,
+      );
+      bug.state = "crawling";
+      bug.stateTimer = 0.45;
+      if (eatPlan.carry) {
+        // Ant-style: peel off a crumb and haul it toward cover.
+        bug.carryKind = bait.kind;
+        bug.carryTimer = CARRY_DURATION_SEC;
+        bug.heading = normalizeAngle(
+          Math.atan2(viewport.height / 2 - bug.y, viewport.width / 2 - bug.x) +
+            Math.PI +
+            rng.range(-0.4, 0.4),
+        );
+      } else {
+        const away = Math.atan2(bug.y - bait.y, bug.x - bait.x);
+        bug.heading = normalizeAngle(away + rng.range(-0.5, 0.5));
+      }
+      bug.speed = Math.max(bug.speed, bug.speed * 1.15);
+    }
+    return;
+  }
 
   if (bug.state === "paused") {
     if (flee) {
@@ -114,7 +196,7 @@ export function updateBug(
       bug.stateTimer = rng.range(0.7, 1.3);
       bug.turnBias = 0;
       bug.stuckTime = 0;
-    } else if (bug.stateTimer <= 0) {
+    } else if (bug.stateTimer <= 0 || (towardBait && bug.personality === "greedy")) {
       bug.state = "crawling";
       bug.stateTimer = rng.range(0.7, 2.6);
       bug.turnBias = rng.range(-1.0, 1.0) * settings.randomness;
@@ -123,10 +205,11 @@ export function updateBug(
     }
   }
 
-  if (bug.stateTimer <= 0 && escapeNow === null && !flee) {
-    if (rng.chance(0.22 + settings.randomness * 0.35)) {
+  if (bug.stateTimer <= 0 && escapeNow === null && !flee && !bug.carryKind) {
+    const pauseChance = (0.22 + settings.randomness * 0.35) * (wet ? wet.pauseMul : 1);
+    if (rng.chance(Math.min(0.72, pauseChance))) {
       bug.state = "paused";
-      bug.stateTimer = rng.range(0.18, 0.75);
+      bug.stateTimer = rng.range(0.18, 0.75) * personality.pause * (wet ? wet.pauseMul : 1);
       return;
     }
     bug.turnBias = rng.range(-1.6, 1.6) * settings.randomness;
@@ -161,21 +244,38 @@ export function updateBug(
     bug.stateTimer = Math.max(bug.stateTimer, 0.8);
     bug.turnBias = 0;
     speedBoost = 1.45;
-  } else if (towardBait && towardBait.dist > BAIT_NIBBLE_RADIUS) {
+  } else if (bug.carryKind) {
+    // Ant haul: purposeful walk toward the nearest cover, slightly slower.
+    const w = wallDistances(bug, viewport);
+    const options = [
+      { t: Math.PI, d: w.left },
+      { t: 0, d: w.right },
+      { t: -Math.PI / 2, d: w.top },
+      { t: Math.PI / 2, d: w.bottom },
+    ];
+    options.sort((a, b) => a.d - b.d);
+    bug.heading = steerToward(bug.heading, options[0].t, dt, 3.4);
+    bug.state = "crawling";
+    bug.stateTimer = Math.max(bug.stateTimer, 0.3);
+    bug.turnBias = 0;
+    speedBoost = 0.92;
+  } else if (bait && towardBait) {
     // Soft bias toward the crumb — not a formation, just a heading pull.
-    const urgency = 1 - towardBait.dist / BAIT_ATTRACT_RADIUS;
-    const pull = BAIT_PULL * (0.55 + urgency * 0.9);
+    const urgency = 1 - towardBait.dist / foodRadius(bug, bait);
+    const pull = BAIT_PULL * foodInterest(bug, bait.kind) * (0.55 + urgency * 0.9);
     bug.heading = steerToward(bug.heading, towardBait.heading, dt, pull);
     bug.state = "crawling";
     bug.turnBias = 0;
     speedBoost = 1 + urgency * 0.35;
-  } else if (towardBait && towardBait.dist <= BAIT_NIBBLE_RADIUS) {
-    // Nibbling: stop on the crumb.
-    bug.state = "paused";
-    bug.stateTimer = Math.max(bug.stateTimer, rng.range(0.25, 0.7));
+  } else if (
+    bug.personality === "curious" && settings.repellent && cursor?.inside &&
+    Math.hypot(cursor.x - bug.x, cursor.y - bug.y) < REPELLENT_RADIUS * 2.3
+  ) {
+    // Investigate from a distance; the normal flee response wins up close.
+    const target = Math.atan2(cursor.y - bug.y, cursor.x - bug.x);
+    bug.heading = steerToward(bug.heading, target, dt, 2.5);
     bug.turnBias = 0;
-    bug.heading = steerToward(bug.heading, towardBait.heading, dt, 6);
-    return;
+    speedBoost = 0.7;
   } else {
     const w = wallDistances(bug, viewport);
     const m = EDGE_MARGIN + bug.size * 0.4;
@@ -194,22 +294,25 @@ export function updateBug(
 
       if (rng.chance(0.02)) target = normalizeAngle(target + Math.PI);
 
-      const pull = 2.2 + bug.edgeAffinity * 4.5;
+      const pull = (2.2 + bug.edgeAffinity * 4.5) * (wet ? wet.edgePull : 1);
       bug.heading = steerToward(bug.heading, target, dt, pull);
-    } else if (sides === 0 && bug.edgeAffinity > 0.7 && rng.chance(0.25)) {
+    } else if (sides === 0 && (wet || (bug.edgeAffinity > 0.7 && rng.chance(0.25)))) {
+      // Rain always steers toward the nearest cover; dry bugs only if they like walls.
+      // Screen coords: heading 0 = right, π/2 = down — cover needs INTO the wall, not along it.
       const options = [
-        { t: Math.PI / 2, d: w.left },
-        { t: -Math.PI / 2, d: w.right },
-        { t: 0, d: w.top },
-        { t: Math.PI, d: w.bottom },
+        { t: Math.PI, d: w.left },
+        { t: 0, d: w.right },
+        { t: -Math.PI / 2, d: w.top },
+        { t: Math.PI / 2, d: w.bottom },
       ];
       options.sort((a, b) => a.d - b.d);
-      bug.heading = steerToward(bug.heading, options[0].t, dt, 1.8);
+      bug.heading = steerToward(bug.heading, options[0].t, dt, wet ? wet.coverPull : 1.8);
     }
   }
 
+  const rainMul = wet ? wet.speedMul : 1;
   const speed =
-    bug.speed * settings.speed * (0.88 + bug.seed * 0.24) * speedBoost;
+    bug.speed * settings.speed * personality.speed * (0.88 + bug.seed * 0.24) * speedBoost * rainMul;
   bug.x += Math.cos(bug.heading) * speed * dt;
   bug.y += Math.sin(bug.heading) * speed * dt;
 
@@ -250,10 +353,14 @@ export function updateBugs(
   settings: Settings,
   viewport: Viewport,
   cursor: CursorState | null = null,
-  bait: Bait | null = null,
+  baits: readonly Bait[] = [],
 ): void {
-  const rng = new Rng(randomSeed());
   for (const bug of bugs) {
-    updateBug(bug, dt, settings, viewport, rng, cursor, bait);
+    let rng = movementRngs.get(bug);
+    if (!rng) {
+      rng = new Rng(Math.floor(bug.seed * 4294967296));
+      movementRngs.set(bug, rng);
+    }
+    updateBug(bug, dt, settings, viewport, rng, cursor, selectBait(bug, baits));
   }
 }

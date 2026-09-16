@@ -8,15 +8,39 @@ Cross-platform desktop app for **macOS** and **Windows**. Runs in the background
 
 ## Features
 
-- Transparent, borderless, always-on-top desktop overlay
+- Transparent, borderless, always-on-top desktop overlay (bugs stay visible while settings is open)
 - Mouse pass-through by default; only bugs are clickable
 - Multiple bugs with independent random motion (crawl, pause, turn, edge-hug)
 - Squish on click: flatten animation, optional Web Audio snap, stains, particles
-- Settings window: count 1–50, size, speed, randomness, sound/stains/particles, autostart, multi-monitor, light/dark/auto theme
-- Tray / Menu Bar: show-hide, add/remove, regenerate, settings, quit
+- Four personalities + species favorites for cookie / sugar / fruit feeding
+- Day/night species mix; tray weather with five rain intensities, wind, lightning, and rain audio
+- Settings window: count 1–50, size, speed, randomness, sound/stains/particles, autostart, random rain, multi-monitor, light/dark/auto theme
+- Tray / Menu Bar: show-hide, add/remove, regenerate, feed, weather, settings, quit
 - Closing settings does not quit the app
 - Squished bugs are **not** auto-replaced (regenerate or raise count to spawn more)
 - Overlay follows macOS Mission Control Spaces
+
+## Personalities & feeding
+
+Each bug gets a personality at spawn: shy bugs flee sooner, greedy bugs notice food farther away and wake to eat, lazy bugs move slowly and rest longer, and curious bugs approach the cursor from a distance before fleeing up close. Turning off cursor repellent also disables curiosity toward the cursor.
+
+Use **Tray → Feed bugs → Cookie / Sugar / Fruit**. Up to three snacks can coexist near live bugs; the oldest is replaced on the fourth drop. Food lasts up to 20 seconds and disappears faster while eaten. Each bug chooses by distance and preference; a heart means it is eating its favorite.
+
+- Cookies: cockroaches, spiders
+- Sugar: ants, bees, butterflies, mosquitoes
+- Fruit: flies, ladybugs, caterpillars
+
+These are playful preferences. The species picker shows each species’ favorite, and its expandable guide explains the personalities. Feeding does not respawn squished or cleared bugs.
+
+Eating styles follow personality: shy bugs peck and bolt, greedy and lazy bugs camp on the snack, curious bugs take short pecks. Species add their own flavor — ants haul crumbs to cover, bees hover while munching, caterpillars ripple, spiders wrap, mosquitoes sip. Nibbling sheds matching crumbs (cookie / sugar spark / fruit drip), and a finished fruit leaves a short juice blot. After a meal bugs keep a brief warm glow — brighter and longer when it was their favorite.
+
+## Time of day & rain
+
+Random mixes follow the local clock: dawn and day favor diurnal species (ants, bees, butterflies, caterpillars, ladybugs), while dusk and night favor nocturnal ones (cockroaches, mosquitoes, spiders). Picking a single species ignores the phase. Flies stay anytime.
+
+**Tray → Weather** offers stop, random, light, moderate, heavy, downpour, or thunderstorm. Depth-layered streaks densify and brighten with intensity, wind leans are re-rolled each shower, and thunder adds double-strike lightning plus matching rumble audio. Bugs slow down, rest longer, and hug the nearest edge in proportion to the storm. Rain sound shares the global sound toggle. Rain is a preference, so it survives restarts.
+
+Turn on **Random rain** in Settings and the app starts and stops showers on its own (about 40s–3min dry, 16–60s wet; downpour and thunder run a bit shorter). Auto showers **always roll a random intensity**. A manual tray choice re-arms that schedule instead of fighting it.
 
 ## Tech Stack
 

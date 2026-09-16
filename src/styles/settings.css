@@ -3,7 +3,7 @@
   color-scheme: light;
   --bg: #f2f2f7;
   --ink: #1c1c1e;
-  --muted: rgba(60, 60, 67, 0.6);
+  --muted: #63636b;
   --card: rgba(255, 255, 255, 0.86);
   --card-solid: #ffffff;
   --line: rgba(60, 60, 67, 0.18);
@@ -32,7 +32,7 @@
   color-scheme: light;
   --bg: #f2f2f7;
   --ink: #1c1c1e;
-  --muted: rgba(60, 60, 67, 0.6);
+  --muted: #63636b;
   --card: rgba(255, 255, 255, 0.86);
   --card-solid: #ffffff;
   --line: rgba(60, 60, 67, 0.18);
@@ -53,7 +53,7 @@
   color-scheme: dark;
   --bg: #000000;
   --ink: #ffffff;
-  --muted: rgba(235, 235, 245, 0.6);
+  --muted: #aeaeb8;
   --card: rgba(28, 28, 30, 0.92);
   --card-solid: #2c2c2e;
   --line: rgba(84, 84, 88, 0.55);
@@ -75,7 +75,7 @@
     color-scheme: dark;
     --bg: #000000;
     --ink: #ffffff;
-    --muted: rgba(235, 235, 245, 0.6);
+    --muted: #aeaeb8;
     --card: rgba(28, 28, 30, 0.92);
     --card-solid: #2c2c2e;
     --line: rgba(84, 84, 88, 0.55);
@@ -106,6 +106,10 @@ body,
   color: var(--ink);
 }
 
+button, input, select {
+  font: inherit;
+}
+
 body {
   -webkit-font-smoothing: antialiased;
 }
@@ -133,6 +137,7 @@ body {
 
 .tagline {
   margin: 4px 0 0;
+  line-height: 1.5;
   color: var(--muted);
   font-size: 13px;
 }
@@ -179,8 +184,6 @@ body {
 }
 
 /* Shared focus ring for all interactive controls. */
-.species-wide:focus-visible,
-.species:focus-visible,
 .toggle-switch:focus-visible,
 .btn:focus-visible {
   outline: none;
@@ -209,7 +212,7 @@ body {
 
 .row.head label,
 .row.head .field-title {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--ink);
 }
@@ -262,7 +265,7 @@ output {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: 28px;
+  height: 36px;
   margin: 4px 0 0;
   background: transparent;
   cursor: pointer;
@@ -327,38 +330,38 @@ output {
   display: grid;
 }
 
-/*
- * Shared list-row chrome (toggle + select).
- * Height comes from 10px vertical padding + 26px control, so first/last
- * can drop the outer pad and stay flush with the card inset.
- */
+/* Shared list rows with 44px control targets. */
 .toggle-row,
 .select-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 10px 0;
+  min-height: 52px;
+  gap: 12px;
+  padding: 4px 0;
   border-bottom: 1px solid var(--line);
   font-size: 15px;
   font-weight: 500;
   color: var(--ink);
 }
 
-.toggles .toggle-row:first-child,
-.selects .select-row:first-child {
+.list-card {
   padding-top: 0;
+  padding-bottom: 0;
 }
 
 .toggles .toggle-row:last-child,
 .selects .select-row:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
+  border-bottom-color: transparent;
 }
 
 .toggle-label {
   flex: 1;
   min-width: 0;
+  font-weight: 500;
+  line-height: 1.4;
+  cursor: pointer;
 }
 
 .toggle-switch {
@@ -368,17 +371,26 @@ output {
   flex-shrink: 0;
   position: relative;
   width: 44px;
-  height: 26px;
+  height: 44px;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+
+.toggle-switch::before {
+  content: "";
+  position: absolute;
+  inset: 9px 0;
   border-radius: 999px;
   background: var(--toggle-off);
-  cursor: pointer;
   transition: background 0.18s ease;
 }
 
 .toggle-switch::after {
   content: "";
   position: absolute;
-  top: 2px;
+  top: 11px;
   left: 2px;
   width: 22px;
   height: 22px;
@@ -388,7 +400,7 @@ output {
   transition: transform 0.18s ease;
 }
 
-.toggle-switch.on {
+.toggle-switch.on::before {
   background: var(--ok);
 }
 
@@ -415,8 +427,8 @@ output {
   align-items: center;
   max-width: 58%;
   flex-shrink: 0;
-  /* Match the 26px toggle switch so list rows share one height. */
-  min-height: 26px;
+  /* Match the toggle hit area while keeping the native select compact. */
+  min-height: 44px;
 }
 
 .select-wrap::after {
@@ -436,7 +448,8 @@ output {
   appearance: none;
   -webkit-appearance: none;
   width: 100%;
-  min-width: 108px;
+  min-width: 0;
+  min-height: 44px;
   border: 0;
   background: transparent;
   color: var(--muted);
@@ -448,80 +461,112 @@ output {
   text-align-last: right;
 }
 
-/* Kill WebKit's default blue ring when the popup opens / element is focused. */
-.select:focus,
-.select:focus-visible,
-.select:active,
-.select:focus option {
-  outline: none;
-  border: none;
-  box-shadow: none;
+.select:focus { outline: none; }
+
+.select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.select option {
+  background: var(--card-solid);
+  color: var(--ink);
+}
+
+.species-card {
+  padding: 16px 14px 0;
+}
+
+.species-card-heading {
+  padding: 0 2px 12px;
+}
+
+.species-card-heading h2 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.species-wide,
+.species {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: var(--fill);
+  color: var(--ink);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 0;
+  transition: background 120ms ease, border-color 120ms ease;
 }
 
 .species-wide {
-  display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 8px;
   width: 100%;
-  border: 0;
-  background: var(--fill);
-  color: var(--ink);
-  border-radius: 12px;
+  min-height: 44px;
   padding: 10px 12px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
   margin-bottom: 8px;
+  gap: 10px;
+  font-size: 13px;
 }
 
-.species-wide.active {
-  background: var(--accent);
-  color: #fff;
-}
-
-/* Auto-fill so 3–4 columns adapt as species are added. */
 .species-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  max-height: 232px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
+  padding-bottom: 14px;
 }
 
 .species {
-  display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  border: 0;
-  background: var(--fill);
-  color: var(--ink);
-  border-radius: 12px;
-  padding: 10px 4px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  min-width: 0;
+  justify-content: center;
+  min-height: 64px;
+  padding: 10px 6px;
+}
+
+.species-radio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  margin: 0;
+}
+
+.species:has(.species-radio:focus-visible),
+.species-wide:has(.species-radio:focus-visible),
+.feeding-guide summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.species.active,
+.species-wide.active {
+  background: color-mix(in srgb, var(--accent) 14%, var(--card-solid));
 }
 
 .species-emoji {
-  font-size: 18px;
+  font-size: 21px;
   line-height: 1;
 }
 
 .species-label {
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-align: center;
+  line-height: 1.3;
 }
 
-.species.active {
-  background: var(--accent);
-  color: #fff;
+@media (hover: hover) {
+  .species:not(.active):hover,
+  .species-wide:not(.active):hover {
+    background: color-mix(in srgb, var(--fill) 80%, var(--muted));
+  }
 }
 
 .actions {
@@ -544,7 +589,7 @@ output {
   transition: transform 0.08s ease, opacity 0.15s ease;
 }
 
-.btn:active {
+.btn:active:not(:disabled) {
   transform: scale(0.97);
 }
 
@@ -554,6 +599,11 @@ output {
   padding: 0;
   border-radius: 10px;
   font-size: 16px;
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .btn.primary {
@@ -580,15 +630,107 @@ output {
   margin-top: 16px;
   text-align: center;
   color: var(--muted);
-  font-size: 11.5px;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .slider::-webkit-slider-thumb,
   .slider:active::-webkit-slider-thumb,
   .toggle-switch,
+  .toggle-switch::before,
   .toggle-switch::after,
   .btn {
     transition: none;
   }
+}
+
+.feeding-guide {
+  border-top: 1px solid var(--line);
+}
+
+.feeding-guide summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 12px 2px;
+  cursor: pointer;
+  list-style: none;
+  border-radius: 6px;
+}
+
+.feeding-guide summary::-webkit-details-marker {
+  display: none;
+}
+
+.feeding-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.food-preference {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 48%;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.disclosure-chevron {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.feeding-guide[open] .disclosure-chevron {
+  transform: rotate(90deg);
+}
+
+.feeding-content {
+  padding: 0 2px 14px;
+}
+
+.personality-intro {
+  line-height: 1.5;
+  margin: 0 0 10px;
+}
+
+.personality-list {
+  display: grid;
+  grid-template-columns: minmax(48px, max-content) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 9px 12px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.personality-list > div {
+  display: contents;
+}
+
+.personality-list dt {
+  font-weight: 500;
+}
+
+.personality-list dd {
+  margin: 0;
+  color: var(--muted);
+}
+
+.feeding-tip {
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .species, .species-wide { transition: none; }
 }

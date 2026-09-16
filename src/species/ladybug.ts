@@ -8,6 +8,9 @@ registerSpecies({
   label: "瓢虫",
   emoji: "🐞",
   traits: {
+    favoriteFood: "fruit",
+    eatStyle: "munch",
+    activity: "diurnal",
     bodyScale: 1,
     speedMul: 0.9,
     edgeAffinity: 0.4,

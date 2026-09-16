@@ -83,13 +83,9 @@ export async function loadDailyStats(): Promise<DailyStats | null> {
 }
 
 export async function saveDailyStats(stats: DailyStats): Promise<void> {
-  try {
-    const store = await getStore();
-    await store.set(DAILY_KEY, normalizeDailyStats(stats));
-    await store.save();
-  } catch (err) {
-    console.error("save daily stats failed", err);
-  }
+  const store = await getStore();
+  await store.set(DAILY_KEY, normalizeDailyStats(stats));
+  await store.save();
 }
 
 export async function listenSettings(

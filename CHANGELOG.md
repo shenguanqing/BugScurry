@@ -5,15 +5,37 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-09-16
+
+Personalities, multi-food feeding, weather with sound, species eating styles, and settings accessibility polish.
 
 ### Added
 
+- Four personalities assigned at spawn: shy flees sooner, greedy wakes for snacks, lazy moves slowly and rests longer, curious investigates the cursor from a distance
+- Food kinds: cookie, sugar, fruit (tray → Feed bugs); each species has a favorite; eating a favorite shows a heart
+- Up to three snacks can coexist; food drops near a live bug; lifetime raised to 20s (faster while nibbled)
+- Personality eating styles: shy pecks and bails, greedy/lazy cling, curious takes short pecks; post-meal warm glow (longer on favorites)
+- Species eating styles: ants haul crumbs to cover, bees hover, caterpillars ripple, spiders wrap, mosquitoes/flies sip, etc.
+- Nibble FX by food: cookie crumbs, sugar sparks, fruit drips; a finished fruit leaves a short juice blot
+- Local-clock day phase biases random mixes: diurnal (ant, bee, butterfly, caterpillar, ladybug) by day; nocturnal (cockroach, mosquito, spider) at dusk/night
+- Tray → Weather submenu: stop / random / light / moderate / heavy / downpour / thunderstorm; depth-layered streaks, per-shower wind, thunder double-strike lightning; bugs slow and hug edges by intensity
+- Procedural rain ambience + delayed thunder rumble (shares the sound toggle); offline-built rain textures; auto rain always rolls a random intensity
+- Settings → Random rain: showers start and stop on their own schedule; a manual tray choice re-arms the clock
+- Daily stats aggregation service: kills from every display report to the primary overlay, which serializes store writes and tray updates
+- Settings: species picker as a radio group, labeled toggles, 44px control targets, slider `aria-valuetext`
+- Unit tests for feeding preferences, personality/species eat plans, weather phases, rain motion/audio textures, movement-stream isolation, and daily-stats ownership
+
 ### Changed
+
+- Remove the `Ctrl/⌘+B` feeding shortcut; choose food from the tray menu instead
+- Each bug keeps its own movement RNG stream (stable when neighbors are reordered or removed)
+- Bait attraction now considers every snack, not only the newest crumb
 
 ### Fixed
 
 - Windows: register `tauri-plugin-single-instance` so a second launch exits (was stacking two tray icons and two overlays — tray add/remove looked like ±2 bugs)
+- Settings: count +/− disabled at limits; toggle rows and selects share one hit height
+- Settings window no longer demotes the overlay: bugs stay visible (and clickable except on the panel) while settings is open
 
 ## [0.2.0] - 2026-09-15
 
@@ -87,7 +109,7 @@ First public baseline: desktop bug overlay for macOS and Windows.
 
 - Production binaries must be built with `pnpm tauri build` (not bare `cargo build --release`)
 
-[Unreleased]: https://github.com/shenguanqing/BugScurry/compare/v0.2.0...HEAD
+[0.3.0]: https://github.com/shenguanqing/BugScurry/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/shenguanqing/BugScurry/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/shenguanqing/BugScurry/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/shenguanqing/BugScurry/releases/tag/v0.1.0

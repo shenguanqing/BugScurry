@@ -8,6 +8,9 @@ registerSpecies({
   label: "蟑螂",
   emoji: "🪳",
   traits: {
+    favoriteFood: "cookie",
+    eatStyle: "scurry",
+    activity: "nocturnal",
     bodyScale: 1,
     speedMul: 1,
     edgeAffinity: 0.55,

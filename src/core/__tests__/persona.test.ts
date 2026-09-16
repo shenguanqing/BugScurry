@@ -25,6 +25,13 @@ function bug(overrides: Partial<Bug> = {}): Bug {
     edgeAffinity: 0.5,
     stuckTime: 0,
     seed: 0.5,
+    personality: "curious",
+    eatingBaitId: null,
+    enjoyingFood: false,
+    foodCooldown: 0,
+    satisfiedTimer: 0,
+    carryKind: null,
+    carryTimer: 0,
     hp: 1,
     maxHp: 1,
     hurtTimer: 0,
@@ -46,6 +53,7 @@ describe("bait", () => {
   it("bugs steer toward a nearby crumb", () => {
     const b = bug({ x: 200, y: 300, heading: 0, stateTimer: 5 });
     const bait = {
+      kind: "cookie" as const,
       id: "bait-1",
       x: 200 + BAIT_ATTRACT_RADIUS * 0.5,
       y: 300,
@@ -63,6 +71,7 @@ describe("bait", () => {
   it("bugs pause to nibble on the crumb", () => {
     const b = bug({ x: 200, y: 300, heading: 0, stateTimer: 5 });
     const bait = {
+      kind: "cookie" as const,
       id: "bait-2",
       x: 205,
       y: 300,

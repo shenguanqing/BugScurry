@@ -57,7 +57,10 @@ Ship a playable loop first; every milestone must be runnable and checkable.
 - [x] Extra species: bee, caterpillar, butterfly, mosquito (9 total + random)
 - [x] Flee from cursor (repellent); panic bolt when almost on top
 - [x] Chase hit radius while the cursor is close
+- [x] Four persistent personalities; cookie/sugar/fruit preferences, three snacks, favorite-food hearts
+- [x] Personality + species eating styles (ant carry, bee hover, …); nibble crumbs / juice blots / post-meal glow
 - [x] Cookie bait from the tray; bugs gather to nibble
+- [x] Local-clock phase mix (diurnal vs nocturnal) and tray weather (five rain kinds, wind, lightning, rain audio)
 - [x] Combo: 2s chain floats + rising pitch; tray “Today” stats
 - [x] Fat bug: ~6% chance, 2–3× size, 3 HP, burst on kill
 - [x] i18n: zh-CN, zh-TW, en, ja, ko

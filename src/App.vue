@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted, ref } from "vue";
 import { ensureAudio, playHurtSound, playSquishSound } from "./core/audio";
 import { DEFAULT_SETTINGS } from "./core/config";
-import { BugManager } from "./core/bugManager";
+import { BugManager, emptyDailyStats } from "./core/bugManager";
 import { hitTestBug } from "./core/hitTest";
 import { createLoop } from "./core/loop";
 import type { CursorState, Settings, Viewport } from "./core/types";
@@ -11,6 +11,8 @@ import {
   listenCursorLocal,
   listenDisplaysChanged,
   listenTray,
+  listenKillReports,
+  reportKill,
   setCursorPollerEnabled,
   setOverlayClickable,
   setTrayStats,
@@ -28,6 +30,17 @@ import {
   saveSettings,
 } from "./services/settingsService";
 import { t } from "./i18n";
+import { createDailyStatsService } from "./services/dailyStatsService";
+import { stopRainAudio, tickRainAudio } from "./core/rainAudio";
+import {
+  createAutoRainClock,
+  pickRainWind,
+  rainTrayAction,
+  resetAutoRainClock,
+  rollShower,
+  tickAutoRain,
+} from "./core/weather";
+import type { RainKind } from "./core/types";
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 
@@ -47,18 +60,10 @@ let unlistenCommands: (() => void) | null = null;
 let clickableFlag = false;
 let hoverHoldUntil = 0;
 const cursorState: CursorState = { x: 0, y: 0, inside: false };
-let statsFlushAt = 0;
-
-async function flushTrayStats() {
-  if (!manager || !isPrimaryOverlay()) return;
-  const s = manager.dailyStats;
-  const label = `${t("tray.stats")}: ${s.kills} · ${s.bestCombo}×`;
-  void setTrayStats(label);
-  const now = performance.now();
-  if (now - statsFlushAt < 800) return;
-  statsFlushAt = now;
-  void saveDailyStats(s);
-}
+let unlistenKills: (() => void) | null = null;
+let dailyStatsService: ReturnType<typeof createDailyStatsService> | null = null;
+let autoRainClock = createAutoRainClock(performance.now(), false);
+let autoRainTimer = 0;
 
 function resizeCanvas() {
   const canvas = canvasRef.value;
@@ -99,8 +104,61 @@ function setClickable(next: boolean) {
 }
 
 function applySettings(next: Settings) {
+  const prev = settings.value;
   settings.value = next;
   manager?.applySettings(next);
+  if (prev.rain && !next.rain) stopRainAudio();
+  if (prev.sound && !next.sound) stopRainAudio();
+  if (
+    isPrimaryOverlay() &&
+    (prev.rain !== next.rain || prev.autoRain !== next.autoRain)
+  ) {
+    resetAutoRainClock(
+      autoRainClock,
+      performance.now(),
+      next.rain,
+      Math.random,
+      next.rainKind,
+    );
+  }
+}
+
+function commitRain(patch: Partial<Settings> & { rain: boolean }) {
+  const next: Settings = { ...settings.value, ...patch };
+  settings.value = next;
+  void saveSettings(next);
+  // Cut audio immediately — the rAF loop may be paused while bugs are hidden.
+  if (!next.rain) stopRainAudio();
+  if (isPrimaryOverlay()) {
+    resetAutoRainClock(
+      autoRainClock,
+      performance.now(),
+      next.rain,
+      Math.random,
+      next.rainKind,
+    );
+  }
+}
+
+function stopRain() {
+  if (!settings.value.rain) return;
+  commitRain({ rain: false });
+}
+
+/** Start a shower: a fixed kind, or "random" to roll strength + wind. */
+function startRain(kind: RainKind | "random") {
+  const shower =
+    kind === "random" ? rollShower() : { kind, wind: pickRainWind() };
+  commitRain({ rain: true, rainKind: shower.kind, rainWind: shower.wind });
+  ensureAudio();
+}
+
+function applyRainTrayCommand(cmd: string): boolean {
+  const action = rainTrayAction(cmd);
+  if (!action) return false;
+  if (action.mode === "off") stopRain();
+  else startRain(action.kind);
+  return true;
 }
 
 function onPointerMove(ev: PointerEvent) {
@@ -118,7 +176,8 @@ function onPointerDown(ev: PointerEvent) {
   const result = manager.hit(target);
   if (result.kind === "killed") {
     if (settings.value.sound) playSquishSound(result.combo);
-    void flushTrayStats();
+    void reportKill({ date: emptyDailyStats().date, combo: result.combo })
+      .catch((err) => console.error("report kill failed", err));
   } else if (result.kind === "hurt") {
     if (settings.value.sound) playHurtSound();
   }
@@ -145,6 +204,7 @@ function applyVisibility(show: boolean) {
   } else {
     loop?.stop();
     setClickable(false);
+    stopRainAudio();
     if (isPrimaryOverlay()) void setCursorPollerEnabled(false);
   }
 }
@@ -173,12 +233,19 @@ function handleTray(cmd: string) {
       manager.regenerate();
       break;
     case "drop_bait":
-      manager.dropBait();
+      manager.dropBait("cookie");
+      break;
+    case "drop_sugar":
+      manager.dropBait("sugar");
+      break;
+    case "drop_fruit":
+      manager.dropBait("fruit");
       break;
     case "open_settings":
       void openSettingsWindow();
       break;
     default:
+      applyRainTrayCommand(cmd);
       break;
   }
 }
@@ -191,7 +258,32 @@ onMounted(async () => {
   const daily = await loadDailyStats();
   manager = new BugManager(loaded, viewport.value, daily ?? undefined);
   resizeCanvas();
-  void flushTrayStats();
+  if (isPrimaryOverlay()) {
+    dailyStatsService = createDailyStatsService(
+      manager.dailyStats,
+      saveDailyStats,
+      (stats) => setTrayStats(`${t("tray.stats")}: ${stats.kills} · ${stats.bestCombo}×`),
+    );
+    unlistenKills = await listenKillReports((report) => {
+      void dailyStatsService?.record(report)
+        .catch((err) => console.error("save daily stats failed", err));
+    });
+    await dailyStatsService.refresh();
+    autoRainClock = createAutoRainClock(performance.now(), loaded.rain, Math.random, loaded.rainKind);
+    autoRainTimer = window.setInterval(() => {
+      if (!settings.value.autoRain) return;
+      const nextRain = tickAutoRain(
+        autoRainClock,
+        performance.now(),
+        settings.value.rain,
+        Math.random,
+      );
+      if (nextRain !== settings.value.rain) {
+        if (nextRain) startRain("random");
+        else stopRain();
+      }
+    }, 2000);
+  }
 
   try {
     const label = getCurrentWindow().label;
@@ -211,6 +303,10 @@ onMounted(async () => {
     getViewport: () => viewport.value,
     getCanvas: () => canvasRef.value,
     getCursor: () => cursorState,
+    onFrame: (timeSec, s, show) => {
+      if (!isPrimaryOverlay()) return;
+      tickRainAudio(s, timeSec, show);
+    },
   });
   loop.start();
 
@@ -263,10 +359,12 @@ onMounted(async () => {
 
 onUnmounted(() => {
   loop?.stop();
+  window.clearInterval(autoRainTimer);
   window.removeEventListener("pointerdown", onPointerDown);
   window.removeEventListener("pointermove", onPointerMove);
   window.removeEventListener("resize", refreshViewportSync);
   window.removeEventListener("load", refreshViewportSync);
+  unlistenKills?.();
   unlistenCursor?.();
   unlistenDisplays?.();
   unlistenTray?.();

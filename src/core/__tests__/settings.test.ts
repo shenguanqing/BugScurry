@@ -65,4 +65,25 @@ describe("clampSettings", () => {
     const s = clampSettings({ repellent: false });
     expect(s.repellent).toBe(false);
   });
+
+  it("coerces the rain flag and defaults it off", () => {
+    expect(clampSettings({}).rain).toBe(false);
+    expect(clampSettings({ rain: 1 as unknown as boolean }).rain).toBe(true);
+    expect(clampSettings({ rain: false }).rain).toBe(false);
+  });
+
+  it("coerces autoRain and defaults it off", () => {
+    expect(clampSettings({}).autoRain).toBe(false);
+    expect(clampSettings({ autoRain: 1 as unknown as boolean }).autoRain).toBe(true);
+    expect(clampSettings({ autoRain: false }).autoRain).toBe(false);
+  });
+
+  it("normalizes rain kind and wind", () => {
+    expect(clampSettings({}).rainKind).toBe("moderate");
+    expect(clampSettings({ rainKind: "thunder" }).rainKind).toBe("thunder");
+    expect(clampSettings({ rainKind: "hurricane" as never }).rainKind).toBe("moderate");
+    expect(clampSettings({ rainWind: 9 }).rainWind).toBe(1);
+    expect(clampSettings({ rainWind: -4 }).rainWind).toBe(-1);
+    expect(clampSettings({ rainWind: Number.NaN }).rainWind).toBe(0);
+  });
 });

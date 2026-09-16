@@ -3,9 +3,9 @@ import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LIMITS } from "../core/config";
-import type { Settings } from "../core/types";
+import type { FoodKind, Settings } from "../core/types";
 import { t } from "../i18n";
-import { listSpecies } from "../species";
+import { getSpecies, listSpecies } from "../species";
 import {
   applyMonitorMode,
   applyThemeToDocument,
@@ -51,7 +51,16 @@ const settings = reactive<Settings>({
   species: "random",
   theme: "auto",
   locale: "auto",
+  rain: false,
+  rainKind: "moderate",
+  rainWind: 0,
+  autoRain: false,
 });
+
+const foodEmoji: Record<FoodKind, string> = { cookie: "🍪", sugar: "🍬", fruit: "🍓" };
+const personalities = ["shy", "greedy", "lazy", "curious"] as const;
+
+const favoriteFood = computed(() => getSpecies(settings.species)?.traits.favoriteFood);
 
 const savedFlash = ref(false);
 let flashTimer: number | undefined;
@@ -84,7 +93,7 @@ function onSlider(key: "size" | "speed" | "randomness" | "count", ev: Event) {
   }
 }
 
-function toggle(key: "sound" | "stains" | "particles" | "repellent") {
+function toggle(key: "sound" | "stains" | "particles" | "repellent" | "autoRain") {
   settings[key] = !settings[key];
   void persist();
 }
@@ -197,39 +206,53 @@ onUnmounted(() => {
       </span>
     </header>
 
-    <section class="card">
-      <div class="field">
-        <div class="row head">
-          <div class="grow">
-            <span class="field-title">{{ tt("species.title") }}</span>
-            <p class="hint">{{ tt("species.hint") }}</p>
-          </div>
-        </div>
-        <button
-          type="button"
-          class="species-wide"
-          :class="{ active: settings.species === 'random' }"
-          :aria-pressed="settings.species === 'random'"
-          @click="setSpecies('random')"
-        >
-          <span class="species-emoji">🎲</span>
+    <section class="card species-card" aria-labelledby="species-title">
+      <div class="species-card-heading">
+        <h2 id="species-title">{{ tt("species.title") }}</h2>
+        <p class="hint">{{ tt("species.chooseHint") }}</p>
+      </div>
+      <div role="radiogroup" :aria-label="tt('species.title')">
+        <label class="species-wide" :class="{ active: settings.species === 'random' }">
+          <input class="species-radio" type="radio" name="species" value="random"
+            :checked="settings.species === 'random'" @change="setSpecies('random')" />
+          <span class="species-emoji" aria-hidden="true">🎲</span>
           <span>{{ tt("species.random") }}</span>
-        </button>
-        <div class="species-grid" role="group" :aria-label="tt('species.title')">
-          <button
-            v-for="opt in speciesOptions"
-            :key="opt.id"
-            type="button"
-            class="species"
-            :class="{ active: settings.species === opt.id }"
-            :aria-pressed="settings.species === opt.id"
-            @click="setSpecies(opt.id)"
-          >
-            <span class="species-emoji">{{ opt.emoji }}</span>
+        </label>
+        <div class="species-grid">
+          <label v-for="opt in speciesOptions" :key="opt.id" class="species"
+            :class="{ active: settings.species === opt.id }">
+            <input class="species-radio" type="radio" name="species" :value="opt.id"
+              :checked="settings.species === opt.id" @change="setSpecies(opt.id)" />
+            <span class="species-emoji" aria-hidden="true">{{ opt.emoji }}</span>
             <span class="species-label">{{ opt.label }}</span>
-          </button>
+          </label>
         </div>
       </div>
+      <details class="feeding-guide">
+        <summary>
+          <span class="feeding-title">{{ tt("personality.title") }}</span>
+          <span class="food-preference">
+            <template v-if="favoriteFood">
+              <span aria-hidden="true">{{ foodEmoji[favoriteFood] }}</span>
+              <span>{{ tt("feeding.favorite") }}{{ tt(`food.${favoriteFood}`) }}</span>
+            </template>
+            <span v-else>{{ tt("feeding.varied") }}</span>
+          </span>
+          <svg class="disclosure-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <path d="m4 2 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </summary>
+        <div class="feeding-content">
+          <p class="hint personality-intro">{{ tt("personality.intro") }}</p>
+          <dl class="personality-list">
+            <div v-for="personality in personalities" :key="personality">
+              <dt>{{ tt(`personality.${personality}`) }}</dt>
+              <dd>{{ tt(`personality.${personality}.detail`) }}</dd>
+            </div>
+          </dl>
+          <p class="feeding-tip">{{ tt("feeding.shortHint") }}</p>
+        </div>
+      </details>
     </section>
 
     <section class="card">
@@ -244,6 +267,7 @@ onUnmounted(() => {
               type="button"
               class="btn ghost"
               :aria-label="tt('count.title') + ' −'"
+              :disabled="settings.count <= LIMITS.countMin"
               @click="setCount(settings.count - 1)"
             >−</button>
             <span class="count">{{ settings.count }}</span>
@@ -251,6 +275,7 @@ onUnmounted(() => {
               type="button"
               class="btn ghost"
               :aria-label="tt('count.title') + ' +'"
+              :disabled="settings.count >= LIMITS.countMax"
               @click="setCount(settings.count + 1)"
             >+</button>
           </div>
@@ -283,6 +308,7 @@ onUnmounted(() => {
           :max="LIMITS.sizeMax"
           step="0.05"
           :value="settings.size"
+          :aria-valuetext="`${settings.size.toFixed(2)}×`"
           @input="onSlider('size', $event)"
         />
       </div>
@@ -303,6 +329,7 @@ onUnmounted(() => {
           :max="LIMITS.speedMax"
           step="0.05"
           :value="settings.speed"
+          :aria-valuetext="`${settings.speed.toFixed(2)}×`"
           @input="onSlider('speed', $event)"
         />
       </div>
@@ -323,18 +350,20 @@ onUnmounted(() => {
           :max="LIMITS.randomnessMax"
           step="0.01"
           :value="settings.randomness"
+          :aria-valuetext="`${Math.round(settings.randomness * 100)}%`"
           @input="onSlider('randomness', $event)"
         />
       </div>
     </section>
 
-    <section class="card">
+    <section class="card list-card">
       <div class="toggles">
         <div class="toggle-row">
-          <span class="toggle-label">{{ tt("toggle.sound") }}</span>
+          <label for="toggle-sound" class="toggle-label">{{ tt("toggle.sound") }}</label>
           <button
             type="button"
             class="toggle-switch"
+            id="toggle-sound"
             :class="{ on: settings.sound }"
             role="switch"
             :aria-checked="settings.sound"
@@ -343,10 +372,11 @@ onUnmounted(() => {
           ></button>
         </div>
         <div class="toggle-row">
-          <span class="toggle-label">{{ tt("toggle.stains") }}</span>
+          <label for="toggle-stains" class="toggle-label">{{ tt("toggle.stains") }}</label>
           <button
             type="button"
             class="toggle-switch"
+            id="toggle-stains"
             :class="{ on: settings.stains }"
             role="switch"
             :aria-checked="settings.stains"
@@ -355,10 +385,11 @@ onUnmounted(() => {
           ></button>
         </div>
         <div class="toggle-row">
-          <span class="toggle-label" :title="tt('toggle.particles.tip')">{{ tt("toggle.particles") }}</span>
+          <label for="toggle-particles" class="toggle-label" :title="tt('toggle.particles.tip')">{{ tt("toggle.particles") }}</label>
           <button
             type="button"
             class="toggle-switch"
+            id="toggle-particles"
             :class="{ on: settings.particles }"
             role="switch"
             :aria-checked="settings.particles"
@@ -368,10 +399,11 @@ onUnmounted(() => {
           ></button>
         </div>
         <div class="toggle-row">
-          <span class="toggle-label" :title="tt('toggle.repellent.tip')">{{ tt("toggle.repellent") }}</span>
+          <label for="toggle-repellent" class="toggle-label" :title="tt('toggle.repellent.tip')">{{ tt("toggle.repellent") }}</label>
           <button
             type="button"
             class="toggle-switch"
+            id="toggle-repellent"
             :class="{ on: settings.repellent }"
             role="switch"
             :aria-checked="settings.repellent"
@@ -381,10 +413,25 @@ onUnmounted(() => {
           ></button>
         </div>
         <div class="toggle-row">
-          <span class="toggle-label">{{ tt("toggle.autostart") }}</span>
+          <label for="toggle-auto-rain" class="toggle-label" :title="tt('toggle.autoRain.tip')">{{ tt("toggle.autoRain") }}</label>
           <button
             type="button"
             class="toggle-switch"
+            id="toggle-auto-rain"
+            :class="{ on: settings.autoRain }"
+            role="switch"
+            :aria-checked="settings.autoRain"
+            :aria-label="tt('toggle.autoRain')"
+            :title="tt('toggle.autoRain.tip')"
+            @click="toggle('autoRain')"
+          ></button>
+        </div>
+        <div class="toggle-row">
+          <label for="toggle-autostart" class="toggle-label">{{ tt("toggle.autostart") }}</label>
+          <button
+            type="button"
+            class="toggle-switch"
+            id="toggle-autostart"
             :class="{ on: settings.autostart }"
             role="switch"
             :aria-checked="settings.autostart"
@@ -395,7 +442,7 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <section class="card">
+    <section class="card list-card">
       <div class="selects">
         <div class="select-row">
           <label for="theme-select">{{ tt("theme.title") }}</label>

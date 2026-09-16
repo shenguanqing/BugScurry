@@ -3,18 +3,30 @@ use std::sync::Mutex;
 
 use serde::Deserialize;
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{Menu, MenuItem, Submenu},
     tray::TrayIconBuilder,
     Emitter, Manager,
 };
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
 pub struct TrayLabels {
     pub toggle: String,
     pub add: String,
     pub remove: String,
     pub regen: String,
     pub bait: String,
+    pub feed: String,
+    pub sugar: String,
+    pub fruit: String,
+    pub rain: String,
+    pub rain_off: String,
+    pub rain_random: String,
+    pub rain_light: String,
+    pub rain_moderate: String,
+    pub rain_heavy: String,
+    pub rain_downpour: String,
+    pub rain_thunder: String,
     pub settings: String,
     pub quit: String,
     pub stats: String,
@@ -28,6 +40,17 @@ impl Default for TrayLabels {
             remove: "减少一只".into(),
             regen: "重新生成".into(),
             bait: "扔一块饼干".into(),
+            feed: "投喂".into(),
+            sugar: "放一颗糖".into(),
+            fruit: "放一块水果".into(),
+            rain: "下雨".into(),
+            rain_off: "停雨".into(),
+            rain_random: "随机".into(),
+            rain_light: "小雨".into(),
+            rain_moderate: "中雨".into(),
+            rain_heavy: "大雨".into(),
+            rain_downpour: "暴雨".into(),
+            rain_thunder: "雷阵雨".into(),
             settings: "设置…".into(),
             quit: "退出".into(),
             stats: "今日战绩".into(),
@@ -79,7 +102,34 @@ fn build_menu(app: &tauri::AppHandle, labels: &TrayLabels) -> tauri::Result<Menu
         "drop_bait",
         &labels.bait,
         true,
-        Some("CmdOrCtrl+B"),
+        None::<&str>,
+    )?;
+    let sugar = MenuItem::with_id(app, "drop_sugar", &labels.sugar, true, None::<&str>)?;
+    let fruit = MenuItem::with_id(app, "drop_fruit", &labels.fruit, true, None::<&str>)?;
+    let feed = Submenu::with_items(app, &labels.feed, true, &[&bait, &sugar, &fruit])?;
+    let rain_off = MenuItem::with_id(app, "rain_off", &labels.rain_off, true, None::<&str>)?;
+    let rain_random = MenuItem::with_id(app, "rain_random", &labels.rain_random, true, None::<&str>)?;
+    let rain_light = MenuItem::with_id(app, "rain_light", &labels.rain_light, true, None::<&str>)?;
+    let rain_moderate =
+        MenuItem::with_id(app, "rain_moderate", &labels.rain_moderate, true, None::<&str>)?;
+    let rain_heavy = MenuItem::with_id(app, "rain_heavy", &labels.rain_heavy, true, None::<&str>)?;
+    let rain_downpour =
+        MenuItem::with_id(app, "rain_downpour", &labels.rain_downpour, true, None::<&str>)?;
+    let rain_thunder =
+        MenuItem::with_id(app, "rain_thunder", &labels.rain_thunder, true, None::<&str>)?;
+    let rain = Submenu::with_items(
+        app,
+        &labels.rain,
+        true,
+        &[
+            &rain_off,
+            &rain_random,
+            &rain_light,
+            &rain_moderate,
+            &rain_heavy,
+            &rain_downpour,
+            &rain_thunder,
+        ],
     )?;
     let settings = MenuItem::with_id(
         app,
@@ -91,21 +141,14 @@ fn build_menu(app: &tauri::AppHandle, labels: &TrayLabels) -> tauri::Result<Menu
     let quit = MenuItem::with_id(app, "quit", &labels.quit, true, Some("CmdOrCtrl+Q"))?;
     Menu::with_items(
         app,
-        &[&stats, &show, &add, &remove, &regen, &bait, &settings, &quit],
+        &[&stats, &show, &add, &remove, &regen, &feed, &rain, &settings, &quit],
     )
 }
 
 fn on_menu_event(app: &tauri::AppHandle, id: &str) {
     match id {
         "quit" => app.exit(0),
-        "open_settings" => {
-            if let Some(window) = app.get_webview_window("settings") {
-                let _ = window.show();
-                let _ = window.set_focus();
-            } else if let Some(window) = app.get_webview_window("overlay") {
-                let _ = window.emit("tray-command", "open_settings");
-            }
-        }
+        "open_settings" => super::open_or_focus_settings(app),
         "today_stats" => {}
         other => {
             if let Some(window) = app.get_webview_window("overlay") {

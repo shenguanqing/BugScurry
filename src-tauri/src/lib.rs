@@ -296,21 +296,22 @@ fn set_overlays_always_on_top(app: &tauri::AppHandle, on: bool) {
 }
 
 fn open_or_focus_settings(app: &tauri::AppHandle) {
-    // Full-screen always-on-top overlays can sit above settings on Windows.
-    // Drop them a level while the settings window is open.
-    set_overlays_always_on_top(app, false);
-
-    // The settings window is declared in tauri.conf.json. Never rebuild it
-    // with the same label — Tauri 2 can abort if the identifier is already
-    // registered (Windows crash on Ctrl+,).
+    // Keep the bug overlay always-on-top so the desktop pets stay visible
+    // while settings is open. Settings is also always-on-top and is raised
+    // + focused here; the overlay is click-through except when hovering a
+    // bug, so the panel remains usable underneath the transparent layer.
     if let Some(win) = app.get_webview_window("settings") {
         let _ = win.show();
         let _ = win.unminimize();
         let _ = win.set_always_on_top(true);
         let _ = win.set_focus();
+        let _ = win.set_always_on_top(true);
     } else {
         eprintln!("settings window not found; skip open");
     }
+    // Re-assert overlay on top after the focus dance so bugs paint above
+    // the panel instead of disappearing behind it.
+    set_overlays_always_on_top(app, true);
 }
 
 #[tauri::command]
@@ -405,7 +406,6 @@ fn register_global_shortcuts(app: &tauri::AppHandle) {
         "CmdOrCtrl+Equal",
         "CmdOrCtrl+Minus",
         "CmdOrCtrl+R",
-        "CmdOrCtrl+B",
         "CmdOrCtrl+Comma",
         "CmdOrCtrl+Q",
     ] {
@@ -428,10 +428,7 @@ pub fn run() {
         // Must be first: a second launch exits instead of stacking tray icons
         // and a second overlay (which looked like +2 bugs per tray click).
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(win) = app.get_webview_window("settings") {
-                let _ = win.show();
-                let _ = win.set_focus();
-            }
+            open_or_focus_settings(app);
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -463,7 +460,6 @@ pub fn run() {
                         Code::Equal => "add_one",
                         Code::Minus => "remove_one",
                         Code::KeyR => "regenerate",
-                        Code::KeyB => "drop_bait",
                         Code::Comma => "open_settings",
                         Code::KeyQ => "quit",
                         _ => return,
@@ -509,7 +505,12 @@ pub fn run() {
                         set_overlays_always_on_top(window.app_handle(), true);
                     }
                     WindowEvent::Focused(false) => {
-                        // Keep overlays pass-through when settings is not focused.
+                        // Overlay stays on top; nothing to demote.
+                    }
+                    WindowEvent::Focused(true) => {
+                        // Re-raise the overlay after the panel takes focus so
+                        // bugs remain visible above the settings chrome.
+                        set_overlays_always_on_top(window.app_handle(), true);
                     }
                     _ => {}
                 }

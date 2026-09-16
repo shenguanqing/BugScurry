@@ -5,7 +5,9 @@ import {
   FAT_BUG_SIZE_MAX,
   FAT_BUG_SIZE_MIN,
 } from "./config";
+import { PERSONALITIES } from "./personality";
 import { Rng, randomSeed } from "./rng";
+import { currentDayPhase } from "./weather";
 import { getSpecies, pickSpeciesId } from "../species";
 import type { Bug, Settings, Viewport } from "./types";
 
@@ -18,7 +20,7 @@ export function createBug(
 ): Bug {
   const margin = 56;
   const spawnAtEdge = rng.chance(0.5);
-  const speciesId = pickSpeciesId(settings.species, () => rng.next());
+  const speciesId = pickSpeciesId(settings.species, () => rng.next(), currentDayPhase());
   const species = getSpecies(speciesId);
   const traits = species?.traits;
 
@@ -80,5 +82,12 @@ export function createBug(
     hp: fat ? FAT_BUG_HP : 1,
     maxHp: fat ? FAT_BUG_HP : 1,
     hurtTimer: 0,
+    personality: PERSONALITIES[rng.int(0, PERSONALITIES.length - 1)],
+    eatingBaitId: null,
+    enjoyingFood: false,
+    foodCooldown: 0,
+    satisfiedTimer: 0,
+    carryKind: null,
+    carryTimer: 0,
   };
 }

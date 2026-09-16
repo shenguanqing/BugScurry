@@ -10,6 +10,8 @@ export interface LoopHooks {
   getViewport: () => Viewport;
   getCanvas: () => HTMLCanvasElement | null;
   getCursor: () => CursorState;
+  /** Primary-overlay frame hook (rain audio, thunder sync). */
+  onFrame?: (timeSec: number, settings: Settings, visible: boolean) => void;
 }
 
 export function createLoop(hooks: LoopHooks) {
@@ -28,15 +30,18 @@ export function createLoop(hooks: LoopHooks) {
       const settings = hooks.getSettings();
       const manager = hooks.manager;
       const cursor = hooks.getCursor();
+      const show = manager.isVisible;
 
-      if (manager.isVisible) {
+      hooks.onFrame?.(t / 1000, settings, show);
+
+      if (show) {
         updateBugs(
           manager.list,
           dt,
           settings,
           viewport,
           cursor,
-          manager.activeBait,
+          manager.baitList,
         );
         manager.tick(dt);
 
@@ -52,6 +57,10 @@ export function createLoop(hooks: LoopHooks) {
               manager.baitList,
               manager.floatList,
               viewport,
+              settings.rain
+                ? { kind: settings.rainKind, wind: settings.rainWind }
+                : false,
+              t / 1000,
             );
           }
         }

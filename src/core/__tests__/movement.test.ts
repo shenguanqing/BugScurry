@@ -6,7 +6,7 @@ import {
   REPELLENT_RADIUS,
   REPELLENT_SPEED_MIN,
 } from "../config";
-import { updateBug } from "../movement";
+import { updateBug, updateBugs } from "../movement";
 import { Rng } from "../rng";
 import type { Bug, CursorState, Settings, Viewport } from "../types";
 
@@ -30,6 +30,13 @@ function bug(overrides: Partial<Bug> = {}): Bug {
     edgeAffinity: 0.5,
     stuckTime: 0,
     seed: 0.5,
+    personality: "curious",
+    eatingBaitId: null,
+    enjoyingFood: false,
+    foodCooldown: 0,
+    satisfiedTimer: 0,
+    carryKind: null,
+    carryTimer: 0,
     hp: 1,
     maxHp: 1,
     hurtTimer: 0,
@@ -176,5 +183,31 @@ describe("updateBug", () => {
     const farCursor = cursor(100 + REPELLENT_RADIUS + 30, 100);
     updateBug(b, 1 / 60, settings, viewport, rng, farCursor);
     expect(Math.cos(b.heading)).toBeGreaterThan(-0.3);
+  });
+});
+
+
+describe("independent movement streams", () => {
+  it("keeps a trajectory unchanged when other bugs are reordered or removed", () => {
+    const alone = bug({ seed: 0.123 });
+    const grouped = { ...alone };
+    const neighbor = bug({ seed: 0.987, stateTimer: 0 });
+    for (let frame = 0; frame < 180; frame++) {
+      updateBugs([alone], 1 / 60, settings, viewport);
+      const group = frame > 90 ? [grouped] : frame % 2 ? [neighbor, grouped] : [grouped, neighbor];
+      updateBugs(group, 1 / 60, settings, viewport);
+      expect(grouped).toEqual(alone);
+    }
+  });
+
+  it("advances the stream across frames instead of restarting it", () => {
+    const batched = bug({ seed: 0.123 });
+    const expected = { ...batched };
+    const rng = new Rng(Math.floor(expected.seed * 4294967296));
+    for (let frame = 0; frame < 120; frame++) {
+      updateBugs([batched], 1 / 60, settings, viewport);
+      updateBug(expected, 1 / 60, settings, viewport, rng);
+    }
+    expect(batched).toEqual(expected);
   });
 });

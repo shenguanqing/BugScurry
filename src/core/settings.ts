@@ -1,5 +1,13 @@
 import { DEFAULT_SETTINGS, LIMITS } from "./config";
-import type { Settings } from "./types";
+import type { RainKind, Settings } from "./types";
+
+const RAIN_KINDS: readonly RainKind[] = [
+  "light",
+  "moderate",
+  "heavy",
+  "downpour",
+  "thunder",
+];
 
 export function clampSettings(input: Partial<Settings>): Settings {
   const next: Settings = { ...DEFAULT_SETTINGS, ...input };
@@ -15,6 +23,11 @@ export function clampSettings(input: Partial<Settings>): Settings {
   next.particles = !!next.particles;
   next.repellent = !!next.repellent;
   next.autostart = !!next.autostart;
+  next.rain = !!next.rain;
+  next.autoRain = !!next.autoRain;
+  next.rainKind = RAIN_KINDS.includes(next.rainKind) ? next.rainKind : "moderate";
+  const wind = Number(next.rainWind);
+  next.rainWind = Number.isFinite(wind) ? Math.min(1, Math.max(-1, wind)) : 0;
   next.monitorMode = next.monitorMode === "all" ? "all" : "primary";
   next.species = typeof next.species === "string" && next.species ? next.species : "random";
   next.theme = next.theme === "light" || next.theme === "dark" ? next.theme : "auto";

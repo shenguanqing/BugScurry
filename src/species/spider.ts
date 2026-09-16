@@ -47,6 +47,9 @@ registerSpecies({
   label: "蜘蛛",
   emoji: "🕷",
   traits: {
+    favoriteFood: "cookie",
+    eatStyle: "wrap",
+    activity: "nocturnal",
     bodyScale: 1,
     speedMul: 0.85,
     edgeAffinity: 0.45,

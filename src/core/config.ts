@@ -14,6 +14,10 @@ export const DEFAULT_SETTINGS: Settings = {
   species: "random",
   theme: "auto",
   locale: "auto",
+  rain: false,
+  rainKind: "moderate",
+  rainWind: 0,
+  autoRain: false,
 };
 
 export const LIMITS = {
@@ -58,12 +62,20 @@ export const REPELLENT_SPEED_MIN = 1.45;
 /** Flee speed multiplier when the cursor is very close. */
 export const REPELLENT_SPEED_MAX = 2.25;
 
-/** Cookie crumb attraction. */
-export const BAIT_LIFE = 7.5;
+/** Food attraction: allow time for slow bugs to reach their snack. */
+export const BAIT_LIFE = 20;
 export const BAIT_ATTRACT_RADIUS = 320;
 export const BAIT_NIBBLE_RADIUS = 16;
 export const BAIT_PULL = 3.4;
-export const MAX_BAITS = 1;
+export const MAX_BAITS = 3;
+/** Post-meal glow after a favorite snack. */
+export const SATISFIED_FAVORITE_SEC = 8;
+/** Shorter glow after any other snack. */
+export const SATISFIED_ANY_SEC = 2.5;
+/** Seconds between nibble particle puffs. */
+export const NIBBLE_FX_COOLDOWN = 0.16;
+/** How long an ant hauls a crumb toward cover. */
+export const CARRY_DURATION_SEC = 6;
 
 /** Seconds between kills that still count as a combo chain. */
 export const COMBO_WINDOW = 2.0;

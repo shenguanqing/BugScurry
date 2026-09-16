@@ -52,20 +52,24 @@ tray.rs
 
 | Module | Path | Responsibility |
 |--------|------|----------------|
-| Bug | `src/core/bug.ts` | Entity factory (position, heading, size, species, state) |
-| BugManager | `src/core/bugManager.ts` | List, count edits, clear, regenerate, squish FX spawn; **no auto-replace after death** |
+| Bug | `src/core/bug.ts` | Entity factory (position, heading, size, species, state, carry) |
+| BugManager | `src/core/bugManager.ts` | List, count edits, clear, regenerate, squish FX, nibble FX, juice blots; **no auto-replace after death** |
 | Settings clamp | `src/core/settings.ts` | Pure settings normalization (no Tauri imports) |
-| Movement | `src/core/movement.ts` | Crawl / pause / turn / corner escape / edge-hug |
-| Renderer | `src/core/renderer.ts` | Canvas draw, squish transform, stains, particles; delegates species `draw` |
+| Personality / Feeding | `src/core/personality.ts`, `src/core/feeding.ts` | Spawn-time personality; `resolveEatPlan` stacks species `eatStyle` on personality; food selection by distance + `favoriteFood` |
+| Weather | `src/core/weather.ts` | Local-clock `DayPhase` weights; rain kind profiles, wind, lightning envelope, auto-rain clock |
+| Rain audio / textures | `src/core/rainAudio.ts`, `src/core/rainTexture.ts` | Procedural rain bed + thunder; offline-built loop textures (no per-drop synthesis in rAF) |
+| Movement | `src/core/movement.ts` | Crawl / pause / turn / corner escape / edge-hug / rain cover / nibble & carry haul |
+| Renderer | `src/core/renderer.ts` | Canvas draw, squish transform, stains, particles, rain streaks, lightning, carried crumbs; delegates species `draw` |
 | HitTest | `src/core/hitTest.ts` | Pointer vs bug radius |
 | Squish | `src/core/squish.ts` | `squishing` → `dying` progress |
-| Audio | `src/core/audio.ts` | Short Web Audio “snap” |
-| Loop | `src/core/loop.ts` | rAF update + render |
-| Species | `src/species/*` | Registry, traits, per-species drawing |
+| Audio | `src/core/audio.ts` | Short Web Audio “snap” / hurt |
+| Loop | `src/core/loop.ts` | rAF update + render; primary `onFrame` drives rain audio |
+| Species | `src/species/*` | Registry, traits (`favoriteFood`, `activity`, `eatStyle`), per-species drawing |
 | Settings UI | `src/settings/*` | Settings window |
 | Services | `src/services/*` | Tauri events/commands, store, theme, monitors |
-| Shell | `src-tauri/src/lib.rs` | Windows, cursor, monitors, commands |
-| Tray | `src-tauri/src/tray.rs` | Menu bar / tray menu |
+| DailyStatsService | `src/services/dailyStatsService.ts` | Primary-overlay owner: queue kills, serialize store writes, refresh tray stats |
+| Shell | `src-tauri/src/lib.rs` | Windows, cursor, monitors, commands, overlay/settings z-order |
+| Tray | `src-tauri/src/tray.rs` | Menu bar / tray menu (feed + weather submenus) |
 
 ## 4. Bug state machine
 
@@ -113,7 +117,51 @@ Only flip pass-through when hover state changes. Overlay windows are `focusable:
 3. Settings window listens and refreshes its form
 4. Theme / sound / etc. never lift the “cleared” state
 
-## 8. Extending species
+## 8. Daily stats (multi-display)
+
+```text
+any overlay kill → emitTo("overlay", "bug-killed", {date, combo})
+                        │
+primary overlay  ───────┘
+  dailyStatsService.record()
+        ├─ in-memory accumulate (kills · bestCombo)
+        └─ serial queue → store.set + setTrayStats
+```
+
+Only the window labeled `overlay` owns persistence. Secondary displays (`overlay-1`, …) only report; a failed write does not drop later kills.
+
+## 9. Settings vs overlay z-order
+
+Opening settings must **not** demote the overlay. The overlay stays `always_on_top` so bugs remain visible; settings is shown, raised, and focused. The overlay is click-through except when the cursor is over a bug, so the panel stays usable underneath the transparent layer.
+
+## 10. Feeding & post-meal state
+
+```text
+selectBait(bug, baits)          // distance × foodInterest (favoriteFood × personality.appetite)
+        │
+        ▼ in BAIT_NIBBLE_RADIUS
+resolveEatPlan(personality, species.eatStyle)
+        │  hold / cooldown / cling / carry / bob / ripple / probe
+        ▼
+nibble (paused, eatingBaitId, enjoyingFood if favorite)
+        │
+        ├─ cling  → keep topping the timer while still in range
+        └─ peck   → foodCooldown, then leave; carry styles set carryKind
+```
+
+| Field | Meaning |
+|-------|---------|
+| `eatingBaitId` | Currently on a snack; cleared every frame unless still in range |
+| `enjoyingFood` | Species favorite — draws the heart while paused |
+| `foodCooldown` | Skittish/pecking styles wait before the next bite (shy long, curious short) |
+| `satisfiedTimer` | Post-meal warm glow; `SATISFIED_FAVORITE_SEC` (8s) vs `SATISFIED_ANY_SEC` (2.5s) |
+| `carryKind` / `carryTimer` | Ant haul after a peck; walks to the nearest edge for `CARRY_DURATION_SEC` (6s), mouth crumb drawn in the renderer |
+
+Nibble FX (cookie crumbs / sugar sparks / fruit drips) spawn from BugManager on a short cooldown while `eatingBaitId` is set. A finished fruit leaves a `__juice` stain. Hover/ripple species only change the draw (bob / body scale pulse); carry/scurry/sip change timing and may leave the snack.
+
+Personality base timing lives in `EAT_STYLES` (`personality.ts`); species flavor is applied in `resolveEatPlan` (`feeding.ts`). New species only need an optional `eatStyle` trait.
+
+## 11. Extending species
 
 ```ts
 // src/species/example.ts
@@ -121,14 +169,23 @@ registerSpecies({
   id: "example",
   label: "Example",
   emoji: "✨",
-  traits: { bodyScale, speedMul, edgeAffinity, tint, fluidColor, stainColor },
+  traits: {
+    bodyScale,
+    speedMul,
+    edgeAffinity,
+    tint,
+    fluidColor,
+    stainColor,
+    // optional: favoriteFood, activity ("diurnal" | "nocturnal"),
+    // eatStyle ("carry" | "hover" | "ripple" | "scurry" | "wrap" | "probe" | "sip" | "munch")
+  },
   draw(ctx, bug, alpha) { /* canvas paths */ },
 });
 ```
 
-Import from `src/species/index.ts`. Movement stays shared; traits only bias behavior.
+Import from `src/species/index.ts`. Movement stays shared; traits only bias behavior. `activity` only affects random mixes; an explicit species pick ignores the day phase. `eatStyle` layers on top of personality timing via `resolveEatPlan`.
 
-## 9. Conventions
+## 12. Conventions
 
 - TypeScript `strict`
 - Vue components are UI-only; logic in `core/` / `services/`

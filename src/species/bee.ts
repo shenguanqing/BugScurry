@@ -8,6 +8,9 @@ registerSpecies({
   label: "蜜蜂",
   emoji: "🐝",
   traits: {
+    favoriteFood: "sugar",
+    eatStyle: "hover",
+    activity: "diurnal",
     bodyScale: 1,
     speedMul: 1.25,
     edgeAffinity: 0.25,

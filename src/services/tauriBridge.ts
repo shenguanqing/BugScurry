@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { emitTo, listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { KillReport } from "./dailyStatsService";
 import type { TrayCommand } from "../core/types";
 
 /** Cursor in this overlay window's local logical CSS pixels. */
@@ -61,4 +62,15 @@ export async function fitWindowToDisplay(): Promise<{
   const height = window.innerHeight || document.documentElement.clientHeight || 900;
   const dpr = window.devicePixelRatio || 1;
   return { width, height, dpr };
+}
+
+/** Route reports from every display to the single stats owner. */
+export async function reportKill(report: KillReport): Promise<void> {
+  await emitTo("overlay", "bug-killed", report);
+}
+
+export async function listenKillReports(
+  cb: (report: KillReport) => void,
+): Promise<UnlistenFn> {
+  return listen<KillReport>("bug-killed", (event) => cb(event.payload));
 }
