@@ -71,7 +71,22 @@ One-liner: **desktop bug pet / joke widget** — light, toggleable, adjustable, 
 | F-SQ-06 | Fade out within ~1–2s | P0 |
 | F-SQ-07 | Optional particles | P2 |
 
-### 3.5 Settings window
+### 3.5 Personality, feeding & weather (0.3.x)
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| F-PER-01 | Four personalities at spawn (shy / greedy / lazy / curious) | P0 |
+| F-FEED-01 | Tray → Feed bugs: cookie / sugar / fruit; max three snacks | P0 |
+| F-FEED-02 | Species favorite food; heart while eating the favorite | P0 |
+| F-FEED-03 | Personality + species eating styles (peck, cling, ant carry, …) | P1 |
+| F-FEED-04 | Nibble crumbs / sparks / fruit juice blot; post-meal glow | P1 |
+| F-WX-01 | Local-clock day phase biases random species mixes | P1 |
+| F-WX-02 | Tray weather: stop / random / light / moderate / heavy / downpour / thunderstorm | P0 |
+| F-WX-03 | Rain checkmarks in tray; wind re-rolled per shower; thunder flash + audio | P1 |
+| F-WX-04 | Settings “Random rain” auto schedule; manual choice re-arms clock | P1 |
+| F-WX-05 | Rain sound shares the global sound toggle | P1 |
+
+### 3.6 Settings window
 
 Independent small window. **Closing settings must not quit the app.**
 
@@ -91,7 +106,7 @@ Independent small window. **Closing settings must not quit the app.**
 | F-SET-12 | Current screen / all screens | P1 |
 | F-SET-13 | Immediate effect + persistence | P0 |
 
-### 3.6 Tray / menu bar
+### 3.7 Tray / menu bar
 
 | ID | Requirement | Priority |
 |----|-------------|----------|

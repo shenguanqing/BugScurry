@@ -157,19 +157,67 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: BugScurry-windows-x64
-          path: dist-release
+          path: dist-windows
 
       - name: Download macOS artifact
         uses: actions/download-artifact@v4
         with:
           name: BugScurry-macos-arm64
-          path: dist-release
+          path: dist-macos
+
+      # Public release: DMG + NSIS only. The .app zip stays as a CI artifact
+      # for local installs / a future signing pipeline.
+      - name: Stage release files
+        run: |
+          mkdir -p dist-release
+          cp dist-windows/* dist-release/
+          cp dist-macos/*.dmg dist-release/
+          ls -la dist-release
+
+      - name: Build notes from CHANGELOG
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          python3 <<'PY'
+          import os, re, pathlib
+          tag = os.environ["TAG"]
+          version = tag[1:] if tag.startswith("v") else tag
+          text = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8")
+          m = re.search(
+              rf"## \[{re.escape(version)}\][^\n]*\n(.*?)(?=\n## \[|\Z)",
+              text,
+              re.S,
+          )
+          section = m.group(1).strip() if m else f"See CHANGELOG.md for {version}."
+          files = sorted(p.name for p in pathlib.Path("dist-release").iterdir())
+          rows = "\n".join(f"| — | `{name}` |" for name in files)
+          parts = version.split(".")
+          if len(parts) >= 3 and parts[2] != "0":
+              base = f"v{parts[0]}.{parts[1]}.0"
+          elif int(parts[1]) > 0:
+              base = f"v{parts[0]}.{int(parts[1]) - 1}.0"
+          else:
+              base = f"v{parts[0]}.0.0"
+          repo = os.environ.get("GITHUB_REPOSITORY", "shenguanqing/BugScurry")
+          notes = (
+              f"## BugScurry v{version}\n\n"
+              f"{section}\n\n"
+              f"### Downloads\n\n"
+              f"| Platform | File |\n"
+              f"|----------|------|\n"
+              f"{rows}\n\n"
+              f"**Full Changelog**: https://github.com/{repo}/compare/{base}...{tag}\n"
+          )
+          pathlib.Path("release-notes.md").write_text(notes, encoding="utf-8")
+          print(notes)
+          PY
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: BugScurry ${{ github.ref_name }}
           files: dist-release/*
-          generate_release_notes: true
+          body_path: release-notes.md
+          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

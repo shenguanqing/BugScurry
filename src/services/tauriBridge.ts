@@ -29,12 +29,27 @@ export async function listenCursorLocal(
   return listen<CursorLocal>("cursor-local", (e) => cb(e.payload));
 }
 
-/** Update the disabled "today" line in the tray menu. */
-export async function setTrayStats(label: string): Promise<void> {
+/** Update the disabled "today" line in the tray menu (numbers only; label follows locale). */
+export async function setTrayStats(kills: number, bestCombo: number): Promise<void> {
   try {
-    await invoke("set_tray_stats", { label });
+    await invoke("set_tray_stats", {
+      kills: Math.max(0, Math.floor(kills)),
+      bestCombo: Math.max(0, Math.floor(bestCombo)),
+    });
   } catch (err) {
     console.error("set_tray_stats failed", err);
+  }
+}
+
+/** Check the active rain kind in the tray Weather submenu. */
+export async function setTrayRain(
+  raining: boolean,
+  kind: string | null,
+): Promise<void> {
+  try {
+    await invoke("set_tray_rain", { raining, kind });
+  } catch (err) {
+    console.error("set_tray_rain failed", err);
   }
 }
 

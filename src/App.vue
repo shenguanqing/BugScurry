@@ -16,6 +16,7 @@ import {
   setCursorPollerEnabled,
   setOverlayClickable,
   setTrayStats,
+  setTrayRain,
 } from "./services/tauriBridge";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
@@ -29,7 +30,6 @@ import {
   saveDailyStats,
   saveSettings,
 } from "./services/settingsService";
-import { t } from "./i18n";
 import { createDailyStatsService } from "./services/dailyStatsService";
 import { stopRainAudio, tickRainAudio } from "./core/rainAudio";
 import {
@@ -129,6 +129,7 @@ function commitRain(patch: Partial<Settings> & { rain: boolean }) {
   void saveSettings(next);
   // Cut audio immediately — the rAF loop may be paused while bugs are hidden.
   if (!next.rain) stopRainAudio();
+  void setTrayRain(next.rain, next.rain ? next.rainKind : null);
   if (isPrimaryOverlay()) {
     resetAutoRainClock(
       autoRainClock,
@@ -262,13 +263,14 @@ onMounted(async () => {
     dailyStatsService = createDailyStatsService(
       manager.dailyStats,
       saveDailyStats,
-      (stats) => setTrayStats(`${t("tray.stats")}: ${stats.kills} · ${stats.bestCombo}×`),
+      (stats) => setTrayStats(stats.kills, stats.bestCombo),
     );
     unlistenKills = await listenKillReports((report) => {
       void dailyStatsService?.record(report)
         .catch((err) => console.error("save daily stats failed", err));
     });
     await dailyStatsService.refresh();
+    void setTrayRain(loaded.rain, loaded.rain ? loaded.rainKind : null);
     autoRainClock = createAutoRainClock(performance.now(), loaded.rain, Math.random, loaded.rainKind);
     autoRainTimer = window.setInterval(() => {
       if (!settings.value.autoRain) return;

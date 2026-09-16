@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-09-16
+
+Polish after 0.3.0: tray weather checkmarks, stats i18n, README screenshots, select focus fix.
+
+### Added
+
+- Tray → Weather submenu checks the active shower (stop / light / moderate / heavy / downpour / thunderstorm); “random” stays a one-shot action
+- README screenshots: desktop overlay + localized tray/settings composites (`docs/screenshots/`)
+
+### Fixed
+
+- Tray “Today” line follows UI language (store kills/combo numbers; format on menu rebuild)
+- English tray label: Show / **Hide** bugs
+- Settings selects no longer flash a blue focus ring on click (WebKit)
+
 ## [0.3.0] - 2026-09-16
 
 Personalities, multi-food feeding, weather with sound, species eating styles, and settings accessibility polish.
@@ -109,6 +124,7 @@ First public baseline: desktop bug overlay for macOS and Windows.
 
 - Production binaries must be built with `pnpm tauri build` (not bare `cargo build --release`)
 
+[0.3.1]: https://github.com/shenguanqing/BugScurry/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/shenguanqing/BugScurry/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/shenguanqing/BugScurry/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/shenguanqing/BugScurry/compare/v0.1.0...v0.1.1

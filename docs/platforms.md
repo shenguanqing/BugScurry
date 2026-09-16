@@ -44,6 +44,9 @@ Windows column remains unverified on this machine.
 | Overlay paint | Production `BugScurry.app`: CGWindow capture of the primary overlay shows non-transparent bug pixels over a mostly transparent frame. |
 | Multi-monitor | `monitorMode: "all"` created a second overlay on the 1920×1080 display in both dev and the production app. |
 | Settings window | Created hidden (`onscreen=false`); opening settings must not be required for the overlay loop. |
+| Settings vs overlay z-order (0.3+) | Opening settings must **not** demote the overlay `always_on_top`. Overlay stays on top so bugs remain visible; settings is shown/focused. Clicks pass through except over bugs. |
+| Rain / thunder (0.3+) | Tray weather has five intensities + stop/random with checkmarks. Rain audio is procedural (primary overlay only); hard-mute on stop / hide / sound off. Thunder is a delayed low rumble (close strikes add a dark tear). |
+| Feeding FX (0.3+) | Personality + species eat styles; ant carry draws a crumb at the mouth; fruit finish leaves a short `__juice` blot; post-meal warm glow. |
 | Bundle | `src-tauri/target/release/bundle/macos/BugScurry.app` · `dmg/BugScurry_0.1.0_aarch64.dmg` (arm64) |
 
 ## Windows

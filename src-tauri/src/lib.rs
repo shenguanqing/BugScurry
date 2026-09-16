@@ -346,8 +346,13 @@ fn apply_locale(
 }
 
 #[tauri::command]
-fn set_tray_stats(app: tauri::AppHandle, label: String) {
-    let _ = tray::apply_tray_stats(&app, label);
+fn set_tray_stats(app: tauri::AppHandle, kills: u32, best_combo: u32) {
+    let _ = tray::apply_tray_stats(&app, kills, best_combo);
+}
+
+#[tauri::command]
+fn set_tray_rain(app: tauri::AppHandle, raining: bool, kind: Option<String>) {
+    let _ = tray::apply_rain_state(&app, raining, kind);
 }
 
 #[tauri::command]
@@ -478,6 +483,7 @@ pub fn run() {
             apply_monitor_mode_cmd,
             apply_locale,
             set_tray_stats,
+            set_tray_rain,
             quit_app,
             set_cursor_poller_enabled
         ])

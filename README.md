@@ -6,6 +6,8 @@ Cross-platform desktop app for **macOS** and **Windows**. Runs in the background
 
 [中文文档](README.zh-CN.md)
 
+![Bugs crawling over a browser window](docs/screenshots/desktop-overlay.png)
+
 ## Features
 
 - Transparent, borderless, always-on-top desktop overlay (bugs stay visible while settings is open)
@@ -19,6 +21,8 @@ Cross-platform desktop app for **macOS** and **Windows**. Runs in the background
 - Closing settings does not quit the app
 - Squished bugs are **not** auto-replaced (regenerate or raise count to spawn more)
 - Overlay follows macOS Mission Control Spaces
+
+![Tray menu and settings window](docs/screenshots/ui-tray-settings-en.png)
 
 ## Personalities & feeding
 

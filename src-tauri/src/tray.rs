@@ -3,7 +3,7 @@ use std::sync::Mutex;
 
 use serde::Deserialize;
 use tauri::{
-    menu::{Menu, MenuItem, Submenu},
+    menu::{CheckMenuItem, Menu, MenuItem, Submenu},
     tray::TrayIconBuilder,
     Emitter, Manager,
 };
@@ -59,11 +59,26 @@ impl Default for TrayLabels {
 }
 
 /// Last stats line shown in the tray (updated from the overlay).
-static TRAY_STATS: Mutex<String> = Mutex::new(String::new());
+/// Stores numbers only so locale changes can re-format the label.
+static TRAY_STATS: Mutex<Option<(u32, u32)>> = Mutex::new(None);
 /// Last labels from the frontend so stats refresh keeps the UI language.
 static LAST_LABELS: Mutex<Option<TrayLabels>> = Mutex::new(None);
 /// Ensure the OS tray icon is created at most once per process.
 static TRAY_CREATED: AtomicBool = AtomicBool::new(false);
+/// Active shower for checkmarks: (raining, kind). Kind is only set while raining.
+static RAIN_STATE: Mutex<(bool, Option<String>)> = Mutex::new((false, None));
+
+fn rain_state() -> (bool, Option<String>) {
+    RAIN_STATE
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+}
+
+fn kind_checked(kind: &str) -> bool {
+    let (raining, current) = rain_state();
+    raining && current.as_deref() == Some(kind)
+}
 
 fn store_labels(labels: TrayLabels) {
     let mut guard = LAST_LABELS.lock().unwrap_or_else(|e| e.into_inner());
@@ -78,10 +93,11 @@ fn current_labels() -> TrayLabels {
 fn build_menu(app: &tauri::AppHandle, labels: &TrayLabels) -> tauri::Result<Menu<tauri::Wry>> {
     let stats_text = {
         let s = TRAY_STATS.lock().unwrap_or_else(|e| e.into_inner());
-        if s.is_empty() {
-            labels.stats.clone()
-        } else {
-            s.clone()
+        match *s {
+            Some((kills, best_combo)) => {
+                format!("{}: {} · {}×", labels.stats, kills, best_combo)
+            }
+            None => labels.stats.clone(),
         }
     };
     let stats = MenuItem::with_id(app, "today_stats", &stats_text, false, None::<&str>)?;
@@ -107,16 +123,58 @@ fn build_menu(app: &tauri::AppHandle, labels: &TrayLabels) -> tauri::Result<Menu
     let sugar = MenuItem::with_id(app, "drop_sugar", &labels.sugar, true, None::<&str>)?;
     let fruit = MenuItem::with_id(app, "drop_fruit", &labels.fruit, true, None::<&str>)?;
     let feed = Submenu::with_items(app, &labels.feed, true, &[&bait, &sugar, &fruit])?;
-    let rain_off = MenuItem::with_id(app, "rain_off", &labels.rain_off, true, None::<&str>)?;
-    let rain_random = MenuItem::with_id(app, "rain_random", &labels.rain_random, true, None::<&str>)?;
-    let rain_light = MenuItem::with_id(app, "rain_light", &labels.rain_light, true, None::<&str>)?;
-    let rain_moderate =
-        MenuItem::with_id(app, "rain_moderate", &labels.rain_moderate, true, None::<&str>)?;
-    let rain_heavy = MenuItem::with_id(app, "rain_heavy", &labels.rain_heavy, true, None::<&str>)?;
-    let rain_downpour =
-        MenuItem::with_id(app, "rain_downpour", &labels.rain_downpour, true, None::<&str>)?;
-    let rain_thunder =
-        MenuItem::with_id(app, "rain_thunder", &labels.rain_thunder, true, None::<&str>)?;
+    let (raining, _) = rain_state();
+    // Checkmarks show the live weather; "random" stays a one-shot action.
+    let rain_off = CheckMenuItem::with_id(
+        app,
+        "rain_off",
+        &labels.rain_off,
+        true,
+        !raining,
+        None::<&str>,
+    )?;
+    let rain_random =
+        MenuItem::with_id(app, "rain_random", &labels.rain_random, true, None::<&str>)?;
+    let rain_light = CheckMenuItem::with_id(
+        app,
+        "rain_light",
+        &labels.rain_light,
+        true,
+        kind_checked("light"),
+        None::<&str>,
+    )?;
+    let rain_moderate = CheckMenuItem::with_id(
+        app,
+        "rain_moderate",
+        &labels.rain_moderate,
+        true,
+        kind_checked("moderate"),
+        None::<&str>,
+    )?;
+    let rain_heavy = CheckMenuItem::with_id(
+        app,
+        "rain_heavy",
+        &labels.rain_heavy,
+        true,
+        kind_checked("heavy"),
+        None::<&str>,
+    )?;
+    let rain_downpour = CheckMenuItem::with_id(
+        app,
+        "rain_downpour",
+        &labels.rain_downpour,
+        true,
+        kind_checked("downpour"),
+        None::<&str>,
+    )?;
+    let rain_thunder = CheckMenuItem::with_id(
+        app,
+        "rain_thunder",
+        &labels.rain_thunder,
+        true,
+        kind_checked("thunder"),
+        None::<&str>,
+    )?;
     let rain = Submenu::with_items(
         app,
         &labels.rain,
@@ -200,10 +258,32 @@ pub fn apply_tray_labels(app: &tauri::AppHandle, labels: TrayLabels) -> tauri::R
 }
 
 /// Refresh the disabled "today" line and rebuild the menu.
-pub fn apply_tray_stats(app: &tauri::AppHandle, label: String) -> tauri::Result<()> {
+pub fn apply_tray_stats(
+    app: &tauri::AppHandle,
+    kills: u32,
+    best_combo: u32,
+) -> tauri::Result<()> {
     {
         let mut s = TRAY_STATS.lock().unwrap_or_else(|e| e.into_inner());
-        *s = label;
+        *s = Some((kills, best_combo));
+    }
+    let Some(tray) = app.tray_by_id("main-tray") else {
+        return Ok(());
+    };
+    let menu = build_menu(app, &current_labels())?;
+    tray.set_menu(Some(menu))?;
+    Ok(())
+}
+
+/// Update weather checkmarks (stop / light / moderate / …).
+pub fn apply_rain_state(
+    app: &tauri::AppHandle,
+    raining: bool,
+    kind: Option<String>,
+) -> tauri::Result<()> {
+    {
+        let mut s = RAIN_STATE.lock().unwrap_or_else(|e| e.into_inner());
+        *s = (raining, if raining { kind } else { None });
     }
     let Some(tray) = app.tray_by_id("main-tray") else {
         return Ok(());

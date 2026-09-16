@@ -45,6 +45,9 @@ Windows 列本机尚未实机验证。
 | 覆盖层绘制 | 生产包 `BugScurry.app`：主屏 overlay 截屏可见不透明虫体像素，其余区域透明。 |
 | 多显示器 | `monitorMode: "all"` 在 dev 与生产包均会创建第二块屏覆盖层。 |
 | 设置窗口 | 默认隐藏（`onscreen=false`）；覆盖层主循环不依赖设置窗口是否打开。 |
+| 设置与覆盖层层级（0.3+） | 打开设置**不要**降低覆盖层 `always_on_top`。覆盖层保持置顶，虫子仍可见；设置负责 show / focus。除碰到虫子外点击穿透。 |
+| 雨 / 雷（0.3+） | 托盘天气五档 + 停雨/随机，并勾选当前档。雨声程序化（仅主覆盖层）；停雨/隐藏/关音效时硬静音。雷为延迟低频滚雷，近雷另加暗色撕裂声。 |
+| 投喂特效（0.3+） | 性格 + 虫种吃相；蚂蚁搬运时口器前画碎屑；水果吃完留 `__juice` 淡印；餐后暖光。 |
 | 产物 | `src-tauri/target/release/bundle/macos/BugScurry.app` · `dmg/BugScurry_0.1.0_aarch64.dmg`（arm64） |
 
 ## Windows

@@ -6,6 +6,8 @@
 
 [English](README.md)
 
+![虫子爬在浏览器窗口上](docs/screenshots/desktop-overlay.png)
+
 ## 功能
 
 - 透明、无边框、始终置顶的桌面覆盖层（打开设置时虫子仍可见）
@@ -19,6 +21,8 @@
 - 关闭设置不会退出应用
 - **捏死后不自动补位**（增加数量或点「重新生成」才会再出虫）
 - 覆盖层跟随 macOS 多桌面（Mission Control Spaces）
+
+![托盘菜单与设置窗口](docs/screenshots/ui-tray-settings-zh.png)
 
 ## 性格与投喂
 

@@ -244,7 +244,7 @@ export const messages: Record<Locale, Record<string, string>> = {
     "action.regenerate": "Regenerate",
     "action.clear": "Clear all",
     "footer": "Closing this window does not quit · control from the tray",
-    "tray.toggle": "Show / hide bugs",
+    "tray.toggle": "Show / Hide bugs",
     "tray.add": "Add one",
     "tray.remove": "Remove one",
     "tray.regen": "Regenerate",
