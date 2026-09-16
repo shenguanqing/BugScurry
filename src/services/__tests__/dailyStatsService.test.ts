@@ -24,8 +24,9 @@ describe("daily stats owner", () => {
     release();
     await Promise.all([primary, secondary, last]);
     expect(saved.map((s) => s.kills)).toEqual([11, 12, 13]);
-    expect(saved.at(-1)).toEqual({ ...initial, kills: 13, bestCombo: 4 });
-    expect(publish).toHaveBeenLastCalledWith(saved.at(-1));
+    const final = saved[saved.length - 1];
+    expect(final).toEqual({ ...initial, kills: 13, bestCombo: 4 });
+    expect(publish).toHaveBeenLastCalledWith(final);
   });
 
   it("recovers after a failed save without losing the previous kill", async () => {
