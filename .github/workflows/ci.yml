@@ -190,7 +190,22 @@ jobs:
           )
           section = m.group(1).strip() if m else f"See CHANGELOG.md for {version}."
           files = sorted(p.name for p in pathlib.Path("dist-release").iterdir())
-          rows = "\n".join(f"| — | `{name}` |" for name in files)
+
+          def platform_label(name: str) -> str:
+              n = name.lower()
+              if n.endswith(".dmg") and "aarch64" in n:
+                  return "macOS (Apple Silicon)"
+              if n.endswith(".dmg") and ("x64" in n or "x86_64" in n):
+                  return "macOS (Intel)"
+              if n.endswith(".dmg"):
+                  return "macOS"
+              if n.endswith(".exe") or "setup" in n:
+                  return "Windows x64"
+              return "—"
+
+          rows = "\n".join(
+              f"| {platform_label(name)} | `{name}` |" for name in files
+          )
           parts = version.split(".")
           if len(parts) >= 3 and parts[2] != "0":
               base = f"v{parts[0]}.{parts[1]}.0"
