@@ -102,6 +102,9 @@ fn global_cursor_physical(_app: &tauri::AppHandle) -> Option<(f64, f64)> {
     }
 }
 
+/// Gap that treats a stalled poller iteration as system sleep → wake recovery.
+const SYSTEM_RESUME_GAP: Duration = Duration::from_secs(2);
+
 /// One global poller. Each overlay gets its own local coords via `emit_to`.
 ///
 /// macOS: CGEvent is global **points**; window origin/size are physical —
@@ -112,7 +115,30 @@ fn spawn_global_cursor_poller(app: tauri::AppHandle, running: Arc<AtomicBool>) {
     std::thread::spawn(move || {
         let mut tick: u32 = 0;
         let mut last_display_fp = String::new();
+        let mut last_loop = std::time::Instant::now();
         while running.load(Ordering::Relaxed) {
+            let now = std::time::Instant::now();
+            let gap = now.duration_since(last_loop);
+            last_loop = now;
+
+            // System sleep freezes this thread; a long gap means we just woke.
+            // Re-assert overlay z-order and let every overlay refresh viewport/audio.
+            if gap >= SYSTEM_RESUME_GAP {
+                set_overlays_always_on_top(&app, true);
+                for (label, win) in app.webview_windows() {
+                    if label.starts_with("overlay") {
+                        let _ = win.emit("system-resumed", ());
+                    }
+                }
+                // Primary must rebuild the multi-monitor layout immediately.
+                // Clearing the fingerprint alone would make the next watchdog
+                // tick treat the new monitor set as "initial" and skip the emit.
+                last_display_fp = String::new();
+                if let Some(win) = app.get_webview_window(OVERLAY_LABEL) {
+                    let _ = win.emit("displays-changed", ());
+                }
+            }
+
             if !CURSOR_POLLER_ENABLED.load(Ordering::Relaxed) {
                 std::thread::sleep(Duration::from_millis(100));
                 continue;
@@ -215,6 +241,9 @@ fn configure_overlay_window(window: &tauri::WebviewWindow, monitor: &Monitor) {
     let _ = window.set_ignore_cursor_events(true);
     // Follow the user across Mission Control Spaces.
     let _ = window.set_visible_on_all_workspaces(true);
+    // Sleep/wake can leave a secondary overlay hidden or demoted; re-assert.
+    let _ = window.show();
+    let _ = window.set_always_on_top(true);
     fit_overlay_to_monitor(window, monitor);
 }
 
@@ -332,6 +361,21 @@ fn open_settings_window(app: tauri::AppHandle) {
 #[tauri::command]
 fn apply_monitor_mode_cmd(app: tauri::AppHandle, mode: String) {
     apply_monitor_mode(&app, &mode);
+}
+
+/// Sleep/wake can leave secondary overlay WebViews as zombies (blank canvas,
+/// stale geometry). Re-configuring the existing window is not enough — the
+/// working manual workaround is toggling monitor mode, which closes and
+/// recreates `overlay-*`. Do that automatically on resume.
+#[tauri::command]
+fn force_rebuild_overlays(app: tauri::AppHandle, mode: String) {
+    for (label, win) in app.webview_windows() {
+        if label.starts_with("overlay-") {
+            let _ = win.close();
+        }
+    }
+    apply_monitor_mode(&app, &mode);
+    set_overlays_always_on_top(&app, true);
 }
 
 #[tauri::command]
@@ -481,6 +525,7 @@ pub fn run() {
             get_overlay_scale,
             open_settings_window,
             apply_monitor_mode_cmd,
+            force_rebuild_overlays,
             apply_locale,
             set_tray_stats,
             set_tray_rain,

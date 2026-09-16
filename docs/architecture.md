@@ -64,7 +64,7 @@ tray.rs
 | Squish | `src/core/squish.ts` | `squishing` → `dying` progress |
 | Audio | `src/core/audio.ts` | Short Web Audio “snap” / hurt |
 | Loop | `src/core/loop.ts` | rAF update + render; primary `onFrame` drives rain audio |
-| Species | `src/species/*` | Registry, traits (`favoriteFood`, `activity`, `eatStyle`), per-species drawing |
+| Species | `src/species/*` | Registry, traits (`favoriteFood`, `activity`, `eatStyle`), per-species drawing; shared `contactShadow` / `glint` / `shell` highlights |
 | Settings UI | `src/settings/*` | Settings window |
 | Services | `src/services/*` | Tauri events/commands, store, theme, monitors |
 | DailyStatsService | `src/services/dailyStatsService.ts` | Primary-overlay owner: queue kills, serialize store writes, refresh tray stats |
@@ -133,6 +133,32 @@ Only the window labeled `overlay` owns persistence. Secondary displays (`overlay
 ## 9. Settings vs overlay z-order
 
 Opening settings must **not** demote the overlay. The overlay stays `always_on_top` so bugs remain visible; settings is shown, raised, and focused. The overlay is click-through except when the cursor is over a bug, so the panel stays usable underneath the transparent layer.
+
+**Always run (F-SET-11) is tray residency, not a toggle.** Closing settings only hides the panel; the process exits only via tray Quit / `Ctrl+Q`. Login autostart is separate (F-SET-10).
+
+## 9.1 Sleep / wake recovery
+
+```text
+cursor poller thread
+  records Instant each loop
+        │
+        ▼ gap ≥ 2s (system sleep froze the thread)
+  emit("system-resumed") to every overlay* window
+  set_overlays_always_on_top(true)
+  clear display fingerprint and emit("displays-changed") to primary immediately
+        │
+        ▼
+primary overlay frontend
+  recoverFromSystemResume()
+    ├─ forceRebuildOverlays(mode) ×2 (~250ms / 1.1s)
+    │    close every overlay-* then recreate by mode
+    │    (same path as toggling multi-monitor in settings;
+    │     re-configuring the old window is not enough)
+    ├─ refreshViewport + resizeCanvas
+    └─ ensureAudio / rainAudio resumes a suspended AudioContext in-frame
+```
+
+The first rAF `dt` after wake is huge and already clamped by `MAX_DT`, so bugs do not teleport. The event is debounced for 4s. After sleep, secondary overlay WebViews can become zombies (blank canvas / stale geometry) — they must be closed and recreated, not merely resized.
 
 ## 10. Feeding & post-meal state
 

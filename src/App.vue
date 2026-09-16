@@ -8,8 +8,10 @@ import { createLoop } from "./core/loop";
 import type { CursorState, Settings, Viewport } from "./core/types";
 import {
   fitWindowToDisplay,
+  forceRebuildOverlays,
   listenCursorLocal,
   listenDisplaysChanged,
+  listenSystemResumed,
   listenTray,
   listenKillReports,
   reportKill,
@@ -54,7 +56,10 @@ let manager: BugManager | null = null;
 let loop: ReturnType<typeof createLoop> | null = null;
 let unlistenCursor: (() => void) | null = null;
 let unlistenDisplays: (() => void) | null = null;
+let unlistenSystemResumed: (() => void) | null = null;
 let unlistenTray: (() => void) | null = null;
+/** Debounce wake recovery — sleep/wake can emit more than once. */
+let resumeHoldUntil = 0;
 let unlistenSettings: (() => void) | null = null;
 let unlistenCommands: (() => void) | null = null;
 let clickableFlag = false;
@@ -210,6 +215,36 @@ function applyVisibility(show: boolean) {
   }
 }
 
+/**
+ * Sleep → wake: secondary overlay WebViews can be zombies (blank / stale
+ * geometry). Re-configuring existing windows is not enough — force a
+ * close+recreate, the same path as toggling monitor mode in settings.
+ */
+async function rebuildOverlaysAfterWake(settleMs: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, settleMs));
+  try {
+    await forceRebuildOverlays(settings.value.monitorMode);
+  } catch (err) {
+    console.error("wake overlay rebuild failed", err);
+  }
+}
+
+async function recoverFromSystemResume() {
+  const now = performance.now();
+  if (now < resumeHoldUntil) return;
+  // Cover two rebuild attempts.
+  resumeHoldUntil = now + 4000;
+
+  if (isPrimaryOverlay()) {
+    // First pass quickly; second pass after displays finish enumerating.
+    await rebuildOverlaysAfterWake(250);
+    await rebuildOverlaysAfterWake(1100);
+  }
+  await refreshViewport();
+  resizeCanvas();
+  ensureAudio();
+}
+
 function handleTray(cmd: string) {
   if (!manager) return;
   switch (cmd) {
@@ -345,6 +380,10 @@ onMounted(async () => {
     }
   });
 
+  unlistenSystemResumed = await listenSystemResumed(() => {
+    void recoverFromSystemResume();
+  });
+
   unlistenSettings = await listenSettings((next) => {
     applySettings(next);
   });
@@ -353,6 +392,8 @@ onMounted(async () => {
     if (!manager) return;
     if (cmd === "clear") {
       manager.clear();
+      // Clear the whole scene: bugs, snacks, stains — and stop rain streaks.
+      if (isPrimaryOverlay()) stopRain();
     } else if (cmd === "regenerate") {
       manager.regenerate();
     }
@@ -369,6 +410,7 @@ onUnmounted(() => {
   unlistenKills?.();
   unlistenCursor?.();
   unlistenDisplays?.();
+  unlistenSystemResumed?.();
   unlistenTray?.();
   unlistenSettings?.();
   unlistenCommands?.();

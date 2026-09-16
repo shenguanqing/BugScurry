@@ -1,7 +1,7 @@
 import { squishPressure } from "../core/squish";
 import type { Bug } from "../core/types";
 import { registerSpecies } from "./registry";
-import { ellipse, line, shell } from "./drawing";
+import { line, shell, softHighlight, glossyEye } from "./drawing";
 
 registerSpecies({
   id: "ant",
@@ -22,7 +22,7 @@ registerSpecies({
   },
   draw(ctx, bug: Bug, alpha: number) {
     // Calibrated by body mass, excluding legs, wings and antennae.
-    const s = bug.size * 1.00;
+    const s = bug.size * 1.08;
     const phase = bug.legPhase * Math.PI * 2;
     const pressure = squishPressure(bug);
     ctx.save();
@@ -39,18 +39,26 @@ registerSpecies({
         const footX = kneeX + (1 - i) * 0.14 - pressure * 0.09;
         const footY = (back ? 0.43 : 0.56) * (1 - pressure * 0.6);
         line(ctx, back ? "#494442" : "#282526", back ? 0.045 : 0.058,
-          rootX, 0.025, kneeX, 0.25, footX, footY);
-        line(ctx, "#aaa09c88", 0.014, rootX, 0.01, kneeX, 0.23, footX, footY - 0.02);
+          rootX, 0.025, kneeX, 0.17, footX, footY);
+        line(ctx, "#aaa09c88", 0.014, rootX, 0.01, kneeX, 0.15, footX, footY - 0.02);
       }
     }
     line(ctx, "#292527", 0.065, -0.33, -0.015, 0.15, -0.05);
-    shell(ctx, -0.46, -0.07, 0.36, 0.29, "#958588", "#3d3338", "#171417", pressure);
-    ellipse(ctx, -0.58, -0.19, 0.075, 0.16, "#d6c5c32b", -0.35);
+    shell(ctx, -0.46, 0.015, 0.36, 0.35, "#9b8580", "#443333", "#191519", pressure);
+    softHighlight(ctx, -0.46, -0.18, 0.25, 0.16, 0.28 * (1 - pressure));
+    // Broad, glossy gaster: the reference has a smooth silhouette, not exposed rings.
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(-0.46, 0.015, 0.36, 0.35, 0, 0, Math.PI * 2); ctx.clip();
+    for (const x of [-0.64, -0.47]) {
+      ctx.beginPath(); ctx.moveTo(x, -0.38);
+      ctx.bezierCurveTo(x + 0.09, -0.22, x + 0.10, 0.14, x + 0.03, 0.29);
+      ctx.strokeStyle = "#17141844"; ctx.lineWidth = 0.016; ctx.stroke();
+    }
+    ctx.restore();
     shell(ctx, -0.15, -0.03, 0.075, 0.075, "#a59694", "#453a3e", "#1a171a", pressure);
     shell(ctx, 0.06, -0.13, 0.18, 0.16, "#8b8182", "#393237", "#181519", pressure);
-    shell(ctx, 0.37, -0.26, 0.235, 0.265, "#a49798", "#3a3238", "#141216", pressure);
-    ellipse(ctx, 0.43, -0.31, 0.088, 0.105, "#151317", 0.25);
-    ellipse(ctx, 0.46, -0.35, 0.025, 0.036, "#eee6e0b0", 0.25);
+    shell(ctx, 0.37, -0.26, 0.245, 0.295, "#a49798", "#3a3238", "#141216", pressure);
+    glossyEye(ctx, 0.43, -0.31, 0.10, 0.135, pressure);
     for (const offset of [0, 0.10]) {
       const sway = Math.sin(phase * 0.5 + offset * 10) * 0.03;
       ctx.beginPath();

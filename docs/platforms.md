@@ -96,7 +96,7 @@ macOS: set `visibleOnAllWorkspaces` so the overlay is not stuck on one Space. So
 - [x] 50 bugs, both displays — **~4.9%** short sample (high variance; not CPU-bound)
 - [x] Near-zero CPU when hidden — **Pass after poller pause.** Tray hide stops rAF and the Rust cursor poller (`set_cursor_poller_enabled(false)`); measured ~**0.0%** CPU while hidden vs ~5.5% visible (debug, 12 bugs).
 - [x] Overlay keeps running while settings is open — settings stays hidden unless opened from tray; overlays independent
-- [ ] Sleep/wake recovery — not automated (would sleep this machine)
+- [x] Sleep/wake recovery — **Pass (2026-09-16).** Lid closed >30s; primary/secondary bugs and rain recovered automatically. Path: `system-resumed` → `force_rebuild_overlays` (close+recreate secondaries, same as toggling multi-monitor) → refresh viewport / resume audio.
 
 ### Debug (`pnpm tauri dev` · upper bound)
 
@@ -125,3 +125,15 @@ pnpm tauri dev          # requires Vite on :1420 — do not run the debug binary
 ```
 
 For a production-shaped binary use `pnpm tauri build`, then launch the bundled app. Do not treat `cargo build --release` alone as a release artifact.
+
+### Sleep/wake soak (manual)
+
+1. Run `pnpm tauri dev` or the production bundle; confirm bugs crawl on the desktop.
+2. Optional: drop bait / start rain from the tray so audio recovery is observable.
+3. Sleep the machine for at least 30 seconds (Apple menu → Sleep, or close the lid).
+4. After wake, check:
+   - Bugs crawl inside **both primary and secondary** displays (not off-screen, frozen, or a missing secondary layer)
+   - If rain was on, streaks return on both displays; ambience returns within a few seconds
+   - Clicking a bug still squishes (pass-through + hit test OK)
+   - Open then close settings — the app stays running
+5. Also test Clear all: it should clear bugs/snacks/stains **and stop rain**; Regenerate then brings bugs back without restarting rain.

@@ -23,6 +23,11 @@ export async function getOverlayScale(): Promise<number> {
   return invoke<number>("get_overlay_scale");
 }
 
+/** Close + recreate secondary overlays (sleep/wake zombie recovery). */
+export async function forceRebuildOverlays(mode: string): Promise<void> {
+  await invoke("force_rebuild_overlays", { mode });
+}
+
 export async function listenCursorLocal(
   cb: (pos: CursorLocal) => void,
 ): Promise<UnlistenFn> {
@@ -58,6 +63,13 @@ export async function listenDisplaysChanged(
   cb: () => void,
 ): Promise<UnlistenFn> {
   return listen("displays-changed", () => cb());
+}
+
+/** System sleep → wake: primary overlay should re-fit displays and resume audio. */
+export async function listenSystemResumed(
+  cb: () => void,
+): Promise<UnlistenFn> {
+  return listen("system-resumed", () => cb());
 }
 
 export async function listenTray(

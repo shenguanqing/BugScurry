@@ -134,6 +134,31 @@ Rust 轮询 → 每窗 cursor-local {x,y,inside}
 
 打开设置时**不要**降低覆盖层的 `always_on_top`。覆盖层保持置顶，虫子继续可见；设置窗负责 show / raise / focus。覆盖层除碰到虫子外点击穿透，因此透明层下面的面板仍可正常操作。
 
+**始终运行（F-SET-11）是托盘常驻架构能力，不是开关。** 关闭设置只 hide；进程唯一退出路径是托盘「退出」/ `Ctrl+Q`。开机启动另由 F-SET-10（autostart）负责。
+
+## 9.1 睡眠唤醒恢复
+
+```text
+光标轮询线程
+  每次循环记录 Instant
+        │
+        ▼ gap ≥ 2s（系统睡眠冻结线程）
+  对所有 overlay* 窗口 emit("system-resumed")
+  set_overlays_always_on_top(true)
+  清空显示器指纹，并立刻向 primary emit("displays-changed")
+        │
+        ▼
+primary overlay 前端
+  recoverFromSystemResume()
+    ├─ forceRebuildOverlays(mode) ×2（约 250ms / 1.1s）
+    │    关闭全部 overlay-* 再按 mode 重建
+    │    （与设置里切换「多显示器」同一路径；只 configure 旧窗不够）
+    ├─ refreshViewport + resizeCanvas
+    └─ ensureAudio / rainAudio 帧内 resume suspended AudioContext
+```
+
+前端 rAF 首帧 `dt` 可能极大，已由 `MAX_DT` 截断，不会把虫子瞬移。事件带 4s 防抖。睡眠唤醒后副屏 WebView 可能变成僵尸（空白/几何过期），必须 close+recreate，不能只 `set_size`/`set_position`。
+
 ## 10. 进食与满足态
 
 ```text

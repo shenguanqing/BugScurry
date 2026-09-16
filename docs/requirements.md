@@ -41,7 +41,7 @@ One-liner: **desktop bug pet / joke widget** — light, toggleable, adjustable, 
 | F-BUG-02 | Spawn on edges or inside the screen | P0 |
 | F-BUG-03 | Count changes apply immediately | P0 |
 | F-BUG-04 | Regenerate clears and respawns from settings | P0 |
-| F-BUG-05 | Clear all | P0 |
+| F-BUG-05 | Clear all (also stops rain) | P0 |
 | F-BUG-06 | **Squished bugs are not auto-replaced.** New bugs only after count increase, tray `+`, or regenerate | P0 |
 | F-BUG-07 | Species registry (ship one, extend later) | P1 architecture |
 
@@ -99,10 +99,10 @@ Independent small window. **Closing settings must not quit the app.**
 | F-SET-05 | Randomness | P1 |
 | F-SET-06 | Sound on/off | P1 |
 | F-SET-07 | Stains on/off | P1 |
-| F-SET-08 | Clear all | P0 |
+| F-SET-08 | Clear all (bugs, snacks, stains — and stop rain) | P0 |
 | F-SET-09 | Regenerate | P0 |
 | F-SET-10 | Autostart | P1 |
-| F-SET-11 | Always run | P1 |
+| F-SET-11 | Always run (tray-resident by design: closing settings does not quit; only tray Quit exits) | P1 — architectural, no toggle |
 | F-SET-12 | Current screen / all screens | P1 |
 | F-SET-13 | Immediate effect + persistence | P0 |
 

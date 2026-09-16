@@ -2,6 +2,7 @@ import { squishPressure } from "./squish";
 import { RAIN_LAYERS, RAIN_PROFILES, lightningFlash, rainWindAt } from "./weather";
 import type { RainKind } from "./types";
 import { getSpecies } from "../species";
+import { contactShadow } from "../species/drawing";
 import type { Bait, Bug, FloatText, Particle, Stain, Viewport } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -113,6 +114,12 @@ export function drawBug(ctx: CanvasRenderingContext2D, bug: Bug): void {
   if (bug.hurtTimer > 0) {
     const k = bug.hurtTimer / 0.18;
     ctx.globalAlpha = alpha * (1 - 0.35 * k);
+  }
+
+  // Grounding shadow: keeps the silhouette readable on light and dark wallpapers.
+  if (alpha > 0.05 && bug.state !== "dying") {
+    const lift = eatStyle === "hover" ? 1.25 : 1;
+    contactShadow(ctx, bug.size * 0.92 * lift, 0.18 * alpha);
   }
 
   const species = getSpecies(bug.species);

@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-09-16
+
+Sleep/wake recovery for multi-monitor, scene-wide clear, species visual polish, and settings hover previews.
+
+### Added
+
+- Sleep/wake recovery: cursor poller detects a ≥2s stall, re-asserts overlay z-order, force-rebuilds secondary overlays (same path as toggling multi-monitor), refreshes viewport, and resumes audio
+- Settings → species picker: hovering or keyboard-focusing a tile opens a square popover with a live `drawBug` gait preview (respects reduced motion)
+- Shared `contactShadow` under every bug and shell specular glints so silhouettes read on light and dark wallpapers
+- Species detail pass: cockroach pronotum spots, ladybug elytra gloss, spider abdomen chevrons, butterfly eyespots, mosquito bands, bee wing cross-veins, fly/ant/caterpillar surface accents
+
+### Changed
+
+- Clear all also stops rain (bugs, snacks, stains, and the shower) — regenerate does not restart rain
+- F-SET-11 “Always run” documented as tray residency (no toggle); closing settings never quits
+- Settings popover shadow uses a dedicated elevated token (correct on dark theme)
+
+### Fixed
+
+- After lid-close sleep, secondary-display bugs and rain stayed missing until multi-monitor was toggled manually
+- Rain ambience could stay suspended after wake when the AudioContext was not torn down
+
 ## [0.3.1] - 2026-09-16
 
 Polish after 0.3.0: tray weather checkmarks, stats i18n, README screenshots, select focus fix.

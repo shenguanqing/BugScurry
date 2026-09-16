@@ -6,6 +6,7 @@ import { LIMITS } from "../core/config";
 import type { FoodKind, Settings } from "../core/types";
 import { t } from "../i18n";
 import { getSpecies, listSpecies } from "../species";
+import SpeciesPreview from "./SpeciesPreview.vue";
 import {
   applyMonitorMode,
   applyThemeToDocument,
@@ -61,6 +62,63 @@ const foodEmoji: Record<FoodKind, string> = { cookie: "🍪", sugar: "🍬", fru
 const personalities = ["shy", "greedy", "lazy", "curious"] as const;
 
 const favoriteFood = computed(() => getSpecies(settings.species)?.traits.favoriteFood);
+const hoveredSpecies = ref<string | null>(null);
+const focusedSpecies = ref<string | null>(null);
+/** True while the pointer is inside the species grid (keeps the popover up). */
+const previewHover = ref(false);
+const speciesGridRef = ref<HTMLElement | null>(null);
+/** Popover anchor in the grid-wrap box; clamped so it stays on-screen. */
+const popoverLeft = ref("50%");
+const popoverBottom = ref("calc(100% + 6px)");
+/** Square edge length = one grid cell (kept in px so height cannot stretch). */
+const popoverSize = ref(96);
+
+const popoverStyle = computed(() => ({
+  "--pop-left": popoverLeft.value,
+  "--pop-bottom": popoverBottom.value,
+  "--pop-size": `${popoverSize.value}px`,
+}));
+
+function placePopover(tile: HTMLElement | null): void {
+  const wrap = speciesGridRef.value?.parentElement;
+  if (!tile || !wrap) {
+    popoverLeft.value = "50%";
+    popoverBottom.value = "calc(100% + 6px)";
+    popoverSize.value = 96;
+    return;
+  }
+  const tileRect = tile.getBoundingClientRect();
+  const wrapRect = wrap.getBoundingClientRect();
+  // Same metric as the 3-column grid: cell = (W - 2*gap) / 3.
+  const cell = Math.round((wrapRect.width - 16) / 3);
+  popoverSize.value = cell;
+  const half = cell / 2;
+  const center = tileRect.left + tileRect.width / 2 - wrapRect.left;
+  const min = half;
+  const max = Math.max(min, wrapRect.width - half);
+  popoverLeft.value = `${Math.round(Math.min(max, Math.max(min, center)))}px`;
+  // Vertical: sit just above THIS tile's top edge (not the whole grid).
+  const tileTop = tileRect.top - wrapRect.top;
+  popoverBottom.value = `${Math.round(wrapRect.height - tileTop + 6)}px`;
+}
+
+function onTileEnter(id: string, ev: Event): void {
+  hoveredSpecies.value = id;
+  placePopover(ev.currentTarget as HTMLElement | null);
+}
+
+function onTileFocus(id: string, ev: Event): void {
+  focusedSpecies.value = id;
+  placePopover((ev.currentTarget as HTMLElement | null)?.closest(".species") ?? null);
+}
+
+const previewTarget = computed(() => {
+  if (focusedSpecies.value) {
+    return speciesOptions.value.find((opt) => opt.id === focusedSpecies.value) ?? null;
+  }
+  if (!previewHover.value || !hoveredSpecies.value) return null;
+  return speciesOptions.value.find((opt) => opt.id === hoveredSpecies.value) ?? null;
+});
 
 const savedFlash = ref(false);
 let flashTimer: number | undefined;
@@ -211,21 +269,52 @@ onUnmounted(() => {
         <h2 id="species-title">{{ tt("species.title") }}</h2>
         <p class="hint">{{ tt("species.chooseHint") }}</p>
       </div>
-      <div role="radiogroup" :aria-label="tt('species.title')">
+      <div
+        role="radiogroup"
+        :aria-label="tt('species.title')"
+        class="species-picker"
+      >
         <label class="species-wide" :class="{ active: settings.species === 'random' }">
           <input class="species-radio" type="radio" name="species" value="random"
             :checked="settings.species === 'random'" @change="setSpecies('random')" />
           <span class="species-emoji" aria-hidden="true">🎲</span>
           <span>{{ tt("species.random") }}</span>
         </label>
-        <div class="species-grid">
-          <label v-for="opt in speciesOptions" :key="opt.id" class="species"
-            :class="{ active: settings.species === opt.id }">
-            <input class="species-radio" type="radio" name="species" :value="opt.id"
-              :checked="settings.species === opt.id" @change="setSpecies(opt.id)" />
-            <span class="species-emoji" aria-hidden="true">{{ opt.emoji }}</span>
-            <span class="species-label">{{ opt.label }}</span>
-          </label>
+        <div class="species-grid-wrap" :style="popoverStyle">
+          <div
+            ref="speciesGridRef"
+            class="species-grid"
+            @mouseenter="previewHover = true"
+            @mouseleave="previewHover = false; hoveredSpecies = null"
+          >
+            <label v-for="opt in speciesOptions" :key="opt.id" class="species"
+              :class="{ active: settings.species === opt.id }"
+              @mouseenter="onTileEnter(opt.id, $event)">
+              <input class="species-radio" type="radio" name="species" :value="opt.id"
+                :checked="settings.species === opt.id"
+                @change="setSpecies(opt.id)"
+                @focus="onTileFocus(opt.id, $event)"
+                @blur="focusedSpecies = null" />
+              <span class="species-emoji" aria-hidden="true">{{ opt.emoji }}</span>
+              <span class="species-label">{{ opt.label }}</span>
+            </label>
+          </div>
+          <Transition name="species-pop">
+            <div
+              v-if="previewTarget"
+              class="species-popover"
+              role="presentation"
+              :aria-label="previewTarget.label"
+            >
+              <SpeciesPreview
+                :species-id="previewTarget.id"
+                :label="previewTarget.label"
+                :playing="true"
+                :size="30"
+                fill
+              />
+            </div>
+          </Transition>
         </div>
       </div>
       <details class="feeding-guide">

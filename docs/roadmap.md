@@ -70,10 +70,11 @@ Ship a playable loop first; every milestone must be runnable and checkable.
 
 - [x] Overlay on all macOS Spaces (soaked 2 Spaces on macOS 15.7.9; overlay stayed onscreen)
 - [x] Pause rAF + cursor poller while bugs hidden (~0% CPU when hidden)
-- [ ] Sleep/wake recovery soak
+- [x] Sleep/wake recovery code path (cursor poller gap ≥2s → `system-resumed`: force-rebuild secondary overlays, refresh viewport, resume audio; first-frame dt clamped by `MAX_DT`)
+- [x] Sleep/wake recovery on-device soak (2026-09-16, lid closed >30s: primary/secondary bugs and rain recovered without toggling multi-monitor)
 - [ ] Full Windows soak test
 - [ ] macOS signing / notarization pipeline
-- [ ] Species visual polish beyond current silhouettes
+- [x] Species visual polish (contact shadow, shell glints; cockroach pronotum spots, ladybug elytra gloss, spider abdomen chevrons, butterfly eyespots, mosquito bands, bee wing cross-veins, etc.)
 
 ## Definition of done
 

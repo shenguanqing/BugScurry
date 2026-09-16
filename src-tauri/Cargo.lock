@@ -335,7 +335,7 @@ dependencies = [
 
 [[package]]
 name = "bugscurry"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "core-graphics 0.24.0",
  "serde",

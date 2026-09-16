@@ -34,39 +34,65 @@ registerSpecies({
       for (const fore of [false, true]) {
         ctx.beginPath(); ctx.moveTo(0.07, 0.04);
         if (fore) {
-          ctx.bezierCurveTo(0.42, 0.27, 0.91, 0.61, 0.83, 0.97);
-          ctx.bezierCurveTo(0.69, 1.03, 0.42, 0.82, 0.16, 0.83);
-          ctx.bezierCurveTo(0.06, 0.82, -0.06, 0.68, -0.12, 0.54);
-          ctx.bezierCurveTo(-0.03, 0.29, 0.01, 0.15, 0.07, 0.04);
+          ctx.bezierCurveTo(0.42, 0.25, 0.88, 0.68, 0.70, 0.96);
+          ctx.bezierCurveTo(0.60, 1.05, 0.52, 0.91, 0.43, 0.88);
+          ctx.bezierCurveTo(0.36, 0.89, 0.33, 0.85, 0.30, 0.82);
+          ctx.bezierCurveTo(0.22, 0.85, 0.20, 0.78, 0.14, 0.79);
+          ctx.bezierCurveTo(0.03, 0.79, -0.04, 0.65, -0.13, 0.61);
+          ctx.bezierCurveTo(-0.06, 0.38, 0.03, 0.15, 0.07, 0.04);
         } else {
-          ctx.bezierCurveTo(-0.16, 0.32, -0.22, 0.77, -0.46, 0.79);
-          ctx.bezierCurveTo(-0.58, 0.73, -0.63, 0.62, -0.72, 0.54);
-          ctx.bezierCurveTo(-0.75, 0.30, -0.32, 0.11, 0.07, 0.04);
+          ctx.bezierCurveTo(-0.10, 0.26, -0.04, 0.63, -0.12, 0.77);
+          ctx.bezierCurveTo(-0.18, 0.83, -0.23, 0.74, -0.29, 0.80);
+          ctx.bezierCurveTo(-0.35, 0.85, -0.37, 0.72, -0.43, 0.76);
+          ctx.bezierCurveTo(-0.51, 0.78, -0.54, 0.65, -0.59, 0.69);
+          ctx.bezierCurveTo(-0.66, 0.69, -0.70, 0.52, -0.77, 0.43);
+          ctx.bezierCurveTo(-0.83, 0.26, -0.31, 0.10, 0.07, 0.04);
         }
         ctx.closePath();
         const g = ctx.createLinearGradient(0, 0, 0, 0.96);
-        g.addColorStop(0, "#143b76"); g.addColorStop(0.38, "#168bc6");
-        g.addColorStop(0.74, "#6edcfa"); g.addColorStop(1, "#2a6db9");
-        ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "#15202b"; ctx.lineWidth = 0.055; ctx.stroke();
+        g.addColorStop(0, "#143b76"); g.addColorStop(0.38, "#128fdc");
+        g.addColorStop(0.74, "#65d6ff"); g.addColorStop(1, "#2a6db9");
+        ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "#15202b"; ctx.lineWidth = 0.045; ctx.stroke();
         ctx.save(); ctx.clip();
-        for (let i = 0; i < 6; i++) {
-          const x = fore ? 0.76 - i * 0.15 : -0.29 - i * 0.077;
+        for (let i = 0; i < 4; i++) {
+          const x = fore ? 0.64 - i * 0.16 : -0.29 - i * 0.077;
           const y = fore ? 0.92 - i * 0.055 : 0.73 - i * 0.038;
-          line(ctx, "#17477599", 0.012, 0.06, 0.06, x * 0.55, y * 0.6, x, y);
-          ellipse(ctx, x, y - 0.02, 0.023, 0.018, "#e7f6ffdd");
+          line(ctx, "#175d8e66", 0.008, 0.06, 0.06, x * 0.55, y * 0.6, x, y);
+
+        }
+        // Place the small spots inside the scalloped margin, following each lobe.
+        const spots = fore
+          ? [[0.66, 0.92], [0.52, 0.87], [0.35, 0.82], [0.20, 0.76]]
+          : [[-0.22, 0.74], [-0.37, 0.73], [-0.51, 0.65], [-0.66, 0.52]];
+        for (const [x, y] of spots) {
+          ellipse(ctx, x, y, 0.020, 0.016, fore ? "#effbffed" : "#ed9968dd");
         }
         ctx.restore();
       }
       ctx.restore();
     }
-    shell(ctx, -0.22, 0, 0.42, 0.062, "#858071", "#343631", "#151b18", pressure);
-    shell(ctx, 0.18, 0, 0.15, 0.085, "#a49d84", "#4f5141", "#232b22", pressure);
-    ellipse(ctx, 0.37, 0, 0.068, 0.065, "#33382a");
+    // Six fine walking legs stay close to the thorax, under the dominant wings.
+    for (let i = 0; i < 3; i++) {
+      for (const side of [-1, 1]) {
+        const step = Math.sin(phase + i * Math.PI + side) * 0.02 * (1 - pressure);
+        line(ctx, "#333a2dcc", 0.012, 0.20 - i * 0.09, side * 0.04,
+          0.27 - i * 0.13 + step, side * 0.14, 0.21 - i * 0.13 + step, side * 0.19);
+      }
+    }
+    shell(ctx, -0.22, 0, 0.31, 0.046, "#858071", "#343631", "#151b18", pressure);
+    // Abdomen segment rings.
+    for (let i = 0; i < 4; i++) {
+      const x = -0.42 + i * 0.12;
+      line(ctx, "#1c221d88", 0.018, x, -0.04, x, 0.04);
+    }
+    shell(ctx, 0.18, 0, 0.13, 0.049, "#a49d84", "#4f5141", "#232b22", pressure);
+    ellipse(ctx, 0.37, 0, 0.044, 0.036, "#33382a");
     for (const side of [-1, 1]) {
+      const sway = Math.sin(phase * 0.45 + side) * 0.025 * (1 - pressure);
       ctx.beginPath(); ctx.moveTo(0.39, side * 0.035);
-      ctx.quadraticCurveTo(0.57, side * 0.15, 0.71, side * 0.18);
+      ctx.quadraticCurveTo(0.57, side * 0.15, 0.71, side * 0.18 + sway);
       ctx.strokeStyle = "#454635"; ctx.lineWidth = 0.018; ctx.stroke();
-      ellipse(ctx, 0.71, side * 0.18, 0.032, 0.022, "#343b2c");
+      ellipse(ctx, 0.71, side * 0.18 + sway, 0.019, 0.015, "#343b2c");
     }
     ctx.restore();
   },

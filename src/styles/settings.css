@@ -14,6 +14,7 @@
   --ok: #34c759;
   --danger: #ff3b30;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --elevated-shadow: 0 10px 28px rgba(0, 0, 0, 0.16), 0 2px 6px rgba(0, 0, 0, 0.06);
   --toggle-off: rgba(120, 120, 128, 0.16);
   --badge-idle: rgba(120, 120, 128, 0.12);
   --badge-ok-bg: rgba(52, 199, 89, 0.14);
@@ -43,6 +44,7 @@
   --ok: #34c759;
   --danger: #ff3b30;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --elevated-shadow: 0 10px 28px rgba(0, 0, 0, 0.16), 0 2px 6px rgba(0, 0, 0, 0.06);
   --toggle-off: rgba(120, 120, 128, 0.16);
   --badge-idle: rgba(120, 120, 128, 0.12);
   --badge-ok-bg: rgba(52, 199, 89, 0.14);
@@ -64,6 +66,7 @@
   --ok: #30d158;
   --danger: #ff453a;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --elevated-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
   --toggle-off: rgba(120, 120, 128, 0.32);
   --badge-idle: rgba(120, 120, 128, 0.24);
   --badge-ok-bg: rgba(48, 209, 88, 0.18);
@@ -86,6 +89,7 @@
     --ok: #30d158;
     --danger: #ff453a;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --elevated-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
     --toggle-off: rgba(120, 120, 128, 0.32);
     --badge-idle: rgba(120, 120, 128, 0.24);
     --badge-ok-bg: rgba(48, 209, 88, 0.18);
@@ -555,6 +559,52 @@ output {
 .species-emoji {
   font-size: 21px;
   line-height: 1;
+}
+
+.species-picker {
+  position: relative;
+}
+
+.species-grid-wrap {
+  position: relative;
+}
+
+/* Hover/focus popover: true square, same edge as one species cell. */
+.species-popover {
+  position: absolute;
+  left: var(--pop-left, 50%);
+  bottom: var(--pop-bottom, calc(100% + 6px));
+  transform: translateX(-50%);
+  z-index: 5;
+  width: var(--pop-size, 96px);
+  height: var(--pop-size, 96px);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--card-solid);
+  border: 1px solid var(--line);
+  box-shadow: var(--elevated-shadow);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.species-popover :deep(.species-canvas) {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.species-pop-enter-active,
+.species-pop-leave-active {
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.species-pop-enter-from,
+.species-pop-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(4px);
 }
 
 .species-label {

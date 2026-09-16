@@ -44,3 +44,6 @@ coverage/
 # Test artifacts
 test-results/
 playwright-report/
+
+# Local scratch (species QA page, etc.)
+.tmp-*/

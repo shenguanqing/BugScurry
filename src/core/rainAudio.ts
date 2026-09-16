@@ -273,6 +273,8 @@ export function tickRainAudio(settings: Settings, timeSec: number, audible = tru
 
   const ac = activeKind === settings.rainKind ? ctx : ensureBed();
   if (!ac || !lowpass || !highpass || !master) return;
+  // Sleep/wake can leave the context suspended without tearing the bed down.
+  if (ac.state === "suspended") void ac.resume().catch(() => { /* next tick retries */ });
 
   const mix = RAIN_AUDIO_MIX[settings.rainKind];
   if (activeKind !== settings.rainKind) {

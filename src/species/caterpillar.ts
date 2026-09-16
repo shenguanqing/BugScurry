@@ -1,7 +1,7 @@
 import { squishPressure } from "../core/squish";
 import type { Bug } from "../core/types";
 import { registerSpecies } from "./registry";
-import { ellipse, line, shell } from "./drawing";
+import { ellipse, line, shell, glossyEye } from "./drawing";
 
 registerSpecies({
   id: "caterpillar",
@@ -31,29 +31,42 @@ registerSpecies({
     // Seven soft segments with a traveling contraction wave and tiny prolegs.
     for (let i = 0; i < 7; i++) {
       const t = i / 6;
-      const x = -0.66 + i * 0.175;
-      const y = -0.10 * Math.sin(t * Math.PI) + Math.sin(phase - i * 0.7) * 0.025 * (1 - pressure);
-      const r = 0.15 + Math.sin(t * Math.PI) * 0.055;
+      const x = -0.62 + i * 0.155 + 0.10 * Math.sin(t * Math.PI);
+      const y = 0.34 - t * 0.70 + 0.13 * Math.sin(t * Math.PI * 2) + Math.sin(phase - i * 0.7) * 0.025 * (1 - pressure);
+      const r = 0.22 + Math.sin(t * Math.PI) * 0.07;
       const sy = 1 - pressure * 0.45;
       ellipse(ctx, x + 0.02, y + r * sy, 0.05, 0.075 * sy, "#ae813c");
-      shell(ctx, x, y, r * 0.9, r * sy, "#e9f598", "#9bbb49", "#4f6e28", pressure);
-      line(ctx, "#d7ea8daa", 0.018, x - 0.04, y + 0.05, x + 0.06, y + 0.075);
-      ellipse(ctx, x + 0.02, y + 0.055, 0.019, 0.023, "#343b1b");
+      shell(ctx, x, y, r * 0.86, r * sy, "#f1ffaf", "#a8ce32", "#34481a", pressure);
+      // Curving shaded segment seam, with tiny raised yellow-green tubercles.
+      ctx.save();
+      ctx.beginPath(); ctx.ellipse(x, y, r * 0.86, r * sy, 0, 0, Math.PI * 2); ctx.clip();
+      ctx.beginPath(); ctx.moveTo(x - r * 0.45, y - r);
+      ctx.bezierCurveTo(x - r * 0.9, y, x - r * 0.5, y + r, x + r * 0.35, y + r);
+      ctx.strokeStyle = "#344c1cc9"; ctx.lineWidth = r * 0.26; ctx.stroke();
       for (let j = 0; j < 5; j++) {
-        const a = Math.PI * (1.1 + j * 0.18);
+        const a = j * 1.55 + i * 0.7;
+        const px = x + Math.cos(a) * r * 0.5, py = y + Math.sin(a) * r * 0.65 * sy;
+        ellipse(ctx, px, py, 0.022, 0.028 * sy, "#587823");
+        ellipse(ctx, px + 0.006, py - 0.013, 0.013, 0.017 * sy, "#eaff9ccc");
+      }
+      ctx.restore();
+      for (let j = 0; j < 8; j++) {
+        const a = Math.PI * (1.1 + j * 0.11);
         const length = 0.045 + (j % 2) * 0.025;
-        line(ctx, "#8a924a99", 0.01, x + Math.cos(a) * r * 0.8, y + Math.sin(a) * r * sy,
+        line(ctx, "#a5be49cc", 0.012, x + Math.cos(a) * r * 0.8, y + Math.sin(a) * r * sy,
           x + Math.cos(a) * (r + length), y + Math.sin(a) * (r + length) * sy);
       }
     }
-    const hy = -0.20 + Math.sin(phase) * 0.02 * (1 - pressure);
-    shell(ctx, 0.52, hy, 0.23, 0.24, "#ffe6a2", "#e9a147", "#a2632b", pressure);
-    ellipse(ctx, 0.62, hy - 0.025, 0.046, 0.055, "#282a19");
-    ellipse(ctx, 0.63, hy - 0.043, 0.015, 0.018, "#fff4dc");
-    line(ctx, "#6e4926", 0.018, 0.68, hy + 0.10, 0.63, hy + 0.13, 0.59, hy + 0.11);
+    const hy = -0.46 + Math.sin(phase) * 0.02 * (1 - pressure);
+    shell(ctx, 0.43, hy, 0.23, 0.24, "#ffe48d", "#f2a21f", "#a5480c", pressure);
+    glossyEye(ctx, 0.53, hy - 0.025, 0.05, 0.063, pressure);
+
+    const feelerSway = Math.sin(phase * 0.5) * 0.018 * (1 - pressure);
     for (const shift of [0, 0.12]) {
-      line(ctx, "#42422a", 0.026, 0.47 + shift, hy - 0.19, 0.48 + shift, hy - 0.32, 0.40 + shift, hy - 0.34);
-      ellipse(ctx, 0.40 + shift, hy - 0.34, 0.043, 0.022, "#3b3c29");
+      ctx.beginPath(); ctx.moveTo(0.38 + shift, hy - 0.20);
+      ctx.quadraticCurveTo(0.43 + shift, hy - 0.37, 0.27 + shift + feelerSway, hy - 0.30);
+      ctx.strokeStyle = "#303125"; ctx.lineWidth = 0.055; ctx.stroke();
+
     }
     ctx.restore();
   },
