@@ -81,10 +81,20 @@ One-liner: **desktop bug pet / joke widget** — light, toggleable, adjustable, 
 | F-FEED-03 | Personality + species eating styles (peck, cling, ant carry, …) | P1 |
 | F-FEED-04 | Nibble crumbs / sparks / fruit juice blot; post-meal glow | P1 |
 | F-WX-01 | Local-clock day phase biases random species mixes | P1 |
-| F-WX-02 | Tray weather: stop / random / light / moderate / heavy / downpour / thunderstorm | P0 |
-| F-WX-03 | Rain checkmarks in tray; wind re-rolled per shower; thunder flash + audio | P1 |
-| F-WX-04 | Settings “Random rain” auto schedule; manual choice re-arms clock | P1 |
-| F-WX-05 | Rain sound shares the global sound toggle | P1 |
+| F-WX-02 | Tray weather: stop / light / moderate / heavy / downpour / thunderstorm / snow / fog / sandstorm (random kind lives only under Settings “Random weather”) | P0 |
+| F-WX-03 | Tray checkmarks the active kind; wind re-rolled per shower; thunder flash + ambient audio | P1 |
+| F-WX-04 | Settings “Random weather” auto schedule; manual choice re-arms clock | P1 |
+| F-WX-05 | Ambient weather audio shares the master sound toggle (snow/fog near-silent; sand is wind grit) | P1 |
+
+### 3.5.1 Spray & random events (0.3.x)
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| F-PRANK-01 | Tray “Insecticide spray”: one-shot kill on every live bug per screen (fat bugs count once); mist FX + hiss (shared sound toggle); 45s cooldown with remaining seconds in the label | P0 |
+| F-PRANK-02 | Settings “Random events”: about every 90–240s rolls one of (bug tide / fat invasion / berserk dash / size chaos / night raid); **never rewrites** store `count` | P0 |
+| F-PRANK-03 | Full-viewport title card plays out and fades before the event; deferred while hidden or a tide is already running | P0 |
+| F-PRANK-04 | Spray broadcasts to every overlay; primary schedules auto events and broadcasts the kind; each screen applies locally | P0 |
+| F-PRANK-05 | Hidden debug panel (footer ×5): force each weather kind / stop, fire each event, spray | P2 |
 
 ### 3.6 Settings window
 
@@ -99,12 +109,13 @@ Independent small window. **Closing settings must not quit the app.**
 | F-SET-05 | Randomness | P1 |
 | F-SET-06 | Sound on/off | P1 |
 | F-SET-07 | Stains on/off | P1 |
-| F-SET-08 | Clear all (bugs, snacks, stains — and stop rain) | P0 |
+| F-SET-08 | Clear all (bugs, snacks, stains — and stop weather) | P0 |
 | F-SET-09 | Regenerate | P0 |
 | F-SET-10 | Autostart | P1 |
 | F-SET-11 | Always run (tray-resident by design: closing settings does not quit; only tray Quit exits) | P1 — architectural, no toggle |
 | F-SET-12 | Current screen / all screens | P1 |
 | F-SET-13 | Immediate effect + persistence | P0 |
+| F-SET-14 | Random events toggle (auto-rolls the event pool); info popover lists events | P0 |
 
 ### 3.7 Tray / menu bar
 

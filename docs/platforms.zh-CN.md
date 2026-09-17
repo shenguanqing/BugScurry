@@ -2,10 +2,10 @@
 
 [English](platforms.md)
 
-最近一次 macOS 实测：**2026-09-11** · Apple M1 Pro · macOS 15.7.9 · 内置 Retina 3024×1964@2x + 外接 1920×1080。
+最近一次 macOS 实测：**2026-09-16**（含合盖睡眠唤醒 soak）· Apple M1 Pro · macOS 15.7.9 · 内置 Retina 3024×1964@2x + 外接 1920×1080。Spaces soak 另见 2026-09-11。
 
 - 开发路径：`pnpm tauri dev`（debug + Vite）
-- 生产路径：用户执行 `pnpm tauri build` 后的 `BugScurry.app` / `BugScurry_0.1.0_aarch64.dmg`（已补测）
+- 生产路径：用户执行 `pnpm tauri build` 后的 `BugScurry.app` / `BugScurry_0.4.0_aarch64.dmg`（已补测）
 
 Windows 列本机尚未实机验证。
 
@@ -46,9 +46,9 @@ Windows 列本机尚未实机验证。
 | 多显示器 | `monitorMode: "all"` 在 dev 与生产包均会创建第二块屏覆盖层。 |
 | 设置窗口 | 默认隐藏（`onscreen=false`）；覆盖层主循环不依赖设置窗口是否打开。 |
 | 设置与覆盖层层级（0.3+） | 打开设置**不要**降低覆盖层 `always_on_top`。覆盖层保持置顶，虫子仍可见；设置负责 show / focus。除碰到虫子外点击穿透。 |
-| 雨 / 雷（0.3+） | 托盘天气五档 + 停雨/随机，并勾选当前档。雨声程序化（仅主覆盖层）；停雨/隐藏/关音效时硬静音。雷为延迟低频滚雷，近雷另加暗色撕裂声。 |
+| 天气（0.3+） | 托盘：停止 + 五档雨 / 雪 / 雾 / 沙尘，并勾选当前档。环境声程序化（仅主覆盖层）；停止/隐藏/关音效时硬静音。雷为延迟低频滚雷；沙尘共用阵风包络偏风噪。 |
 | 投喂特效（0.3+） | 性格 + 虫种吃相；蚂蚁搬运时口器前画碎屑；水果吃完留 `__juice` 淡印；餐后暖光。 |
-| 产物 | `src-tauri/target/release/bundle/macos/BugScurry.app` · `dmg/BugScurry_0.1.0_aarch64.dmg`（arm64） |
+| 产物 | `src-tauri/target/release/bundle/macos/BugScurry.app` · `dmg/BugScurry_0.4.0_aarch64.dmg`（arm64） |
 
 ## Windows
 
@@ -133,4 +133,4 @@ pnpm tauri dev          # 需要 Vite 在 :1420，不要单独跑 debug 二进�
    - 若睡前开着雨，两块屏的雨丝都应恢复；雨声应在数秒内恢复
    - 点击虫子仍可捏死（穿透与命中正常）
    - 打开设置再关掉，应用不退出
-5. 另测「全部清除」：应同时清掉虫子/食物/痕迹并停雨；再「重新生成」只出虫、不自动下雨。
+5. 另测「全部清除」：应同时清掉虫子/食物/痕迹并停天气；再「重新生成」只出虫、不自动下天气。

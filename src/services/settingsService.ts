@@ -94,9 +94,20 @@ export async function listenSettings(
   return listen<Settings>(SETTINGS_EVENT, (e) => cb(clampSettings(e.payload)));
 }
 
-export async function sendOverlayCommand(
-  cmd: "clear" | "regenerate" | "add_one" | "remove_one" | "toggle_visibility",
-): Promise<void> {
+export type OverlayCommand =
+  | "clear"
+  | "regenerate"
+  | "add_one"
+  | "remove_one"
+  | "toggle_visibility"
+  /** Hidden settings debug panel */
+  | "debug_rain_random"
+  | "debug_rain_stop"
+  | `debug_weather:${import("../core/types").RainKind}`
+  | `debug_event:${import("../core/types").RandomEventKind}`
+  | "debug_spray";
+
+export async function sendOverlayCommand(cmd: OverlayCommand): Promise<void> {
   await emit(COMMAND_EVENT, cmd);
 }
 

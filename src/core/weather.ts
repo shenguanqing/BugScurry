@@ -43,6 +43,8 @@ export interface RainProfile {
   pauseMul: number;
   coverPull: number;
   lightning: boolean;
+  /** Which particle/renderer family to draw. */
+  family: "rain" | "snow" | "fog" | "sand";
 }
 
 export const RAIN_PROFILES: Record<RainKind, RainProfile> = {
@@ -58,6 +60,7 @@ export const RAIN_PROFILES: Record<RainKind, RainProfile> = {
     pauseMul: 1.1,
     coverPull: 1.6,
     lightning: false,
+    family: "rain",
   },
   moderate: {
     density: 0.7,
@@ -71,6 +74,7 @@ export const RAIN_PROFILES: Record<RainKind, RainProfile> = {
     pauseMul: 1.25,
     coverPull: 2.4,
     lightning: false,
+    family: "rain",
   },
   heavy: {
     density: 1,
@@ -84,6 +88,7 @@ export const RAIN_PROFILES: Record<RainKind, RainProfile> = {
     pauseMul: 1.4,
     coverPull: 3.2,
     lightning: false,
+    family: "rain",
   },
   downpour: {
     density: 1.4,
@@ -97,6 +102,7 @@ export const RAIN_PROFILES: Record<RainKind, RainProfile> = {
     pauseMul: 1.55,
     coverPull: 3.8,
     lightning: false,
+    family: "rain",
   },
   thunder: {
     density: 1.25,
@@ -110,6 +116,49 @@ export const RAIN_PROFILES: Record<RainKind, RainProfile> = {
     pauseMul: 1.6,
     coverPull: 3.6,
     lightning: true,
+    family: "rain",
+  },
+  snow: {
+    density: 0.85,
+    lengthMul: 1,
+    alphaMul: 0.95,
+    wash: 0.03,
+    windMag: 0.2,
+    windGust: 0.06,
+    speedMul: 0.82,
+    edgePull: 2.2,
+    pauseMul: 1.35,
+    coverPull: 2.0,
+    lightning: false,
+    family: "snow",
+  },
+  fog: {
+    density: 1.1,
+    lengthMul: 1,
+    alphaMul: 1.15,
+    wash: 0.22,
+    windMag: 0.12,
+    windGust: 0.03,
+    speedMul: 0.9,
+    edgePull: 1.2,
+    pauseMul: 1.15,
+    coverPull: 1.0,
+    lightning: false,
+    family: "fog",
+  },
+  sand: {
+    density: 1.1,
+    lengthMul: 1.25,
+    alphaMul: 1.05,
+    wash: 0.055,
+    windMag: 0.55,
+    windGust: 0.16,
+    speedMul: 0.74,
+    edgePull: 4.2,
+    pauseMul: 1.45,
+    coverPull: 3.4,
+    lightning: false,
+    family: "sand",
   },
 };
 
@@ -119,16 +168,22 @@ export const RAIN_KIND_ORDER: readonly RainKind[] = [
   "heavy",
   "downpour",
   "thunder",
+  "snow",
+  "fog",
+  "sand",
 ];
 
-/** Weighted pick — mild showers are common, thunder is rare. */
+/** Weighted pick — mild showers are common; sand is rarer. */
 export function pickRainKind(rng: () => number = Math.random): RainKind {
   const weights: Record<RainKind, number> = {
-    light: 0.28,
-    moderate: 0.32,
-    heavy: 0.2,
-    downpour: 0.12,
-    thunder: 0.08,
+    light: 0.22,
+    moderate: 0.26,
+    heavy: 0.14,
+    downpour: 0.08,
+    thunder: 0.06,
+    snow: 0.1,
+    fog: 0.08,
+    sand: 0.06,
   };
   let roll = rng();
   for (const kind of RAIN_KIND_ORDER) {
@@ -218,8 +273,8 @@ export function nextWetSpanMs(
   kind: RainKind = "moderate",
 ): number {
   const base = 16_000 + rng() * 44_000;
-  if (kind === "downpour" || kind === "thunder") return base * 0.78;
-  if (kind === "light") return base * 1.15;
+  if (kind === "downpour" || kind === "thunder" || kind === "sand") return base * 0.78;
+  if (kind === "light" || kind === "fog" || kind === "snow") return base * 1.15;
   return base;
 }
 
@@ -278,8 +333,6 @@ export function rainTrayAction(
   switch (cmd) {
     case "rain_off":
       return { mode: "off" };
-    case "rain_random":
-      return { mode: "start", kind: "random" };
     case "rain_light":
       return { mode: "start", kind: "light" };
     case "rain_moderate":
@@ -290,6 +343,12 @@ export function rainTrayAction(
       return { mode: "start", kind: "downpour" };
     case "rain_thunder":
       return { mode: "start", kind: "thunder" };
+    case "rain_snow":
+      return { mode: "start", kind: "snow" };
+    case "rain_fog":
+      return { mode: "start", kind: "fog" };
+    case "rain_sand":
+      return { mode: "start", kind: "sand" };
     default:
       return null;
   }

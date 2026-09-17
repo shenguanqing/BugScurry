@@ -2,10 +2,10 @@
 
 [中文](platforms.zh-CN.md)
 
-Last macOS soak: **2026-09-11** on Apple M1 Pro · macOS 15.7.9 · built-in Retina 3024×1964@2x + external 1920×1080.
+Last macOS soak: **2026-09-16** (including lid-close sleep/wake) on Apple M1 Pro · macOS 15.7.9 · built-in Retina 3024×1964@2x + external 1920×1080. Spaces soak separately on 2026-09-11.
 
 - Dev path: `pnpm tauri dev` (debug + Vite)
-- Production path: `pnpm tauri build` → `BugScurry.app` / `BugScurry_0.1.0_aarch64.dmg` (soaked after user build)
+- Production path: `pnpm tauri build` → `BugScurry.app` / `BugScurry_0.4.0_aarch64.dmg` (soaked after user build)
 
 Windows column remains unverified on this machine.
 
@@ -47,7 +47,7 @@ Windows column remains unverified on this machine.
 | Settings vs overlay z-order (0.3+) | Opening settings must **not** demote the overlay `always_on_top`. Overlay stays on top so bugs remain visible; settings is shown/focused. Clicks pass through except over bugs. |
 | Rain / thunder (0.3+) | Tray weather has five intensities + stop/random with checkmarks. Rain audio is procedural (primary overlay only); hard-mute on stop / hide / sound off. Thunder is a delayed low rumble (close strikes add a dark tear). |
 | Feeding FX (0.3+) | Personality + species eat styles; ant carry draws a crumb at the mouth; fruit finish leaves a short `__juice` blot; post-meal warm glow. |
-| Bundle | `src-tauri/target/release/bundle/macos/BugScurry.app` · `dmg/BugScurry_0.1.0_aarch64.dmg` (arm64) |
+| Bundle | `src-tauri/target/release/bundle/macos/BugScurry.app` · `dmg/BugScurry_0.4.0_aarch64.dmg` (arm64) |
 
 ## Windows
 

@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS: Settings = {
   rainKind: "moderate",
   rainWind: 0,
   autoRain: false,
+  randomEvents: false,
 };
 
 export const LIMITS = {
@@ -86,3 +87,33 @@ export const FAT_BUG_HP = 3;
 export const FAT_BUG_SIZE_MIN = 2.0;
 export const FAT_BUG_SIZE_MAX = 3.0;
 export const MAX_FLOATS = 8;
+
+/** Tray prank spray (deterministic clear). Swarm is settings → random events. */
+export const PRANK = {
+  sprayCooldownSec: 45,
+  sprayFxSec: 0.7,
+  swarmBonus: 12,
+  swarmMul: 2,
+  swarmPeakSec: 18,
+  swarmFallSec: 12,
+  fatInvasionMin: 5,
+  fatInvasionMax: 7,
+  nightRaidMin: 4,
+  nightRaidMax: 6,
+  berserkSec: 10,
+  berserkMul: 1.8,
+  sizeChaosSec: 12,
+  sizeChaosMin: 0.7,
+  sizeChaosMax: 1.6,
+} as const;
+
+/** Quiet gap between automatic random events (seconds). */
+export const RANDOM_EVENT_GAP_SEC = { min: 90, max: 240 } as const;
+
+/** Full-screen event title card (pointer-events: none). */
+export const EVENT_BANNER = {
+  /** How long the title stays fully visible before fading. */
+  showMs: 1800,
+  /** Fade-out duration — the event starts only after this. */
+  hideMs: 400,
+} as const;

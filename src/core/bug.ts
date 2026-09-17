@@ -8,7 +8,7 @@ import {
 import { PERSONALITIES } from "./personality";
 import { Rng, randomSeed } from "./rng";
 import { currentDayPhase } from "./weather";
-import { getSpecies, pickSpeciesId } from "../species";
+import { getSpecies, listSpecies, pickSpeciesId } from "../species";
 import type { Bug, Settings, Viewport } from "./types";
 
 let nextId = 1;
@@ -90,4 +90,32 @@ export function createBug(
     carryKind: null,
     carryTimer: 0,
   };
+}
+
+/** Forced chonky invader: 3 HP, large, a bit slower. */
+export function createFatBug(
+  viewport: Viewport,
+  settings: Settings,
+  rng: Rng = new Rng(randomSeed()),
+): Bug {
+  const bug = createBug(viewport, settings, rng);
+  const species = getSpecies(bug.species);
+  const bodyScale = species?.traits.bodyScale ?? 1;
+  bug.maxHp = FAT_BUG_HP;
+  bug.hp = FAT_BUG_HP;
+  bug.size = 15 * settings.size * bodyScale * rng.range(FAT_BUG_SIZE_MIN, FAT_BUG_SIZE_MAX);
+  bug.speed *= rng.range(0.55, 0.75);
+  return bug;
+}
+
+/** Nocturnal-only spawn for the night-raid event. */
+export function createNocturnalBug(
+  viewport: Viewport,
+  settings: Settings,
+  rng: Rng = new Rng(randomSeed()),
+): Bug | null {
+  const nocturnal = listSpecies().filter((s) => s.traits.activity === "nocturnal");
+  if (nocturnal.length === 0) return null;
+  const pick = nocturnal[rng.int(0, nocturnal.length - 1)].id;
+  return createBug(viewport, { ...settings, species: pick }, rng);
 }

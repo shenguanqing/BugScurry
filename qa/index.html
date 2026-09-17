@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BugScurry · 测试台</title>
+  <link rel="stylesheet" href="/src/qa/style.css" />
+</head>
+<body>
+  <header>
+    <div><span class="eyebrow">BUGSCURRY / LOCAL QA</span><h1>视觉与音效测试台</h1></div>
+    <nav aria-label="测试菜单">
+      <button id="species-tab" aria-pressed="true" aria-controls="species-panel">虫种</button>
+      <button id="weather-tab" aria-pressed="false" aria-controls="weather-panel">天气与声音</button>
+      <button id="events-tab" aria-pressed="false" aria-controls="events-panel">事件与工具</button>
+    </nav>
+    <span class="badge">仅本页预览 · 不修改桌面设置</span>
+  </header>
+  <section id="species-panel" aria-label="虫种测试">
+    <div class="toolbar">
+      <button type="button" id="prev" aria-label="上一个虫种">←</button>
+      <button type="button" id="next" aria-label="下一个虫种">→</button>
+      <label><input type="checkbox" id="animate" checked /> 步态动画</label>
+      <label>相位 <input type="range" id="phase" min="0" max="1" step=".01" value=".15" /></label>
+      <label>捏扁 <input type="range" id="death" min="0" max="2" step=".01" value=".55" /></label>
+      <span id="status"></span>
+    </div>
+    <main class="species-grid">
+      <div class="card"><p class="hint">←→ 切换虫种 · 居中区：左 Emoji / 右 Canvas（悬停右侧格子播步态）</p><canvas id="compare-canvas" width="720" height="1840"></canvas></div>
+      <div class="card"><h2>虫种渲染检查</h2><pre id="checks">运行中…</pre></div>
+    </main>
+  </section>
+  <section id="weather-panel" aria-label="天气测试" hidden>
+    <div class="weather-grid">
+      <aside class="card controls">
+        <h2>天气菜单</h2>
+        <div id="weather-menu" class="weather-menu" aria-label="选择天气"></div>
+        <div class="row"><button id="random-weather">随机一种</button><button id="stop-weather">停止天气</button></div>
+        <hr />
+        <label class="field">风向与强度 <output id="wind-value"></output><input id="wind" aria-label="风向与强度" type="range" min="-1" max="1" step=".05" value=".5" /></label>
+        <p class="hint">负值向左，正值向右；不同天气沿用应用内的风场规则。</p>
+        <label class="field">背景<select id="background"><option value="split">深浅对照</option><option value="dark">深色桌面</option><option value="light">浅色桌面</option></select></label>
+        <label><input id="weather-sound" type="checkbox" /> 开启声音</label>
+        <p id="sound-note" class="hint">声音默认关闭。雾本身没有声音。</p>
+        <hr />
+        <div class="row"><button id="pause-weather" aria-pressed="false">暂停</button><button id="reset-weather">从头播放</button><button id="step-weather">前进一帧</button></div>
+        <label class="field">时间定位 <output id="weather-time">0.0 s</output><input id="seek-weather" aria-label="时间定位" type="range" min="0" max="60" step=".05" value="0" /></label>
+        <p class="hint">拖动时间轴会暂停并静音；切回虫种页、隐藏页面也会停止声音。</p>
+      </aside>
+      <div class="preview-column">
+        <div class="preview-heading"><h2 id="weather-title">小雨</h2><span id="weather-status" role="status"></span></div>
+        <div class="weather-scenes" id="weather-scenes">
+          <div class="scene dark" data-scene="dark"><div class="landscape"></div><div class="desktop-card"><b>Desktop</b><p>文件夹　日历　备忘录</p><p>检查天气层次与文字可读性</p></div><canvas aria-label="深色背景天气预览"></canvas><span class="scene-label">深色背景</span></div>
+          <div class="scene light" data-scene="light"><div class="landscape"></div><div class="desktop-card"><b>Desktop</b><p>文件夹　日历　备忘录</p><p>检查天气层次与文字可读性</p></div><canvas aria-label="浅色背景天气预览"></canvas><span class="scene-label">浅色背景</span></div>
+        </div>
+        <div class="card"><h2>天气渲染检查</h2><p class="hint">检查所有天气的绘制、不同时间帧和 Canvas 状态恢复；听感需手动试听。</p><pre id="weather-checks">运行中…</pre></div>
+        <div class="card"><h2>原生桌面联调</h2><p class="hint">本页测试虫种、天气画面及声音，直接复用应用实现。多屏、鼠标穿透、托盘指令、跨窗口事件同步请在 Tauri 应用内验证：打开 Settings，连续点击底部说明 5 次进入隐藏调试面板。</p></div>
+      </div>
+    </div>
+  </section>
+  <section id="events-panel" aria-label="事件与工具测试" hidden>
+    <div class="weather-grid">
+      <aside class="card controls">
+        <h2>事件</h2><div id="event-menu" class="event-menu"></div>
+        <label><input type="checkbox" id="event-announce" checked /> 播放事件标题</label>
+        <hr /><h2>工具</h2>
+        <button id="event-spray">杀虫喷雾</button>
+        <p class="hint">复用应用的全屏击杀、喷雾动画和声音；本地测试不设 45 秒冷却。</p>
+        <label><input type="checkbox" id="event-sound" /> 喷雾声音</label>
+        <hr /><div class="row"><button id="event-reset">重置场景</button><button id="event-pause" aria-pressed="false">暂停模拟</button></div>
+        <p class="hint">每次事件从 12 只虫开始；可在事件中喷雾。切换菜单或隐藏页面暂停模拟和声音。</p>
+      </aside>
+      <div class="preview-column">
+        <div class="preview-heading"><h2 id="event-title">事件沙盒</h2><span id="event-status" role="status"></span></div>
+        <div class="scene event-scene" id="event-scene"><canvas id="event-canvas" aria-label="事件与喷雾预览"></canvas><div id="event-banner" hidden><h2 id="event-banner-title"></h2><p id="event-banner-sub"></p></div></div>
+        <div class="card"><h2>当前测试</h2><p id="event-description">选择左侧事件查看效果，或直接测试杀虫喷雾。</p><p class="hint">这里运行真实的虫子管理、移动和渲染逻辑；不修改应用设置、桌面虫子或每日统计。多屏广播、托盘与冷却仍需原生联调。</p></div>
+      </div>
+    </div>
+  </section>
+  <script type="module" src="/src/qa/main.ts"></script>
+</body>
+</html>

@@ -57,7 +57,8 @@ tray.rs
 | Settings clamp | `src/core/settings.ts` | 纯函数归一化设置（无 Tauri 依赖） |
 | Personality / Feeding | `src/core/personality.ts`、`src/core/feeding.ts` | 出生时固定性格；`resolveEatPlan` 叠加虫种 `eatStyle`；按距离与 `favoriteFood` 选食 |
 | Weather | `src/core/weather.ts` | 本机时钟 `DayPhase` 权重；五档雨 profile、风向、闪电包络、自动雨时钟 |
-| Rain audio / textures | `src/core/rainAudio.ts`、`src/core/rainTexture.ts` | 程序化雨声与雷声；离线构建循环纹理（rAF 内不实时合成） |
+| Rain audio / textures | `src/core/rainAudio.ts`、`src/core/rainTexture.ts` | 程序化雨声、雷声及独立的沙尘风声/砂砾声；雾静音。缓存循环纹理，限频更新阵风混音（rAF 内不逐滴合成） |
+| Atmosphere | `src/core/atmosphere.ts` | 缓存无缝雾/尘噪声纹理；沙尘横向平流，画面与声音共用阵风包络 |
 | Movement | `src/core/movement.ts` | 爬行 / 停顿 / 转向 / 角落脱困 / 贴边 / 雨天躲边 / 啃食与搬运 |
 | Renderer | `src/core/renderer.ts` | Canvas、squish 形变、痕迹、粒子、雨丝、闪电、搬运碎屑；委托虫种 `draw` |
 | HitTest | `src/core/hitTest.ts` | 指针与虫半径命中 |
@@ -68,8 +69,9 @@ tray.rs
 | Settings UI | `src/settings/*` | 设置窗口 |
 | Services | `src/services/*` | Tauri 事件/命令、配置、主题、多屏 |
 | DailyStatsService | `src/services/dailyStatsService.ts` | 主覆盖层独占：排队击杀、串行落盘、刷新托盘战绩 |
+| Prank / random events | `BugManager.sprayKillAll` / `startSwarm` / `startFatInvasion` / `startBerserk` / `startSizeChaos` / `startNightRaid`；`randomEvents.ts` | 托盘喷雾 + 原地冷却；设置随机事件池（虫潮/肥虫/狂暴/体型/夜袭），临时状态不写 `settings.count` |
 | Shell | `src-tauri/src/lib.rs` | 窗口、光标、显示器、命令、覆盖层/设置层级 |
-| Tray | `src-tauri/src/tray.rs` | 菜单栏 / 托盘（投喂与天气子菜单） |
+| Tray | `src-tauri/src/tray.rs` | 菜单栏 / 托盘（投喂、天气、喷雾） |
 
 ## 4. Bug 状态机
 
@@ -186,7 +188,26 @@ resolveEatPlan(personality, species.eatStyle)
 
 性格基线在 `EAT_STYLES`（`personality.ts`），虫种风味在 `resolveEatPlan`（`feeding.ts`）叠加。新虫种只需可选的 `eatStyle`。
 
-## 11. 扩展虫种
+## 11. 喷雾与随机事件
+
+```text
+托盘「喷雾杀虫剂」
+  └─ prank_spray → 各 overlay 广播 → sprayKillAll + 雾 FX + hiss
+       主覆盖层：set_tray_spray(剩余秒) 原地改文案（不 set_menu）
+
+设置「随机事件」
+  └─ 主覆盖层 2s 轮询 tickAutoEvent
+       due → rollRandomEvent → emit("random-event", {kind})
+       各屏：标题卡播完淡出 → applyRandomEvent(kind)
+       池：swarm / fat_invasion / berserk / size_chaos / night_raid
+       主屏 rearmAfterEvent(预告 + busy(kind) + 90–240s gap)
+```
+
+- 风暴目标：`min(countMax, max(settings.count + 12, settings.count * 2))`，状态只在 `BugManager` 实例上。
+- 用户改 `count` / 重新生成 / 清除 / 托盘增减：取消风暴并收敛到设定数量。
+- 事件池目前仅风暴；后续事件只扩 `fireRandomEvent`，不动托盘。
+
+## 12. 扩展虫种
 
 ```ts
 // src/species/example.ts
@@ -210,7 +231,7 @@ registerSpecies({
 
 在 `src/species/index.ts` 引入。运动逻辑共用，traits 只影响参数。`activity` 只作用于随机混养；指定单一虫种时忽略时段。`eatStyle` 通过 `resolveEatPlan` 叠在性格吃相之上。
 
-## 12. 约定
+## 13. 约定
 
 - TypeScript `strict`
 - Vue 组件只做 UI；逻辑在 `core/` / `services/`

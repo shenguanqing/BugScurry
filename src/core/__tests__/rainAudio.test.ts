@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createRainTexture } from "../rainTexture";
+import { createRainTexture, createWindTexture } from "../rainTexture";
 import { Rng } from "../rng";
 import { DEFAULT_SETTINGS } from "../config";
 import { disposeRainAudio, stopRainAudio, tickRainAudio } from "../rainAudio";
@@ -104,5 +104,59 @@ describe("rain playback lifecycle", () => {
     expect(sources.every((source) => source.stop.mock.calls.length === 1)).toBe(true);
     tickRainAudio(settings, 3);
     expect(sources).toHaveLength(6);
+  });
+});
+
+
+describe("dry weather audio", () => {
+  it("keeps fog silent and releases the previous weather sources", () => {
+    vi.useFakeTimers();
+    const { sources } = audioHarness();
+    const settings = { ...DEFAULT_SETTINGS, sound: true, rain: true, rainKind: "fog" as const };
+    tickRainAudio(settings, 0);
+    expect(sources).toHaveLength(0);
+    tickRainAudio({ ...settings, rainKind: "sand" }, 1);
+    expect(sources).toHaveLength(2);
+    tickRainAudio(settings, 2);
+    vi.advanceTimersByTime(150);
+    expect(sources.every((s) => s.stop.mock.calls.length === 1)).toBe(true);
+  });
+
+  it("crossfades water layers out for sand and dry layers out for rain", () => {
+    const { sources, gains } = audioHarness();
+    const settings = { ...DEFAULT_SETTINGS, sound: true, rain: true, rainKind: "heavy" as const };
+    tickRainAudio(settings, 0);
+    tickRainAudio({ ...settings, rainKind: "sand" }, 1);
+    expect(sources).toHaveLength(5);
+    for (const g of gains.slice(1, 4)) expect(g.gain.setTargetAtTime).toHaveBeenLastCalledWith(0, 1, 0.6);
+    expect(gains[4].gain.setTargetAtTime.mock.lastCall![0]).toBeGreaterThan(0.1);
+    tickRainAudio(settings, 2);
+    for (const g of gains.slice(4)) expect(g.gain.setTargetAtTime).toHaveBeenLastCalledWith(0, 1, 0.6);
+    expect(sources).toHaveLength(5);
+  });
+
+  it("builds unclipped continuous stereo wind with a softer spectrum than grit", () => {
+    for (const rate of [22050, 48000]) {
+      const roughness: number[] = [];
+      for (const layer of ["wind", "grit"] as const) {
+        const rng = new Rng(42);
+        const channels = createWindTexture(rate, 3, layer, () => rng.next());
+        expect(channels[0]).not.toEqual(channels[1]);
+        for (const data of channels) {
+          expect(data.every((v) => Number.isFinite(v) && Math.abs(v) < 1)).toBe(true);
+          expect(rms(data)).toBeGreaterThan(0.01);
+          let stepEnergy = 0;
+          let maxStep = 0;
+          for (let i = 1; i < data.length; i++) {
+            const step = data[i] - data[i - 1];
+            stepEnergy += step * step;
+            maxStep = Math.max(maxStep, Math.abs(step));
+          }
+          expect(Math.abs(data[0] - data[data.length - 1])).toBeLessThan(maxStep);
+          roughness.push(Math.sqrt(stepEnergy / data.length) / rms(data));
+        }
+      }
+      expect(roughness[0]).toBeLessThan(roughness[2] * 0.7);
+    }
   });
 });

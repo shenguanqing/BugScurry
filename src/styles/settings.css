@@ -139,6 +139,107 @@ body {
   letter-spacing: -0.02em;
 }
 
+/* Hidden debug unlock target — looks like a normal caption. */
+.footer-hot {
+  cursor: default;
+  user-select: none;
+}
+
+.debug-card {
+  margin-top: 18px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 32%, var(--line));
+  background: color-mix(in srgb, var(--card-solid) 88%, var(--bg));
+}
+
+.debug-head {
+  margin-bottom: 4px;
+}
+
+.debug-head-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.debug-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.debug-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.debug-x {
+  appearance: none;
+  border: 0;
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.debug-x:hover {
+  color: var(--ink);
+  background: var(--fill);
+}
+
+.debug-hint {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.debug-group {
+  margin-top: 12px;
+}
+
+.debug-group-label {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.debug-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.debug-chip {
+  appearance: none;
+  border: 0;
+  background: var(--fill);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: transform 0.08s ease, background 0.12s ease;
+}
+
+.debug-chip:hover {
+  background: color-mix(in srgb, var(--accent) 10%, var(--fill));
+}
+
+.debug-chip:active {
+  transform: scale(0.96);
+}
+
 .tagline {
   margin: 4px 0 0;
   line-height: 1.5;
@@ -185,6 +286,8 @@ body {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   margin-bottom: 16px;
+  /* Info tooltips may paint slightly outside the rounded card. */
+  overflow: visible;
 }
 
 /* Shared focus ring for all interactive controls. */
@@ -366,6 +469,18 @@ output {
   font-weight: 500;
   line-height: 1.4;
   cursor: pointer;
+}
+
+.toggle-label-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.toggle-label-wrap .toggle-label {
+  flex: 0 1 auto;
 }
 
 .toggle-switch {

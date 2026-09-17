@@ -83,6 +83,9 @@ function paint(phase: number): void {
   const [bx, by] = CENTER_BIAS[props.speciesId] ?? [0, 0];
   ctx.save();
   ctx.translate(w / 2 + bx * props.size, h / 2 + by * props.size);
+  // Match the QA page: side-profile art is authored facing +X; flip to the
+  // presentation orientation (facing left) so bias and emoji compare cleanly.
+  if (SIDE_VIEW.has(props.speciesId)) ctx.scale(-1, 1);
   drawBug(ctx, bug);
   ctx.restore();
 }

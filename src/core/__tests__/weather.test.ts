@@ -236,12 +236,15 @@ describe("shower roll and wind", () => {
 
   it("maps every tray rain command to stop or a concrete kind", () => {
     expect(rainTrayAction("rain_off")).toEqual({ mode: "off" });
-    expect(rainTrayAction("rain_random")).toEqual({ mode: "start", kind: "random" });
     expect(rainTrayAction("rain_light")).toEqual({ mode: "start", kind: "light" });
     expect(rainTrayAction("rain_moderate")).toEqual({ mode: "start", kind: "moderate" });
     expect(rainTrayAction("rain_heavy")).toEqual({ mode: "start", kind: "heavy" });
     expect(rainTrayAction("rain_downpour")).toEqual({ mode: "start", kind: "downpour" });
     expect(rainTrayAction("rain_thunder")).toEqual({ mode: "start", kind: "thunder" });
+    expect(rainTrayAction("rain_snow")).toEqual({ mode: "start", kind: "snow" });
+    expect(rainTrayAction("rain_fog")).toEqual({ mode: "start", kind: "fog" });
+    expect(rainTrayAction("rain_sand")).toEqual({ mode: "start", kind: "sand" });
+    expect(rainTrayAction("rain_random")).toBeNull();
     expect(rainTrayAction("toggle_rain")).toBeNull();
     expect(rainTrayAction("open_settings")).toBeNull();
   });
@@ -259,5 +262,13 @@ describe("shower roll and wind", () => {
       expect(ladder[i].density).toBeGreaterThan(ladder[i - 1].density);
       expect(ladder[i].wash).toBeGreaterThan(ladder[i - 1].wash);
     }
+  });
+
+  it("tags snow / fog / sand with the right renderer family", () => {
+    expect(RAIN_PROFILES.snow.family).toBe("snow");
+    expect(RAIN_PROFILES.fog.family).toBe("fog");
+    expect(RAIN_PROFILES.sand.family).toBe("sand");
+    expect(RAIN_PROFILES.heavy.family).toBe("rain");
+    expect(RAIN_PROFILES.snow.lightning).toBe(false);
   });
 });

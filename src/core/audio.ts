@@ -69,6 +69,38 @@ export function playSquishSound(combo = 1): void {
   osc.stop(t + 0.14);
 }
 
+/** Broad hiss for the insecticide spray. */
+export function playSprayHiss(): (() => void) | undefined {
+  const ac = getCtx();
+  if (!ac) return;
+  const t = ac.currentTime;
+  const duration = 0.45;
+  const bufferSize = Math.floor(ac.sampleRate * duration);
+  const buffer = ac.createBuffer(1, bufferSize, ac.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    const env = Math.sin((i / bufferSize) * Math.PI);
+    data[i] = (Math.random() * 2 - 1) * env;
+  }
+  const noise = ac.createBufferSource();
+  noise.buffer = buffer;
+  const filter = ac.createBiquadFilter();
+  filter.type = "highpass";
+  filter.frequency.value = 1800;
+  const gain = ac.createGain();
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(0.12, t + 0.04);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(ac.destination);
+  noise.start(t);
+  noise.stop(t + duration + 0.02);
+  const disconnect = () => { noise.disconnect(); filter.disconnect(); gain.disconnect(); };
+  noise.onended = disconnect;
+  return () => { noise.stop(); disconnect(); };
+}
+
 /** Dull thud for chipping a fat bug. */
 export function playHurtSound(): void {
   const ac = getCtx();

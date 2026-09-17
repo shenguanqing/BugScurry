@@ -3,10 +3,12 @@ import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LIMITS } from "../core/config";
+import { RAIN_KIND_ORDER } from "../core/weather";
 import type { FoodKind, Settings } from "../core/types";
 import { t } from "../i18n";
 import { getSpecies, listSpecies } from "../species";
 import SpeciesPreview from "./SpeciesPreview.vue";
+import InfoTip from "./InfoTip.vue";
 import {
   applyMonitorMode,
   applyThemeToDocument,
@@ -56,12 +58,30 @@ const settings = reactive<Settings>({
   rainKind: "moderate",
   rainWind: 0,
   autoRain: false,
+  randomEvents: false,
 });
 
 const foodEmoji: Record<FoodKind, string> = { cookie: "🍪", sugar: "🍬", fruit: "🍓" };
 const personalities = ["shy", "greedy", "lazy", "curious"] as const;
 
 const favoriteFood = computed(() => getSpecies(settings.species)?.traits.favoriteFood);
+
+/** Shared catalog for native integration checks and the browser QA page. */
+const weatherDebugKinds = RAIN_KIND_ORDER;
+
+const randomWeatherTipLines = computed(() => {
+  void localeVersion.value;
+  return weatherDebugKinds.map((k) => tt(`tray.rain.${k}`));
+});
+
+/** Event pool listed in the Random-events info popover. */
+const randomEventTipLines = computed(() => {
+  void localeVersion.value;
+  const kinds = ["swarm", "fat_invasion", "berserk", "size_chaos", "night_raid"] as const;
+  return kinds.map(
+    (k) => `${tt(`event.${k}.title`)} — ${tt(`event.${k}.subtitle`)}`,
+  );
+});
 const hoveredSpecies = ref<string | null>(null);
 const focusedSpecies = ref<string | null>(null);
 /** True while the pointer is inside the species grid (keeps the popover up). */
@@ -151,7 +171,9 @@ function onSlider(key: "size" | "speed" | "randomness" | "count", ev: Event) {
   }
 }
 
-function toggle(key: "sound" | "stains" | "particles" | "repellent" | "autoRain") {
+function toggle(
+  key: "sound" | "stains" | "particles" | "repellent" | "autoRain" | "randomEvents",
+) {
   settings[key] = !settings[key];
   void persist();
 }
@@ -210,6 +232,24 @@ async function clearAll() {
   await sendOverlayCommand("clear");
 }
 
+/** Hidden QA panel: click the footer note 5× within 1.5s. */
+const debugOpen = ref(false);
+let debugClicks = 0;
+let debugClickTimer = 0;
+
+function onFooterClick() {
+  debugClicks += 1;
+  window.clearTimeout(debugClickTimer);
+  if (debugClicks >= 5) {
+    debugClicks = 0;
+    debugOpen.value = !debugOpen.value;
+    return;
+  }
+  debugClickTimer = window.setTimeout(() => {
+    debugClicks = 0;
+  }, 1500);
+}
+
 async function regenerate() {
   await sendOverlayCommand("regenerate");
 }
@@ -248,6 +288,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.clearTimeout(flashTimer);
+  window.clearTimeout(debugClickTimer);
   unlistenSettings?.();
 });
 </script>
@@ -448,6 +489,22 @@ onUnmounted(() => {
     <section class="card list-card">
       <div class="toggles">
         <div class="toggle-row">
+          <div class="toggle-label-wrap">
+            <label for="toggle-repellent" class="toggle-label">{{ tt("toggle.repellent") }}</label>
+            <InfoTip :text="tt('toggle.repellent.tip')" :label="tt('toggle.repellent')" />
+          </div>
+          <button
+            type="button"
+            class="toggle-switch"
+            id="toggle-repellent"
+            :class="{ on: settings.repellent }"
+            role="switch"
+            :aria-checked="settings.repellent"
+            :aria-label="tt('toggle.repellent')"
+            @click="toggle('repellent')"
+          ></button>
+        </div>
+        <div class="toggle-row">
           <label for="toggle-sound" class="toggle-label">{{ tt("toggle.sound") }}</label>
           <button
             type="button"
@@ -474,7 +531,10 @@ onUnmounted(() => {
           ></button>
         </div>
         <div class="toggle-row">
-          <label for="toggle-particles" class="toggle-label" :title="tt('toggle.particles.tip')">{{ tt("toggle.particles") }}</label>
+          <div class="toggle-label-wrap">
+            <label for="toggle-particles" class="toggle-label">{{ tt("toggle.particles") }}</label>
+            <InfoTip :text="tt('toggle.particles.tip')" :label="tt('toggle.particles')" />
+          </div>
           <button
             type="button"
             class="toggle-switch"
@@ -483,26 +543,18 @@ onUnmounted(() => {
             role="switch"
             :aria-checked="settings.particles"
             :aria-label="tt('toggle.particles')"
-            :title="tt('toggle.particles.tip')"
             @click="toggle('particles')"
           ></button>
         </div>
         <div class="toggle-row">
-          <label for="toggle-repellent" class="toggle-label" :title="tt('toggle.repellent.tip')">{{ tt("toggle.repellent") }}</label>
-          <button
-            type="button"
-            class="toggle-switch"
-            id="toggle-repellent"
-            :class="{ on: settings.repellent }"
-            role="switch"
-            :aria-checked="settings.repellent"
-            :aria-label="tt('toggle.repellent')"
-            :title="tt('toggle.repellent.tip')"
-            @click="toggle('repellent')"
-          ></button>
-        </div>
-        <div class="toggle-row">
-          <label for="toggle-auto-rain" class="toggle-label" :title="tt('toggle.autoRain.tip')">{{ tt("toggle.autoRain") }}</label>
+          <div class="toggle-label-wrap">
+            <label for="toggle-auto-rain" class="toggle-label">{{ tt("toggle.autoRain") }}</label>
+            <InfoTip
+              :label="tt('toggle.autoRain')"
+              :text="tt('toggle.autoRain.tip')"
+              :lines="randomWeatherTipLines"
+            />
+          </div>
           <button
             type="button"
             class="toggle-switch"
@@ -511,8 +563,27 @@ onUnmounted(() => {
             role="switch"
             :aria-checked="settings.autoRain"
             :aria-label="tt('toggle.autoRain')"
-            :title="tt('toggle.autoRain.tip')"
             @click="toggle('autoRain')"
+          ></button>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-label-wrap">
+            <label for="toggle-random-events" class="toggle-label">{{ tt("toggle.randomEvents") }}</label>
+            <InfoTip
+              :label="tt('toggle.randomEvents')"
+              :text="tt('toggle.randomEvents.tip')"
+              :lines="randomEventTipLines"
+            />
+          </div>
+          <button
+            type="button"
+            class="toggle-switch"
+            id="toggle-random-events"
+            :class="{ on: settings.randomEvents }"
+            role="switch"
+            :aria-checked="settings.randomEvents"
+            :aria-label="tt('toggle.randomEvents')"
+            @click="toggle('randomEvents')"
           ></button>
         </div>
         <div class="toggle-row">
@@ -590,7 +661,75 @@ onUnmounted(() => {
       <button type="button" class="btn danger" @click="clearAll">{{ tt("action.clear") }}</button>
     </section>
 
-    <footer class="footer">
+    <section v-if="debugOpen" class="card debug-card" :aria-label="tt('debug.title')">
+      <div class="debug-head">
+        <div class="debug-head-row">
+          <h2 class="debug-title">{{ tt("debug.title") }}</h2>
+          <span class="debug-badge">DEV</span>
+          <button
+            type="button"
+            class="debug-x"
+            :aria-label="tt('debug.close')"
+            :title="tt('debug.close')"
+            @click="debugOpen = false"
+          >×</button>
+        </div>
+        <p class="hint debug-hint">{{ tt("debug.hint") }}</p>
+      </div>
+
+      <div class="debug-group">
+        <p class="debug-group-label">{{ tt("debug.group.weather") }}</p>
+        <div class="debug-chips">
+          <button type="button" class="debug-chip" @click="void sendOverlayCommand('debug_rain_random')">
+            {{ tt("debug.rain") }}
+          </button>
+          <button type="button" class="debug-chip" @click="void sendOverlayCommand('debug_rain_stop')">
+            {{ tt("debug.rainStop") }}
+          </button>
+          <button
+            v-for="kind in weatherDebugKinds"
+            :key="kind"
+            type="button"
+            class="debug-chip"
+            @click="void sendOverlayCommand(`debug_weather:${kind}`)"
+          >
+            {{ tt(`tray.rain.${kind}`) }}
+          </button>
+        </div>
+      </div>
+
+      <div class="debug-group">
+        <p class="debug-group-label">{{ tt("debug.group.events") }}</p>
+        <div class="debug-chips">
+          <button type="button" class="debug-chip" @click="void sendOverlayCommand('debug_event:swarm')">
+            {{ tt("event.swarm.title") }}
+          </button>
+          <button type="button" class="debug-chip" @click="void sendOverlayCommand('debug_event:fat_invasion')">
+            {{ tt("event.fat_invasion.title") }}
+          </button>
+          <button type="button" class="debug-chip" @click="void sendOverlayCommand('debug_event:berserk')">
+            {{ tt("event.berserk.title") }}
+          </button>
+          <button type="button" class="debug-chip" @click="void sendOverlayCommand('debug_event:size_chaos')">
+            {{ tt("event.size_chaos.title") }}
+          </button>
+          <button type="button" class="debug-chip" @click="void sendOverlayCommand('debug_event:night_raid')">
+            {{ tt("event.night_raid.title") }}
+          </button>
+        </div>
+      </div>
+
+      <div class="debug-group">
+        <p class="debug-group-label">{{ tt("debug.group.tools") }}</p>
+        <div class="debug-chips">
+          <button type="button" class="debug-chip" @click="void sendOverlayCommand('debug_spray')">
+            {{ tt("debug.spray") }}
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer footer-hot" @click="onFooterClick">
       {{ tt("footer") }}
     </footer>
   </div>

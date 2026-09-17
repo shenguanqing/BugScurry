@@ -15,9 +15,9 @@ Cross-platform desktop app for **macOS** and **Windows**. Runs in the background
 - Multiple bugs with independent random motion (crawl, pause, turn, edge-hug)
 - Squish on click: flatten animation, optional Web Audio snap, stains, particles
 - Four personalities + species favorites for cookie / sugar / fruit feeding
-- Day/night species mix; tray weather with five rain intensities, wind, lightning, and rain audio
-- Settings window: count 1–50, size, speed, randomness, sound/stains/particles, autostart, random rain, multi-monitor, light/dark/auto theme
-- Tray / Menu Bar: show-hide, add/remove, regenerate, feed, weather, settings, quit
+- Day/night species mix; tray weather (five rain intensities plus snow, fog, sandstorm — wind, lightning, ambient sound)
+- Settings window: count 1–50, size, speed, randomness, sound/stains/particles, autostart, random weather, random events, multi-monitor, light/dark/auto theme
+- Tray / Menu Bar: show-hide, add/remove, regenerate, feed, weather, insecticide spray, settings, quit
 - Closing settings does not quit the app
 - Squished bugs are **not** auto-replaced (regenerate or raise count to spawn more)
 - Overlay follows macOS Mission Control Spaces
@@ -42,9 +42,9 @@ Eating styles follow personality: shy bugs peck and bolt, greedy and lazy bugs c
 
 Random mixes follow the local clock: dawn and day favor diurnal species (ants, bees, butterflies, caterpillars, ladybugs), while dusk and night favor nocturnal ones (cockroaches, mosquitoes, spiders). Picking a single species ignores the phase. Flies stay anytime.
 
-**Tray → Weather** offers stop, random, light, moderate, heavy, downpour, or thunderstorm. Depth-layered streaks densify and brighten with intensity, wind leans are re-rolled each shower, and thunder adds double-strike lightning plus matching rumble audio. Bugs slow down, rest longer, and hug the nearest edge in proportion to the storm. Rain sound shares the global sound toggle. Rain is a preference, so it survives restarts.
+**Tray → Weather** offers stop, light / moderate / heavy / downpour / thunderstorm, plus snow, fog, and sandstorm. Rain streaks densify and brighten with intensity; thunder adds lightning; snow drifts slowly; fog is a low-contrast wash; sandstorm uses warm diagonal grit. Bugs slow down and hug edges more in harsh weather (fog is gentler). Weather sound shares the master sound toggle — snow and fog are nearly silent, sand leans on wind noise. Weather is a preference, so it survives restarts.
 
-Turn on **Random rain** in Settings and the app starts and stops showers on its own (about 40s–3min dry, 16–60s wet; downpour and thunder run a bit shorter). Auto showers **always roll a random intensity**. A manual tray choice re-arms that schedule instead of fighting it.
+Turn on **Random weather** in Settings and the app starts and stops weather on its own (about 40s–3min dry, 16–60s wet; downpour, thunder, and sand run a bit shorter). Auto always **rolls a random kind**. A manual tray choice re-arms that schedule instead of fighting it.
 
 ## Tech Stack
 
@@ -70,6 +70,9 @@ BugScurry/
 ├── package.json
 ├── vite.config.ts
 ├── tsconfig.json
+├── tsconfig.node.json
+├── LICENSE
+├── CHANGELOG.md
 ├── assets/
 │   └── icon-source.png        # App icon source (1024² with HIG padding)
 ├── docs/
@@ -79,12 +82,15 @@ BugScurry/
 │   ├── platforms.md / .zh-CN.md
 │   ├── requirements.md / .zh-CN.md
 │   ├── roadmap.md / .zh-CN.md
-│   └── tech-analysis.md / .zh-CN.md
+│   ├── tech-analysis.md / .zh-CN.md
+│   └── screenshots/           # README images
+├── qa/                        # Species / weather / event QA page
 ├── .github/
 │   └── workflows/
 │       └── ci.yml             # Quality + Windows NSIS + macOS DMG + tag Release
 ├── src/
 │   ├── main.ts
+│   ├── vite-env.d.ts
 │   ├── App.vue                # Overlay shell (canvas, hit-test, tray)
 │   ├── core/
 │   │   ├── types.ts
@@ -92,9 +98,16 @@ BugScurry/
 │   │   ├── settings.ts        # Pure settings clamp helpers
 │   │   ├── rng.ts
 │   │   ├── bug.ts             # Bug entity factory
-│   │   ├── bugManager.ts      # Spawn / clear / regenerate / squish
+│   │   ├── bugManager.ts      # Spawn / clear / regenerate / squish / FX
 │   │   ├── movement.ts        # Crawl AI
-│   │   ├── renderer.ts        # Canvas draw + squish / stains / particles
+│   │   ├── personality.ts     # Four personalities + eat-style baselines
+│   │   ├── feeding.ts         # Food choice / eat plans / carry
+│   │   ├── weather.ts         # Day phase, weather profiles, wind, lightning
+│   │   ├── atmosphere.ts      # Seamless fog/dust textures + sand gust
+│   │   ├── randomEvents.ts    # Random-event clock and pool
+│   │   ├── rainAudio.ts       # Procedural rain / wind / thunder audio
+│   │   ├── rainTexture.ts     # Offline-built rain streak textures
+│   │   ├── renderer.ts        # Canvas draw + squish / stains / particles / rain
 │   │   ├── hitTest.ts
 │   │   ├── squish.ts
 │   │   ├── audio.ts
@@ -108,18 +121,32 @@ BugScurry/
 │   │   ├── ant.ts
 │   │   ├── spider.ts
 │   │   ├── fly.ts
-│   │   └── ladybug.ts
+│   │   ├── ladybug.ts
+│   │   ├── bee.ts
+│   │   ├── caterpillar.ts
+│   │   ├── butterfly.ts
+│   │   └── mosquito.ts
 │   ├── settings/
 │   │   ├── main.ts
-│   │   └── SettingsApp.vue    # Settings UI
+│   │   ├── SettingsApp.vue    # Settings UI
+│   │   ├── SpeciesPreview.vue # Live gait popover on species hover
+│   │   ├── InfoTip.vue        # ⓘ info popovers
+│   │   └── speciesPreviewLayout.ts
+│   ├── qa/                    # QA page scripts
 │   ├── services/
 │   │   ├── tauriBridge.ts     # Overlay ↔ Tauri events / commands
-│   │   └── settingsService.ts # Store, theme, monitor mode
+│   │   ├── settingsService.ts # Store, theme, monitor mode
+│   │   ├── dailyStatsService.ts # Primary overlay only: kill log + tray stats
+│   │   └── __tests__/
+│   ├── i18n/
+│   │   ├── index.ts
+│   │   └── messages.ts        # zh-CN / zh-TW / en / ja / ko
 │   └── styles/
 │       ├── overlay.css
 │       └── settings.css
 └── src-tauri/
     ├── Cargo.toml
+    ├── build.rs
     ├── tauri.conf.json
     ├── capabilities/
     │   └── default.json

@@ -21,12 +21,15 @@ pub struct TrayLabels {
     pub fruit: String,
     pub rain: String,
     pub rain_off: String,
-    pub rain_random: String,
     pub rain_light: String,
     pub rain_moderate: String,
     pub rain_heavy: String,
     pub rain_downpour: String,
     pub rain_thunder: String,
+    pub rain_snow: String,
+    pub rain_fog: String,
+    pub rain_sand: String,
+    pub spray: String,
     pub settings: String,
     pub quit: String,
     pub stats: String,
@@ -44,13 +47,16 @@ impl Default for TrayLabels {
             sugar: "放一颗糖".into(),
             fruit: "放一块水果".into(),
             rain: "下雨".into(),
-            rain_off: "停雨".into(),
-            rain_random: "随机".into(),
+            rain_off: "停止".into(),
             rain_light: "小雨".into(),
             rain_moderate: "中雨".into(),
             rain_heavy: "大雨".into(),
             rain_downpour: "暴雨".into(),
             rain_thunder: "雷阵雨".into(),
+            rain_snow: "雪".into(),
+            rain_fog: "雾".into(),
+            rain_sand: "沙尘".into(),
+            spray: "喷雾杀虫剂".into(),
             settings: "设置…".into(),
             quit: "退出".into(),
             stats: "今日战绩".into(),
@@ -67,6 +73,25 @@ static LAST_LABELS: Mutex<Option<TrayLabels>> = Mutex::new(None);
 static TRAY_CREATED: AtomicBool = AtomicBool::new(false);
 /// Active shower for checkmarks: (raining, kind). Kind is only set while raining.
 static RAIN_STATE: Mutex<(bool, Option<String>)> = Mutex::new((false, None));
+/// Remaining cooldown seconds for the spray item; 0 = ready.
+/// Primary overlay owns the countdown and pushes it every second.
+static SPRAY_COOLDOWN: Mutex<u32> = Mutex::new(0);
+/// Live spray menu item so cooldown ticks update text in place (no set_menu flash).
+static SPRAY_ITEM: Mutex<Option<MenuItem<tauri::Wry>>> = Mutex::new(None);
+
+fn spray_cooldown_sec() -> u32 {
+    *SPRAY_COOLDOWN
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+}
+
+fn cooldown_label(base: &str, remaining_sec: u32) -> String {
+    if remaining_sec == 0 {
+        base.to_string()
+    } else {
+        format!("{base} · {remaining_sec}s")
+    }
+}
 
 fn rain_state() -> (bool, Option<String>) {
     RAIN_STATE
@@ -124,7 +149,7 @@ fn build_menu(app: &tauri::AppHandle, labels: &TrayLabels) -> tauri::Result<Menu
     let fruit = MenuItem::with_id(app, "drop_fruit", &labels.fruit, true, None::<&str>)?;
     let feed = Submenu::with_items(app, &labels.feed, true, &[&bait, &sugar, &fruit])?;
     let (raining, _) = rain_state();
-    // Checkmarks show the live weather; "random" stays a one-shot action.
+    // Checkmarks show the live weather; strength items are one-shot starts.
     let rain_off = CheckMenuItem::with_id(
         app,
         "rain_off",
@@ -133,8 +158,6 @@ fn build_menu(app: &tauri::AppHandle, labels: &TrayLabels) -> tauri::Result<Menu
         !raining,
         None::<&str>,
     )?;
-    let rain_random =
-        MenuItem::with_id(app, "rain_random", &labels.rain_random, true, None::<&str>)?;
     let rain_light = CheckMenuItem::with_id(
         app,
         "rain_light",
@@ -175,18 +198,44 @@ fn build_menu(app: &tauri::AppHandle, labels: &TrayLabels) -> tauri::Result<Menu
         kind_checked("thunder"),
         None::<&str>,
     )?;
+    let rain_snow = CheckMenuItem::with_id(
+        app,
+        "rain_snow",
+        &labels.rain_snow,
+        true,
+        kind_checked("snow"),
+        None::<&str>,
+    )?;
+    let rain_fog = CheckMenuItem::with_id(
+        app,
+        "rain_fog",
+        &labels.rain_fog,
+        true,
+        kind_checked("fog"),
+        None::<&str>,
+    )?;
+    let rain_sand = CheckMenuItem::with_id(
+        app,
+        "rain_sand",
+        &labels.rain_sand,
+        true,
+        kind_checked("sand"),
+        None::<&str>,
+    )?;
     let rain = Submenu::with_items(
         app,
         &labels.rain,
         true,
         &[
             &rain_off,
-            &rain_random,
             &rain_light,
             &rain_moderate,
             &rain_heavy,
             &rain_downpour,
             &rain_thunder,
+            &rain_snow,
+            &rain_fog,
+            &rain_sand,
         ],
     )?;
     let settings = MenuItem::with_id(
@@ -197,9 +246,30 @@ fn build_menu(app: &tauri::AppHandle, labels: &TrayLabels) -> tauri::Result<Menu
         Some("CmdOrCtrl+,"),
     )?;
     let quit = MenuItem::with_id(app, "quit", &labels.quit, true, Some("CmdOrCtrl+Q"))?;
+    let spray_cd = spray_cooldown_sec();
+    let spray = MenuItem::with_id(
+        app,
+        "prank_spray",
+        &cooldown_label(&labels.spray, spray_cd),
+        spray_cd == 0,
+        None::<&str>,
+    )?;
+    *SPRAY_ITEM.lock().unwrap_or_else(|e| e.into_inner()) = Some(spray.clone());
+    // Status → visibility → population → tools → interact → environment → app.
     Menu::with_items(
         app,
-        &[&stats, &show, &add, &remove, &regen, &feed, &rain, &settings, &quit],
+        &[
+            &stats,
+            &show,
+            &add,
+            &remove,
+            &regen,
+            &spray,
+            &feed,
+            &rain,
+            &settings,
+            &quit,
+        ],
     )
 }
 
@@ -208,11 +278,22 @@ fn on_menu_event(app: &tauri::AppHandle, id: &str) {
         "quit" => app.exit(0),
         "open_settings" => super::open_or_focus_settings(app),
         "today_stats" => {}
-        other => {
-            if let Some(window) = app.get_webview_window("overlay") {
-                let _ = window.emit("tray-command", other);
+        other => emit_tray_to_overlays(app, other),
+    }
+}
+
+/// Spray must hit every display; other commands stay on the primary overlay.
+pub fn emit_tray_to_overlays(app: &tauri::AppHandle, cmd: &str) {
+    if cmd == "prank_spray" {
+        for (label, win) in app.webview_windows() {
+            if label == "overlay" || label.starts_with("overlay-") {
+                let _ = win.emit("tray-command", cmd);
             }
         }
+        return;
+    }
+    if let Some(window) = app.get_webview_window("overlay") {
+        let _ = window.emit("tray-command", cmd);
     }
 }
 
@@ -290,5 +371,23 @@ pub fn apply_rain_state(
     };
     let menu = build_menu(app, &current_labels())?;
     tray.set_menu(Some(menu))?;
+    Ok(())
+}
+
+/// Update spray cooldown label in place (avoids set_menu closing an open tray).
+pub fn apply_spray_cooldown(_app: &tauri::AppHandle, spray_cooldown_sec: u32) -> tauri::Result<()> {
+    {
+        let mut s = SPRAY_COOLDOWN.lock().unwrap_or_else(|e| e.into_inner());
+        *s = spray_cooldown_sec;
+    }
+    let labels = current_labels();
+    if let Some(item) = SPRAY_ITEM
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_ref()
+    {
+        item.set_text(cooldown_label(&labels.spray, spray_cooldown_sec))?;
+        item.set_enabled(spray_cooldown_sec == 0)?;
+    }
     Ok(())
 }

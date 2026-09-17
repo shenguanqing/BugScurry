@@ -66,6 +66,20 @@ Ship a playable loop first; every milestone must be runnable and checkable.
 - [x] i18n: zh-CN, zh-TW, en, ja, ko
 - [x] Settings UI toward iOS inset-grouped (borderless cards, list rows, selects)
 
+## M7 — Spray, random events & weather expansion
+
+- [x] Tray “Insecticide spray”: screen-wide kill + mist FX + hiss; 45s countdown in the label; counts toward daily stats
+- [x] Settings “Random events”: equal-weight pool (bug tide / fat invasion / berserk dash / size chaos / night raid); never rewrites `count`
+- [x] Bug tide: temporary double (cap 50), 18s peak then 12s fall
+- [x] Full-viewport title card (plays out and fades before the event); multi-display sync
+- [x] Spray cooldown via in-place `set_text`; tray “Random shower” removed
+- [x] Settings info-icon popovers; random-events / random-weather tips list the pools
+- [x] Hidden debug panel (footer ×5): every weather kind + events + spray
+- [x] Weather: snow / fog / sandstorm; tray “Weather”, Settings “Random weather”, stop label
+- [x] `atmosphere.ts` seamless fog/dust textures and sand gust (shared audio/visual envelope)
+- [x] First-class QA page: `qa/` (Vite maps legacy `.tmp-species-qa` bookmarks)
+- [x] Unit tests: `prank` / `randomEvents` / `atmosphere` / weather families
+
 ## Later (not blocking)
 
 - [x] Overlay on all macOS Spaces (soaked 2 Spaces on macOS 15.7.9; overlay stayed onscreen)

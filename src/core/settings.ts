@@ -7,6 +7,9 @@ const RAIN_KINDS: readonly RainKind[] = [
   "heavy",
   "downpour",
   "thunder",
+  "snow",
+  "fog",
+  "sand",
 ];
 
 export function clampSettings(input: Partial<Settings>): Settings {
@@ -25,6 +28,7 @@ export function clampSettings(input: Partial<Settings>): Settings {
   next.autostart = !!next.autostart;
   next.rain = !!next.rain;
   next.autoRain = !!next.autoRain;
+  next.randomEvents = !!next.randomEvents;
   next.rainKind = RAIN_KINDS.includes(next.rainKind) ? next.rainKind : "moderate";
   const wind = Number(next.rainWind);
   next.rainWind = Number.isFinite(wind) ? Math.min(1, Math.max(-1, wind)) : 0;

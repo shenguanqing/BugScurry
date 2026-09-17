@@ -1,3 +1,4 @@
+import { drawAtmosphere } from "./atmosphere";
 import { squishPressure } from "./squish";
 import { RAIN_LAYERS, RAIN_PROFILES, lightningFlash, rainWindAt } from "./weather";
 import type { RainKind } from "./types";
@@ -503,6 +504,78 @@ export function drawRain(
   ctx.restore();
 }
 
+/** Soft drifting flakes — slower and rounder than rain streaks. */
+export function drawSnow(
+  ctx: CanvasRenderingContext2D,
+  viewport: Viewport,
+  timeSec: number,
+  kind: RainKind = "snow",
+  windBase = 0.3,
+): void {
+  const profile = RAIN_PROFILES[kind];
+  const h = viewport.height;
+  const w = viewport.width;
+  const wind = rainWindAt(windBase, profile, timeSec);
+  const count = Math.round(70 * profile.density);
+
+  ctx.save();
+  for (let i = 0; i < count; i++) {
+    const seed = i * 23.7 + 11;
+    const layer = i % 3;
+    const r = 1.1 + layer * 0.7 + hash(seed + 3) * 0.8;
+    const speed = 18 + layer * 16 + hash(seed + 5) * 22;
+    const span = h + r * 4;
+    const fall = (hash(seed + 1) * span + timeSec * speed) % span;
+    const y = fall - r;
+    const x =
+      hash(seed + 2) * w +
+      Math.sin(timeSec * 0.35 + seed) * (6 + layer * 4) +
+      wind * 28 * (0.4 + layer * 0.2);
+    const alpha = (0.35 + layer * 0.15) * profile.alphaMul;
+    ctx.globalAlpha = Math.min(0.85, alpha);
+    ctx.fillStyle = "#f4f7fb";
+    ctx.beginPath();
+    ctx.ellipse(x, y, r, r * (0.85 + hash(seed + 7) * 0.25), 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  if (profile.wash > 0) {
+    ctx.globalAlpha = profile.wash * 0.85;
+    ctx.fillStyle = "#c9d4e4";
+    ctx.fillRect(0, 0, w, h);
+  }
+  ctx.restore();
+}
+
+/** Slowly advected, soft-edged mist with no discrete cloud outlines. */
+export function drawFog(
+  ctx: CanvasRenderingContext2D, viewport: Viewport, timeSec: number,
+  kind: RainKind = "fog", windBase = 0,
+): void {
+  drawAtmosphere(ctx, viewport, timeSec, false, windBase, RAIN_PROFILES[kind].density);
+}
+
+/** Wind-carried dust haze and fine grains, mostly moving horizontally. */
+export function drawSand(
+  ctx: CanvasRenderingContext2D, viewport: Viewport, timeSec: number,
+  kind: RainKind = "sand", windBase = 0.5,
+): void {
+  drawAtmosphere(ctx, viewport, timeSec, true, windBase, RAIN_PROFILES[kind].density);
+}
+
+export function drawWeather(
+  ctx: CanvasRenderingContext2D,
+  viewport: Viewport,
+  timeSec: number,
+  kind: RainKind,
+  windBase: number,
+): void {
+  const family = RAIN_PROFILES[kind].family;
+  if (family === "snow") drawSnow(ctx, viewport, timeSec, kind, windBase);
+  else if (family === "fog") drawFog(ctx, viewport, timeSec, kind, windBase);
+  else if (family === "sand") drawSand(ctx, viewport, timeSec, kind, windBase);
+  else drawRain(ctx, viewport, timeSec, kind, windBase);
+}
+
 /** Full-screen lightning pulse for thunder storms (drawn above bugs). */
 export function drawLightning(
   ctx: CanvasRenderingContext2D,
@@ -526,6 +599,27 @@ export function drawLightning(
   ctx.restore();
 }
 
+/** Translucent insecticide mist sweeping top → bottom. */
+function drawSprayMist(
+  ctx: CanvasRenderingContext2D,
+  viewport: Viewport,
+  progress: number,
+): void {
+  const p = Math.min(1, Math.max(0, progress));
+  const h = viewport.height;
+  const band = h * 0.42;
+  const headY = p * (h + band) - band * 0.2;
+  const fade = p < 0.15 ? p / 0.15 : p > 0.75 ? Math.max(0, (1 - p) / 0.25) : 1;
+  const grad = ctx.createLinearGradient(0, headY - band, 0, headY + band * 0.35);
+  grad.addColorStop(0, "rgba(255,255,255,0)");
+  grad.addColorStop(0.45, `rgba(248,250,255,${0.28 * fade})`);
+  grad.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.save();
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, Math.max(0, headY - band), viewport.width, band * 1.4);
+  ctx.restore();
+}
+
 export function render(
   ctx: CanvasRenderingContext2D,
   bugs: Bug[],
@@ -536,6 +630,7 @@ export function render(
   viewport: Viewport,
   rain: false | { kind: RainKind; wind: number } = false,
   timeSec = 0,
+  sprayFx = 0,
 ): void {
   ctx.save();
   ctx.setTransform(viewport.dpr, 0, 0, viewport.dpr, 0, 0);
@@ -547,11 +642,12 @@ export function render(
   drawParticles(ctx, particles);
   drawFloats(ctx, floats);
   if (rain) {
-    drawRain(ctx, viewport, timeSec, rain.kind, rain.wind);
+    drawWeather(ctx, viewport, timeSec, rain.kind, rain.wind);
     if (RAIN_PROFILES[rain.kind].lightning) {
       drawLightning(ctx, viewport, timeSec);
     }
   }
+  if (sprayFx > 0) drawSprayMist(ctx, viewport, sprayFx);
 
   ctx.restore();
 }

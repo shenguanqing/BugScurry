@@ -43,7 +43,7 @@ export function createLoop(hooks: LoopHooks) {
           cursor,
           manager.baitList,
         );
-        manager.tick(dt);
+        manager.tick(dt, t);
 
         const canvas = hooks.getCanvas();
         if (canvas) {
@@ -61,6 +61,7 @@ export function createLoop(hooks: LoopHooks) {
                 ? { kind: settings.rainKind, wind: settings.rainWind }
                 : false,
               t / 1000,
+              manager.sprayFxProgress,
             );
           }
         }

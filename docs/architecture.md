@@ -57,7 +57,8 @@ tray.rs
 | Settings clamp | `src/core/settings.ts` | Pure settings normalization (no Tauri imports) |
 | Personality / Feeding | `src/core/personality.ts`, `src/core/feeding.ts` | Spawn-time personality; `resolveEatPlan` stacks species `eatStyle` on personality; food selection by distance + `favoriteFood` |
 | Weather | `src/core/weather.ts` | Local-clock `DayPhase` weights; rain kind profiles, wind, lightning envelope, auto-rain clock |
-| Rain audio / textures | `src/core/rainAudio.ts`, `src/core/rainTexture.ts` | Procedural rain bed + thunder; offline-built loop textures (no per-drop synthesis in rAF) |
+| Rain audio / textures | `src/core/rainAudio.ts`, `src/core/rainTexture.ts` | Procedural rain + thunder and separate dry wind/grit for sand; fog is silent. Cached loop textures, throttled gust mixing (no per-drop synthesis in rAF) |
+| Atmosphere | `src/core/atmosphere.ts` | Cached seamless turbulence for fog/dust; horizontal sand advection and shared visual/audio gust envelope |
 | Movement | `src/core/movement.ts` | Crawl / pause / turn / corner escape / edge-hug / rain cover / nibble & carry haul |
 | Renderer | `src/core/renderer.ts` | Canvas draw, squish transform, stains, particles, rain streaks, lightning, carried crumbs; delegates species `draw` |
 | HitTest | `src/core/hitTest.ts` | Pointer vs bug radius |
@@ -68,8 +69,9 @@ tray.rs
 | Settings UI | `src/settings/*` | Settings window |
 | Services | `src/services/*` | Tauri events/commands, store, theme, monitors |
 | DailyStatsService | `src/services/dailyStatsService.ts` | Primary-overlay owner: queue kills, serialize store writes, refresh tray stats |
+| Prank / random events | `BugManager.sprayKillAll` / `startSwarm` / `startFatInvasion` / `startBerserk` / `startSizeChaos` / `startNightRaid`; `randomEvents.ts` | Tray spray + in-place cooldown; Settings random-event pool (tide/fat/berserk/size/night); temp state never writes `settings.count` |
 | Shell | `src-tauri/src/lib.rs` | Windows, cursor, monitors, commands, overlay/settings z-order |
-| Tray | `src-tauri/src/tray.rs` | Menu bar / tray menu (feed + weather submenus) |
+| Tray | `src-tauri/src/tray.rs` | Menu bar / tray (feed, weather, spray) |
 
 ## 4. Bug state machine
 
@@ -187,7 +189,26 @@ Nibble FX (cookie crumbs / sugar sparks / fruit drips) spawn from BugManager on 
 
 Personality base timing lives in `EAT_STYLES` (`personality.ts`); species flavor is applied in `resolveEatPlan` (`feeding.ts`). New species only need an optional `eatStyle` trait.
 
-## 11. Extending species
+## 11. Spray & random events
+
+```text
+Tray “Insecticide spray”
+  └─ prank_spray → broadcast to overlays → sprayKillAll + mist FX + hiss
+       Primary: set_tray_spray(remaining sec) updates the item in place (no set_menu)
+
+Settings “Random events”
+  └─ primary overlay 2s poll of tickAutoEvent
+       due → rollRandomEvent → emit("random-event", {kind})
+       each screen: title card plays out, then applyRandomEvent(kind)
+       pool: swarm / fat_invasion / berserk / size_chaos / night_raid
+       primary rearmAfterEvent(banner + busy(kind) + 90–240s gap)
+```
+
+- Swarm target: `min(countMax, max(settings.count + 12, settings.count * 2))`; state lives only on the `BugManager` instance.
+- User count change / regenerate / clear / tray ± cancels the storm and converges to the configured count.
+- Event pool is swarm-only for now; future events extend `fireRandomEvent` without touching the tray.
+
+## 12. Extending species
 
 ```ts
 // src/species/example.ts
@@ -211,7 +232,7 @@ registerSpecies({
 
 Import from `src/species/index.ts`. Movement stays shared; traits only bias behavior. `activity` only affects random mixes; an explicit species pick ignores the day phase. `eatStyle` layers on top of personality timing via `resolveEatPlan`.
 
-## 12. Conventions
+## 13. Conventions
 
 - TypeScript `strict`
 - Vue components are UI-only; logic in `core/` / `services/`

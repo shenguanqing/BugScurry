@@ -15,9 +15,9 @@
 - 多只虫独立随机运动：爬行、停顿、转向、沿边缘游走
 - 点击捏死：压扁动画、可选 Web Audio 音效、痕迹与粒子
 - 四种性格 + 虫种最爱（饼干 / 糖 / 水果）投喂
-- 日夜虫相；托盘五档下雨（风向、闪电、雨声）
-- 设置：数量 1–50、大小、速度、随机度、音效/痕迹/粒子、开机启动、随机下雨、多显示器、浅色/深色/自动主题
-- 托盘 / Menu Bar：显示隐藏、增减、重新生成、投喂、天气、设置、退出
+- 日夜虫相；托盘天气（五档雨 / 雪 / 雾 / 沙尘，风向、闪电、环境声）
+- 设置：数量 1–50、大小、速度、随机度、音效/痕迹/粒子、开机启动、随机天气、随机事件、多显示器、浅色/深色/自动主题
+- 托盘 / Menu Bar：显示隐藏、增减、重新生成、投喂、天气、喷雾杀虫剂、设置、退出
 - 关闭设置不会退出应用
 - **捏死后不自动补位**（增加数量或点「重新生成」才会再出虫）
 - 覆盖层跟随 macOS 多桌面（Mission Control Spaces）
@@ -42,9 +42,9 @@
 
 随机混养会按本机时钟偏好虫种：清晨和白天更常见昼行的蚂蚁、蜜蜂、蝴蝶、毛毛虫、瓢虫；黄昏和夜晚更常见夜行的蟑螂、蚊子、蜘蛛。手动选定单一虫种时不受时段影响。苍蝇全天出没。
 
-**托盘 → 下雨** 可选择停雨、随机、小雨、中雨、大雨、暴雨或雷阵雨。分层雨丝按强度变密变亮，风向每次开场重掷；雷阵雨还会有双次闪电与对应的雷声。虫子会按强度减速、更爱歇脚、贴向最近的边缘躲雨。雨声与「捏死音效」共用总开关。下雨是持久偏好，重启后仍生效。
+**托盘 → 天气** 可选择停天气，或指定小雨 / 中雨 / 大雨 / 暴雨 / 雷阵雨 / 雪 / 雾 / 沙尘。雨丝按强度变密变亮，风向每次开场重掷；雷阵雨有双次闪电与雷声；雪缓落、雾为低对比雾带、沙尘为斜向暖色粒子。虫子会按强度减速、更爱歇脚、贴向最近的边缘躲雨（雾影响较轻）。环境声与「捏死音效」共用总开关；雪/雾几乎无声，沙尘偏风声。天气是持久偏好，重启后仍生效。
 
-设置里打开 **随机下雨** 后，应用会按自己的节奏自动开雨/停雨（干期约 40 秒–3 分钟，雨期约 16–60 秒，暴雨/雷阵雨略短）；**自动开雨永远随机抽档**。托盘手动选择会重置这段节奏，不会被立刻顶回去。
+设置里打开 **随机天气** 后，应用会按自己的节奏自动开/停天气（干期约 40 秒–3 分钟，湿期约 16–60 秒，暴雨/雷阵雨/沙尘略短）；**自动永远随机抽档**。托盘手动选择会重置这段节奏，不会被立刻顶回去。
 
 ## 技术栈
 
@@ -70,6 +70,9 @@ BugScurry/
 ├── package.json
 ├── vite.config.ts
 ├── tsconfig.json
+├── tsconfig.node.json
+├── LICENSE
+├── CHANGELOG.md
 ├── assets/
 │   └── icon-source.png        # 应用图标源图（1024²，已按 HIG 留白）
 ├── docs/
@@ -79,12 +82,15 @@ BugScurry/
 │   ├── platforms.md / .zh-CN.md
 │   ├── requirements.md / .zh-CN.md
 │   ├── roadmap.md / .zh-CN.md
-│   └── tech-analysis.md / .zh-CN.md
+│   ├── tech-analysis.md / .zh-CN.md
+│   └── screenshots/           # README 配图
+├── qa/                        # 虫种 / 天气 / 事件 QA 页入口
 ├── .github/
 │   └── workflows/
 │       └── ci.yml             # 质量检查 + Windows NSIS + macOS DMG + tag 发布
 ├── src/
 │   ├── main.ts
+│   ├── vite-env.d.ts
 │   ├── App.vue                # 覆盖层外壳（画布、命中、托盘）
 │   ├── core/
 │   │   ├── types.ts
@@ -92,9 +98,16 @@ BugScurry/
 │   │   ├── settings.ts        # 设置裁剪纯函数
 │   │   ├── rng.ts
 │   │   ├── bug.ts             # Bug 实体
-│   │   ├── bugManager.ts      # 生成 / 清除 / 重生 / 捏死
+│   │   ├── bugManager.ts      # 生成 / 清除 / 重生 / 捏死 / 特效
 │   │   ├── movement.ts        # 爬行 AI
-│   │   ├── renderer.ts        # 绘制 + squish / 痕迹 / 粒子
+│   │   ├── personality.ts     # 四种性格与吃相基线
+│   │   ├── feeding.ts         # 选食 / 进食计划 / 搬运
+│   │   ├── weather.ts         # 时段权重、天气 profile、风向、闪电
+│   │   ├── atmosphere.ts      # 无缝雾/尘纹理与沙尘阵风
+│   │   ├── randomEvents.ts    # 随机事件时钟与事件池
+│   │   ├── rainAudio.ts       # 程序化雨/风/雷声
+│   │   ├── rainTexture.ts     # 离线雨丝纹理
+│   │   ├── renderer.ts        # 绘制 + squish / 痕迹 / 粒子 / 雨
 │   │   ├── hitTest.ts
 │   │   ├── squish.ts
 │   │   ├── audio.ts
@@ -108,18 +121,32 @@ BugScurry/
 │   │   ├── ant.ts
 │   │   ├── spider.ts
 │   │   ├── fly.ts
-│   │   └── ladybug.ts
+│   │   ├── ladybug.ts
+│   │   ├── bee.ts
+│   │   ├── caterpillar.ts
+│   │   ├── butterfly.ts
+│   │   └── mosquito.ts
 │   ├── settings/
 │   │   ├── main.ts
-│   │   └── SettingsApp.vue    # 设置界面
+│   │   ├── SettingsApp.vue    # 设置界面
+│   │   ├── SpeciesPreview.vue # 虫种悬停步态预览
+│   │   ├── InfoTip.vue        # ⓘ 说明弹层
+│   │   └── speciesPreviewLayout.ts
+│   ├── qa/                    # QA 页脚本
 │   ├── services/
 │   │   ├── tauriBridge.ts     # 覆盖层 ↔ Tauri 事件/命令
-│   │   └── settingsService.ts # 配置存储、主题、多屏
+│   │   ├── settingsService.ts # 配置存储、主题、多屏
+│   │   ├── dailyStatsService.ts # 主覆盖层独占：击杀落盘与托盘战绩
+│   │   └── __tests__/
+│   ├── i18n/
+│   │   ├── index.ts
+│   │   └── messages.ts        # 简体 / 繁體 / English / 日本語 / 한국어
 │   └── styles/
 │       ├── overlay.css
 │       └── settings.css
 └── src-tauri/
     ├── Cargo.toml
+    ├── build.rs
     ├── tauri.conf.json
     ├── capabilities/
     │   └── default.json

@@ -1,13 +1,15 @@
-import { createBug } from "./bug";
+import { createBug, createFatBug, createNocturnalBug } from "./bug";
 import {
   BAIT_LIFE,
   COMBO_TEXT_LIFE,
   COMBO_WINDOW,
+  LIMITS,
   MAX_BAITS,
   MAX_FLOATS,
   MAX_PARTICLES,
   MAX_STAINS,
   NIBBLE_FX_COOLDOWN,
+  PRANK,
   STAIN_LIFE,
 } from "./config";
 import { isBugDead, startSquish, updateSquish } from "./squish";
@@ -68,6 +70,21 @@ export class BugManager {
   private lastKillAt = 0;
   private daily: DailyStats = emptyDailyStats();
   private eatFxCool = 0;
+  /** Spray mist remaining seconds; drives the top→bottom FX sweep. */
+  private sprayFxLeft = 0;
+  /** Swarm peak ends at this timestamp (ms); 0 = inactive. */
+  private swarmPeakUntil = 0;
+  /** Swarm fully ends at this timestamp (ms); 0 = inactive. */
+  private swarmUntil = 0;
+  private swarmPeak = 0;
+  /** Temporary invader bugs (fat / night raid) — trimmed before normal bugs. */
+  private invaders = new Set<string>();
+  /** Speed-boost window end (ms); 0 = idle. */
+  private berserkUntil = 0;
+  /** Size-chaos window end (ms); 0 = idle. */
+  private sizeChaosUntil = 0;
+  /** Pre-chaos sizes so we can restore. */
+  private sizeChaosBase = new Map<string, number>();
 
   constructor(settings: Settings, viewport: Viewport, daily?: DailyStats) {
     this.settings = settings;
@@ -150,50 +167,76 @@ export class BugManager {
       return;
     }
 
+    // An explicit count change ends any prank swarm and converges to the user value.
+    if (nextCount !== prevCount) {
+      this.cancelSwarm();
+      this.restoreSizeChaos();
+      if (sizeRatio !== 1 && Number.isFinite(sizeRatio)) {
+        for (const bug of this.bugs) {
+          bug.size = Math.max(4, bug.size * sizeRatio);
+        }
+      }
+      this.setBugCount(nextCount);
+      return;
+    }
+
     if (sizeRatio !== 1 && Number.isFinite(sizeRatio)) {
+      this.restoreSizeChaos();
       for (const bug of this.bugs) {
         bug.size = Math.max(4, bug.size * sizeRatio);
       }
     }
 
-    if (nextCount > prevCount) {
-      this.suppressed = false;
-      while (this.bugs.length < nextCount) {
-        this.bugs.push(createBug(this.viewport, this.settings));
-      }
-    } else if (nextCount < this.bugs.length) {
-      this.suppressed = false;
-      while (this.bugs.length > nextCount) {
-        this.bugs.pop();
-      }
+    // Never auto-replace squished bugs when the user count is unchanged.
+    // Swarm may only shrink toward its fall target; invaders are not auto-trimmed here.
+    if (this.swarmUntil > 0) {
+      const target = this.effectiveTargetCount(performance.now());
+      if (target < this.bugs.length) this.setBugCount(target);
+    } else {
+      this.trimNormalBugsTo(nextCount);
     }
   }
 
   syncCount(): void {
     if (this.suppressed) return;
-    const target = Math.max(0, Math.round(this.settings.count));
-    while (this.bugs.length > target) {
-      this.bugs.pop();
-    }
+    const target = this.effectiveTargetCount(performance.now());
     while (this.bugs.length < target) {
       this.bugs.push(createBug(this.viewport, this.settings));
+    }
+    this.trimBugsTo(target);
+  }
+
+  /** Shrink only non-invader bugs down to the configured count. */
+  private trimNormalBugsTo(targetNormal: number): void {
+    while (this.bugs.length - this.invaders.size > targetNormal) {
+      const idx = this.bugs.findIndex((b) => !this.invaders.has(b.id));
+      if (idx < 0) break;
+      this.bugs.splice(idx, 1);
     }
   }
 
   addOne(): void {
+    this.cancelSwarm();
     this.suppressed = false;
-    this.settings = { ...this.settings, count: this.settings.count + 1 };
-    this.bugs.push(createBug(this.viewport, this.settings));
+    const next = Math.min(LIMITS.countMax, Math.round(this.settings.count) + 1);
+    this.settings = { ...this.settings, count: next };
+    this.setBugCount(next);
   }
 
   removeOne(): void {
-    if (this.bugs.length === 0) return;
+    if (this.settings.count <= 0 && this.bugs.length === 0) return;
+    this.cancelSwarm();
     this.suppressed = false;
-    this.settings = { ...this.settings, count: Math.max(0, this.bugs.length - 1) };
-    this.bugs.pop();
+    const next = Math.max(0, Math.round(this.settings.count) - 1);
+    this.settings = { ...this.settings, count: next };
+    this.setBugCount(next);
   }
 
   clear(): void {
+    this.cancelSwarm();
+    this.restoreSizeChaos();
+    this.berserkUntil = 0;
+    this.invaders.clear();
     this.bugs = [];
     this.stains = [];
     this.particles = [];
@@ -203,6 +246,10 @@ export class BugManager {
   }
 
   regenerate(): void {
+    this.cancelSwarm();
+    this.restoreSizeChaos();
+    this.berserkUntil = 0;
+    this.invaders.clear();
     this.suppressed = false;
     this.bugs = [];
     this.stains = [];
@@ -213,6 +260,178 @@ export class BugManager {
     const target = Math.max(1, Math.round(this.settings.count));
     for (let i = 0; i < target; i++) {
       this.bugs.push(createBug(this.viewport, this.settings, rng));
+    }
+  }
+
+  /** Spray mist progress 0..1 while the FX plays; 0 when idle. */
+  get sprayFxProgress(): number {
+    if (this.sprayFxLeft <= 0) return 0;
+    const elapsed = PRANK.sprayFxSec - this.sprayFxLeft;
+    // Keep the first frame paintable (progress 0 would skip the mist).
+    return Math.min(1, Math.max(0.02, elapsed / PRANK.sprayFxSec));
+  }
+
+  get isSwarmActive(): boolean {
+    return this.swarmUntil > 0;
+  }
+
+  /** Live target count including an active prank swarm. */
+  private effectiveTargetCount(nowMs: number): number {
+    const base = Math.max(0, Math.round(this.settings.count));
+    if (this.swarmUntil <= 0 || nowMs <= 0) return base;
+    if (nowMs >= this.swarmUntil) {
+      this.cancelSwarm();
+      return base;
+    }
+    if (nowMs < this.swarmPeakUntil) return this.swarmPeak;
+    const fall = Math.max(1, this.swarmUntil - this.swarmPeakUntil);
+    const t = Math.min(1, Math.max(0, (nowMs - this.swarmPeakUntil) / fall));
+    return Math.round(this.swarmPeak + (base - this.swarmPeak) * t);
+  }
+
+  cancelSwarm(): void {
+    this.swarmPeakUntil = 0;
+    this.swarmUntil = 0;
+    this.swarmPeak = 0;
+  }
+
+  private setBugCount(target: number): void {
+    this.suppressed = false;
+    while (this.bugs.length < target) {
+      this.bugs.push(createBug(this.viewport, this.settings));
+    }
+    this.trimBugsTo(target);
+  }
+
+  /** Drop invaders first so a count shrink does not eat the user's bugs. */
+  private trimBugsTo(target: number): void {
+    while (this.bugs.length > target) {
+      const invIdx = this.bugs.findIndex((b) => this.invaders.has(b.id));
+      if (invIdx >= 0) {
+        this.invaders.delete(this.bugs[invIdx].id);
+        this.sizeChaosBase.delete(this.bugs[invIdx].id);
+        this.bugs.splice(invIdx, 1);
+      } else {
+        const last = this.bugs.pop();
+        if (last) {
+          this.invaders.delete(last.id);
+          this.sizeChaosBase.delete(last.id);
+        }
+      }
+    }
+  }
+
+  /**
+   * Insecticide spray: every live bug dies on this screen.
+   * Fat bugs are finished in one pass (no double-counted combo).
+   */
+  sprayKillAll(nowMs: number = performance.now()): Extract<
+    HitResult,
+    { kind: "killed" }
+  >[] {
+    const results: Extract<HitResult, { kind: "killed" }>[] = [];
+    this.sprayFxLeft = PRANK.sprayFxSec;
+    for (const bug of [...this.bugs]) {
+      if (bug.state === "squishing" || bug.state === "dying") continue;
+      let result = this.hit(bug, nowMs);
+      while (result.kind === "hurt") {
+        result = this.hit(bug, nowMs);
+      }
+      if (result.kind === "killed") results.push(result);
+    }
+    return results;
+  }
+
+  /** Temporarily raise live count; falls back to settings.count later. */
+  startSwarm(nowMs: number = performance.now()): number {
+    const base = Math.max(1, Math.round(this.settings.count));
+    const target = Math.min(
+      LIMITS.countMax,
+      Math.max(base + PRANK.swarmBonus, base * PRANK.swarmMul),
+    );
+    this.swarmPeak = target;
+    this.swarmPeakUntil = nowMs + PRANK.swarmPeakSec * 1000;
+    this.swarmUntil = this.swarmPeakUntil + PRANK.swarmFallSec * 1000;
+    this.setBugCount(target);
+    return target;
+  }
+
+  /** Drop 5–7 fat invaders that stay until killed or trimmed. */
+  startFatInvasion(rng: Rng = new Rng(randomSeed())): number {
+    const n = rng.int(PRANK.fatInvasionMin, PRANK.fatInvasionMax);
+    this.suppressed = false;
+    for (let i = 0; i < n; i++) {
+      if (this.bugs.length >= LIMITS.countMax) break;
+      const bug = createFatBug(this.viewport, this.settings, rng);
+      this.invaders.add(bug.id);
+      this.bugs.push(bug);
+    }
+    return n;
+  }
+
+  /** Spawn nocturnal-only invaders (spider / mosquito / cockroach). */
+  startNightRaid(rng: Rng = new Rng(randomSeed())): number {
+    const n = rng.int(PRANK.nightRaidMin, PRANK.nightRaidMax);
+    this.suppressed = false;
+    let spawned = 0;
+    for (let i = 0; i < n; i++) {
+      if (this.bugs.length >= LIMITS.countMax) break;
+      const bug = createNocturnalBug(this.viewport, this.settings, rng);
+      if (!bug) break;
+      this.invaders.add(bug.id);
+      this.bugs.push(bug);
+      spawned++;
+    }
+    return spawned;
+  }
+
+  /** All bugs sprint for a short window. */
+  startBerserk(nowMs: number = performance.now()): void {
+    if (this.berserkUntil > nowMs) {
+      // Already raging — just extend.
+      this.berserkUntil = nowMs + PRANK.berserkSec * 1000;
+      return;
+    }
+    for (const bug of this.bugs) bug.speed *= PRANK.berserkMul;
+    this.berserkUntil = nowMs + PRANK.berserkSec * 1000;
+  }
+
+  /** Randomly scale every bug for a short window, then restore. */
+  startSizeChaos(nowMs: number = performance.now(), rng: Rng = new Rng(randomSeed())): void {
+    this.restoreSizeChaos();
+    for (const bug of this.bugs) {
+      this.sizeChaosBase.set(bug.id, bug.size);
+      bug.size *= rng.range(PRANK.sizeChaosMin, PRANK.sizeChaosMax);
+    }
+    this.sizeChaosUntil = nowMs + PRANK.sizeChaosSec * 1000;
+  }
+
+  private restoreSizeChaos(): void {
+    for (const bug of this.bugs) {
+      const base = this.sizeChaosBase.get(bug.id);
+      if (base !== undefined) bug.size = base;
+    }
+    this.sizeChaosBase.clear();
+    this.sizeChaosUntil = 0;
+  }
+
+  /** Advance spray FX, swarm fall-back, berserk and size chaos. */
+  private tickPrank(dt: number, nowMs: number): void {
+    if (this.sprayFxLeft > 0) {
+      this.sprayFxLeft = Math.max(0, this.sprayFxLeft - dt);
+    }
+    if (this.swarmUntil > 0 && nowMs >= this.swarmUntil) {
+      this.cancelSwarm();
+      this.setBugCount(Math.max(0, Math.round(this.settings.count)));
+    } else if (this.swarmUntil > 0 && nowMs >= this.swarmPeakUntil) {
+      this.setBugCount(this.effectiveTargetCount(nowMs));
+    }
+    if (this.berserkUntil > 0 && nowMs >= this.berserkUntil) {
+      for (const bug of this.bugs) bug.speed /= PRANK.berserkMul;
+      this.berserkUntil = 0;
+    }
+    if (this.sizeChaosUntil > 0 && nowMs >= this.sizeChaosUntil) {
+      this.restoreSizeChaos();
     }
   }
 
@@ -408,11 +627,19 @@ export class BugManager {
       if (bug.hurtTimer > 0) bug.hurtTimer = Math.max(0, bug.hurtTimer - dt);
       updateSquish(bug, dt);
     }
-    this.bugs = this.bugs.filter((b) => !isBugDead(b));
+    this.bugs = this.bugs.filter((b) => {
+      if (isBugDead(b)) {
+        this.invaders.delete(b.id);
+        this.sizeChaosBase.delete(b.id);
+        return false;
+      }
+      return true;
+    });
   }
 
-  tick(dt: number): void {
+  tick(dt: number, nowMs: number = performance.now()): void {
     this.updateEffects(dt);
+    this.tickPrank(dt, nowMs);
   }
 
   /** Cookie crumbs / sugar sparks / fruit drips while a bug is on a snack. */

@@ -1,7 +1,9 @@
 import type { RainKind, Settings } from "./types";
 import { lightningFlash } from "./weather";
 
-import { createRainTexture, type RainLayer } from "./rainTexture";
+import { createRainTexture, createWindTexture, type RainLayer, type WindLayer } from "./rainTexture";
+import { sandGust } from "./atmosphere";
+type AmbienceLayer = RainLayer | WindLayer;
 
 interface RainMix {
   gain: number;
@@ -18,6 +20,10 @@ export const RAIN_AUDIO_MIX: Record<RainKind, RainMix> = {
   heavy: { gain: 0.12, low: 7800, high: 150, drops: 0.3, spray: 0.32 },
   downpour: { gain: 0.19, low: 8500, high: 90, drops: 0.26, spray: 0.48 },
   thunder: { gain: 0.14, low: 7400, high: 120, drops: 0.28, spray: 0.36 },
+  snow: { gain: 0.018, low: 2800, high: 900, drops: 0.08, spray: 0.02 },
+  fog: { gain: 0, low: 1800, high: 1200, drops: 0, spray: 0 },
+  // Sand uses dedicated dry wind/grit textures; all water layers are silent.
+  sand: { gain: 0, low: 7200, high: 55, drops: 0, spray: 0 },
 };
 
 type Ctx = AudioContext;
@@ -26,8 +32,8 @@ interface TextureVoice {
   gain: GainNode;
 }
 let ctx: Ctx | null = null;
-const voices = new Map<RainLayer, TextureVoice>();
-const buffers = new Map<RainLayer, AudioBuffer>();
+const voices = new Map<AmbienceLayer, TextureVoice>();
+const buffers = new Map<AmbienceLayer, AudioBuffer>();
 let highpass: BiquadFilterNode | null = null;
 let lowpass: BiquadFilterNode | null = null;
 let master: GainNode | null = null;
@@ -38,6 +44,7 @@ let activeKind: RainKind | null = null;
 let lastFlash = 0;
 let thunderUntil = -1;
 let rainingAudibly = false;
+let nextWindUpdate = 0;
 
 function getCtx(): Ctx | null {
   if (typeof window === "undefined") return null;
@@ -65,7 +72,7 @@ function releaseBed(): void {
   master = null;
 }
 
-function ensureBed(): Ctx | null {
+function ensureBed(kind: RainKind): Ctx | null {
   const ac = getCtx();
   if (!ac) return null;
   if (releaseTimer !== null) {
@@ -84,28 +91,33 @@ function ensureBed(): Ctx | null {
     highpass.connect(lowpass);
     lowpass.connect(master);
     master.connect(ac.destination);
-    const layers: [RainLayer, number][] = [["bed", 11], ["drops", 13], ["spray", 17]];
-    for (const [layer, seconds] of layers) {
-      let buffer = buffers.get(layer);
-      if (!buffer) {
-        // 24 kHz is sufficient for these textures and bounds memory / startup cost.
-        const sampleRate = Math.min(ac.sampleRate, 24000);
-        const channels = createRainTexture(sampleRate, seconds, layer);
-        buffer = ac.createBuffer(2, channels[0].length, sampleRate);
-        buffer.getChannelData(0).set(channels[0]);
-        buffer.getChannelData(1).set(channels[1]);
-        buffers.set(layer, buffer);
-      }
-      const source = ac.createBufferSource();
-      source.buffer = buffer;
-      source.loop = true;
-      const gain = ac.createGain();
-      gain.gain.value = 0;
-      source.connect(gain);
-      gain.connect(highpass);
-      source.start(0, Math.random() * seconds);
-      voices.set(layer, { source, gain });
+  }
+  const layers: [AmbienceLayer, number][] = kind === "sand"
+    ? [["wind", 19], ["grit", 23]]
+    : [["bed", 11], ["drops", 13], ["spray", 17]];
+  for (const [layer, seconds] of layers) {
+    if (voices.has(layer)) continue;
+    let buffer = buffers.get(layer);
+    if (!buffer) {
+      // 24 kHz is sufficient for these textures and bounds memory / startup cost.
+      const sampleRate = Math.min(ac.sampleRate, 24000);
+      const channels = layer === "wind" || layer === "grit"
+        ? createWindTexture(sampleRate, seconds, layer)
+        : createRainTexture(sampleRate, seconds, layer);
+      buffer = ac.createBuffer(2, channels[0].length, sampleRate);
+      buffer.getChannelData(0).set(channels[0]);
+      buffer.getChannelData(1).set(channels[1]);
+      buffers.set(layer, buffer);
     }
+    const source = ac.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    const gain = ac.createGain();
+    gain.gain.value = 0;
+    source.connect(gain);
+    gain.connect(highpass!);
+    source.start(0, Math.random() * seconds);
+    voices.set(layer, { source, gain });
   }
   if (ac.state === "suspended") void ac.resume().catch(() => { /* retry on next mix change */ });
   return ac;
@@ -260,7 +272,7 @@ function playThunder(ac: Ctx, timeSec: number): number {
  * `audible` is false while bugs are hidden so ambience fades out with the scene.
  */
 export function tickRainAudio(settings: Settings, timeSec: number, audible = true): void {
-  if (!settings.rain || !settings.sound || !audible) {
+  if (!settings.rain || !settings.sound || !audible || settings.rainKind === "fog") {
     if (rainingAudibly) {
       rainingAudibly = false;
       muteRainNow();
@@ -271,7 +283,7 @@ export function tickRainAudio(settings: Settings, timeSec: number, audible = tru
   }
   rainingAudibly = true;
 
-  const ac = activeKind === settings.rainKind ? ctx : ensureBed();
+  const ac = activeKind === settings.rainKind ? ctx : ensureBed(settings.rainKind);
   if (!ac || !lowpass || !highpass || !master) return;
   // Sleep/wake can leave the context suspended without tearing the bed down.
   if (ac.state === "suspended") void ac.resume().catch(() => { /* next tick retries */ });
@@ -279,14 +291,25 @@ export function tickRainAudio(settings: Settings, timeSec: number, audible = tru
   const mix = RAIN_AUDIO_MIX[settings.rainKind];
   if (activeKind !== settings.rainKind) {
     activeKind = settings.rainKind;
+    nextWindUpdate = 0;
     const now = ac.currentTime;
     master.gain.cancelScheduledValues(now);
     master.gain.setTargetAtTime(1, now, 0.25);
-    voices.get("bed")?.gain.gain.setTargetAtTime(mix.gain, now, 0.6);
-    voices.get("drops")?.gain.gain.setTargetAtTime(mix.drops, now, 0.6);
-    voices.get("spray")?.gain.gain.setTargetAtTime(mix.spray, now, 0.6);
+    for (const [layer, voice] of voices) {
+      const level = layer === "bed" ? mix.gain : layer === "drops" ? mix.drops
+        : layer === "spray" ? mix.spray : 0;
+      voice.gain.gain.setTargetAtTime(level, now, 0.6);
+    }
     lowpass.frequency.setTargetAtTime(mix.low, ac.currentTime, 0.2);
     highpass.frequency.setTargetAtTime(mix.high, ac.currentTime, 0.2);
+  }
+
+  if (settings.rainKind === "sand" && ac.currentTime >= nextWindUpdate) {
+    const gust = sandGust(timeSec);
+    const strength = 0.8 + Math.min(1, Math.abs(settings.rainWind)) * 0.2;
+    voices.get("wind")?.gain.gain.setTargetAtTime((0.13 + gust * 0.14) * strength, ac.currentTime, 0.3);
+    voices.get("grit")?.gain.gain.setTargetAtTime((0.025 + gust * gust * 0.075) * strength, ac.currentTime, 0.25);
+    nextWindUpdate = ac.currentTime + 0.12;
   }
 
   if (settings.rainKind === "thunder") {

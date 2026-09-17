@@ -6,7 +6,19 @@ import process from "node:process";
 const host = process.env.TAURI_DEV_HOST;
 
 export default defineConfig(() => ({
-  plugins: [vue()],
+  plugins: [vue(), {
+    name: "qa-legacy-url",
+    apply: "serve",
+    configureServer(server) {
+      // Keep existing QA bookmarks; the maintained page lives outside ignored .tmp-*.
+      server.middlewares.use((req, _res, next) => {
+        if (req.url && /^\/\.tmp-species-qa\/(?:index\.html)?(?:\?|$)/.test(req.url)) {
+          req.url = req.url.replace(/^\/\.tmp-species-qa\/(?:index\.html)?/, "/qa/index.html");
+        }
+        next();
+      });
+    },
+  }],
   clearScreen: false,
   build: {
     rollupOptions: {

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from "vue";
-import { ensureAudio, playHurtSound, playSquishSound } from "./core/audio";
-import { DEFAULT_SETTINGS } from "./core/config";
+import { emit } from "@tauri-apps/api/event";
+import { ensureAudio, playHurtSound, playSprayHiss, playSquishSound } from "./core/audio";
+import { DEFAULT_SETTINGS, EVENT_BANNER, PRANK } from "./core/config";
 import { BugManager, emptyDailyStats } from "./core/bugManager";
 import { hitTestBug } from "./core/hitTest";
 import { createLoop } from "./core/loop";
@@ -19,6 +20,8 @@ import {
   setOverlayClickable,
   setTrayStats,
   setTrayRain,
+  setTraySpray,
+  listenRandomEvent,
 } from "./services/tauriBridge";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
@@ -42,7 +45,19 @@ import {
   rollShower,
   tickAutoRain,
 } from "./core/weather";
-import type { RainKind } from "./core/types";
+import {
+  applyRandomEventToManager,
+  createAutoEventClock,
+  eventBannerMs,
+  eventBusyMs,
+  rearmAfterEvent,
+  resetAutoEventClock,
+  rollRandomEvent,
+  tickAutoEvent,
+  type AutoEventClock,
+} from "./core/randomEvents";
+import type { RainKind, RandomEventKind } from "./core/types";
+import { t } from "./i18n";
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 
@@ -69,6 +84,17 @@ let unlistenKills: (() => void) | null = null;
 let dailyStatsService: ReturnType<typeof createDailyStatsService> | null = null;
 let autoRainClock = createAutoRainClock(performance.now(), false);
 let autoRainTimer = 0;
+let autoEventClock: AutoEventClock = createAutoEventClock(performance.now());
+let autoEventTimer = 0;
+let unlistenRandomEvent: (() => void) | null = null;
+/** Primary overlay owns the tray spray cooldown countdown. */
+let sprayReadyAt = 0;
+let sprayTickTimer = 0;
+
+/** Full-screen event title — never captures clicks. */
+const bannerVisible = ref(false);
+const bannerTitle = ref("");
+const bannerSub = ref("");
 
 function resizeCanvas() {
   const canvas = canvasRef.value;
@@ -112,6 +138,10 @@ function applySettings(next: Settings) {
   const prev = settings.value;
   settings.value = next;
   manager?.applySettings(next);
+  // Each WebView has its own localeRef — keep banner / future overlay copy in sync.
+  if (prev.locale !== next.locale) {
+    void applyUiLocale(next.locale);
+  }
   if (prev.rain && !next.rain) stopRainAudio();
   if (prev.sound && !next.sound) stopRainAudio();
   if (
@@ -126,6 +156,88 @@ function applySettings(next: Settings) {
       next.rainKind,
     );
   }
+  if (isPrimaryOverlay() && prev.randomEvents !== next.randomEvents) {
+    resetAutoEventClock(autoEventClock, performance.now(), Math.random);
+  }
+}
+
+function cooldownSecLeft(readyAt: number, now = performance.now()): number {
+  const ms = readyAt - now;
+  return ms <= 0 ? 0 : Math.ceil(ms / 1000);
+}
+
+async function syncSprayTray() {
+  if (!isPrimaryOverlay()) return;
+  await setTraySpray(cooldownSecLeft(sprayReadyAt));
+}
+
+/** Keep the spray tray label counting down until it is ready again. */
+function ensureSprayTick() {
+  if (!isPrimaryOverlay() || sprayTickTimer) return;
+  sprayTickTimer = window.setInterval(() => {
+    if (performance.now() >= sprayReadyAt) {
+      window.clearInterval(sprayTickTimer);
+      sprayTickTimer = 0;
+      void syncSprayTray();
+      return;
+    }
+    void syncSprayTray();
+  }, 1000);
+}
+
+function runSpray() {
+  if (!manager || !visible.value) return;
+  const now = performance.now();
+  if (now < sprayReadyAt) return;
+  ensureAudio();
+  const results = manager.sprayKillAll(now);
+  if (settings.value.sound) playSprayHiss();
+  for (const result of results) {
+    void reportKill({ date: emptyDailyStats().date, combo: result.combo })
+      .catch((err) => console.error("report kill failed", err));
+  }
+  if (isPrimaryOverlay()) {
+    sprayReadyAt = now + PRANK.sprayCooldownSec * 1000;
+    void syncSprayTray();
+    ensureSprayTick();
+  }
+}
+
+/** Settings → Random events: auto-roll chaos. Swarm cannot stack on itself. */
+function canRunRandomEvent(kind: RandomEventKind): boolean {
+  if (!manager || !visible.value) return false;
+  if (kind === "swarm" && manager.isSwarmActive) return false;
+  return true;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function applyRandomEvent(kind: RandomEventKind): void {
+  if (!manager) return;
+  applyRandomEventToManager(manager, kind, performance.now());
+}
+
+/**
+ * PvZ-style warning: the title plays out and fades away first,
+ * then the event starts. pointer-events:none so clicks still work.
+ */
+async function runEventAnnounce(kind: RandomEventKind): Promise<void> {
+  bannerTitle.value = t(`event.${kind}.title`);
+  bannerSub.value = t(`event.${kind}.subtitle`);
+  bannerVisible.value = true;
+  await delay(EVENT_BANNER.showMs);
+  bannerVisible.value = false;
+  await delay(EVENT_BANNER.hideMs);
+  applyRandomEvent(kind);
+}
+
+async function fireRandomEvent(kind: RandomEventKind): Promise<void> {
+  if (!canRunRandomEvent(kind)) return;
+  await runEventAnnounce(kind);
 }
 
 function commitRain(patch: Partial<Settings> & { rain: boolean }) {
@@ -277,6 +389,9 @@ function handleTray(cmd: string) {
     case "drop_fruit":
       manager.dropBait("fruit");
       break;
+    case "prank_spray":
+      runSpray();
+      break;
     case "open_settings":
       void openSettingsWindow();
       break;
@@ -306,6 +421,7 @@ onMounted(async () => {
     });
     await dailyStatsService.refresh();
     void setTrayRain(loaded.rain, loaded.rain ? loaded.rainKind : null);
+    void syncSprayTray();
     autoRainClock = createAutoRainClock(performance.now(), loaded.rain, Math.random, loaded.rainKind);
     autoRainTimer = window.setInterval(() => {
       if (!settings.value.autoRain) return;
@@ -320,7 +436,32 @@ onMounted(async () => {
         else stopRain();
       }
     }, 2000);
+    autoEventClock = createAutoEventClock(performance.now(), Math.random);
+    autoEventTimer = window.setInterval(() => {
+      if (!settings.value.randomEvents) return;
+      const now = performance.now();
+      if (!tickAutoEvent(autoEventClock, now)) return;
+      const kind = rollRandomEvent(Math.random);
+      if (!canRunRandomEvent(kind)) {
+        // Hidden / busy — try again shortly instead of burning the whole gap.
+        autoEventClock.dueAtMs = now + 5_000;
+        return;
+      }
+      // Every overlay (including this one) banners + starts via the listener.
+      void emit("random-event", { kind });
+      rearmAfterEvent(
+        autoEventClock,
+        now,
+        eventBannerMs() + eventBusyMs(kind),
+        Math.random,
+      );
+    }, 2000);
   }
+
+  // Every display banners + applies its own copy of the event.
+  unlistenRandomEvent = await listenRandomEvent(async (kind) => {
+    await fireRandomEvent(kind);
+  });
 
   try {
     const label = getCurrentWindow().label;
@@ -396,6 +537,19 @@ onMounted(async () => {
       if (isPrimaryOverlay()) stopRain();
     } else if (cmd === "regenerate") {
       manager.regenerate();
+    } else if (cmd === "debug_rain_random") {
+      if (isPrimaryOverlay()) startRain("random");
+    } else if (cmd === "debug_rain_stop") {
+      if (isPrimaryOverlay()) stopRain();
+    } else if (cmd.startsWith("debug_weather:")) {
+      if (isPrimaryOverlay()) {
+        startRain(cmd.slice("debug_weather:".length) as RainKind);
+      }
+    } else if (cmd.startsWith("debug_event:")) {
+      void fireRandomEvent(cmd.slice("debug_event:".length) as RandomEventKind);
+    } else if (cmd === "debug_spray") {
+      // Reuse the tray path so every display sprays.
+      handleTray("prank_spray");
     }
   });
 });
@@ -403,6 +557,8 @@ onMounted(async () => {
 onUnmounted(() => {
   loop?.stop();
   window.clearInterval(autoRainTimer);
+  window.clearInterval(autoEventTimer);
+  window.clearInterval(sprayTickTimer);
   window.removeEventListener("pointerdown", onPointerDown);
   window.removeEventListener("pointermove", onPointerMove);
   window.removeEventListener("resize", refreshViewportSync);
@@ -414,12 +570,22 @@ onUnmounted(() => {
   unlistenTray?.();
   unlistenSettings?.();
   unlistenCommands?.();
+  unlistenRandomEvent?.();
 });
 </script>
 
 <template>
   <div class="overlay" :class="{ hidden: !visible, clickable }">
     <canvas ref="canvasRef" class="bugs-canvas" />
+    <Transition name="event-banner">
+      <div v-if="bannerVisible" class="event-banner" aria-live="polite">
+        <div class="event-banner-veil" />
+        <div class="event-banner-copy">
+          <p class="event-banner-title">{{ bannerTitle }}</p>
+          <p class="event-banner-sub">{{ bannerSub }}</p>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -445,5 +611,77 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   background: transparent;
+}
+
+/* Never steal clicks from the desktop or bug hit-testing. */
+.event-banner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.event-banner-veil {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 48%, rgba(40, 12, 8, 0.28), transparent 70%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.42) 50%, rgba(0, 0, 0, 0.18));
+}
+
+.event-banner-copy {
+  position: relative;
+  text-align: center;
+  padding: 0 24px;
+}
+
+.event-banner-title {
+  margin: 0;
+  font-size: clamp(34px, 7.5vw, 64px);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #fff8f0;
+  text-shadow:
+    0 0 24px rgba(255, 96, 48, 0.45),
+    0 2px 18px rgba(0, 0, 0, 0.55),
+    0 0 1px rgba(0, 0, 0, 0.8);
+  animation: event-title-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.event-banner-sub {
+  margin: 12px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  color: rgba(255, 236, 220, 0.78);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
+  animation: event-title-in 0.55s 0.08s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes event-title-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.event-banner-enter-active {
+  transition: opacity 220ms ease;
+}
+
+.event-banner-leave-active {
+  transition: opacity 380ms ease;
+}
+
+.event-banner-enter-from,
+.event-banner-leave-to {
+  opacity: 0;
 }
 </style>

@@ -1,7 +1,15 @@
 export type Personality = "shy" | "greedy" | "lazy" | "curious";
 export type FoodKind = "cookie" | "sugar" | "fruit";
 export type DayPhase = "dawn" | "day" | "dusk" | "night";
-export type RainKind = "light" | "moderate" | "heavy" | "downpour" | "thunder";
+export type RainKind =
+  | "light"
+  | "moderate"
+  | "heavy"
+  | "downpour"
+  | "thunder"
+  | "snow"
+  | "fog"
+  | "sand";
 
 export type BugState =
   | "crawling"
@@ -116,6 +124,8 @@ export interface Settings {
   rainWind: number;
   /** Let the app start/stop rain on its own schedule. */
   autoRain: boolean;
+  /** Auto-roll prank chaos events (currently: bug swarm). */
+  randomEvents: boolean;
 }
 
 /** Cursor position in the overlay window's local CSS pixels. */
@@ -154,10 +164,21 @@ export type TrayCommand =
   | "drop_sugar"
   | "drop_fruit"
   | "rain_off"
-  | "rain_random"
   | "rain_light"
   | "rain_moderate"
   | "rain_heavy"
   | "rain_downpour"
   | "rain_thunder"
+  | "rain_snow"
+  | "rain_fog"
+  | "rain_sand"
+  | "prank_spray"
   | "open_settings";
+
+/** Chaos events rolled by Settings → Random events (and the debug panel). */
+export type RandomEventKind =
+  | "swarm"
+  | "fat_invasion"
+  | "berserk"
+  | "size_chaos"
+  | "night_raid";

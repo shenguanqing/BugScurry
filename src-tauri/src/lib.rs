@@ -400,6 +400,11 @@ fn set_tray_rain(app: tauri::AppHandle, raining: bool, kind: Option<String>) {
 }
 
 #[tauri::command]
+fn set_tray_spray(app: tauri::AppHandle, spray_cooldown_sec: u32) {
+    let _ = tray::apply_spray_cooldown(&app, spray_cooldown_sec);
+}
+
+#[tauri::command]
 fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
@@ -433,11 +438,7 @@ fn emit_tray_command(app: &tauri::AppHandle, cmd: &str) {
             app.exit(0);
             std::process::exit(0);
         }
-        other => {
-            if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
-                let _ = window.emit("tray-command", other);
-            }
-        }
+        other => tray::emit_tray_to_overlays(app, other),
     }
 }
 
@@ -529,6 +530,7 @@ pub fn run() {
             apply_locale,
             set_tray_stats,
             set_tray_rain,
+            set_tray_spray,
             quit_app,
             set_cursor_poller_enabled
         ])

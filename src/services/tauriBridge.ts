@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { emitTo, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { KillReport } from "./dailyStatsService";
-import type { TrayCommand } from "../core/types";
+import type { RandomEventKind, TrayCommand } from "../core/types";
 
 /** Cursor in this overlay window's local logical CSS pixels. */
 export interface CursorLocal {
@@ -58,6 +58,20 @@ export async function setTrayRain(
   }
 }
 
+/**
+ * Push spray tray cooldown. Remaining seconds; 0 = ready.
+ * The primary overlay ticks this every second so the label shows a countdown.
+ */
+export async function setTraySpray(sprayCooldownSec: number): Promise<void> {
+  try {
+    await invoke("set_tray_spray", {
+      sprayCooldownSec: Math.max(0, Math.ceil(sprayCooldownSec)),
+    });
+  } catch (err) {
+    console.error("set_tray_spray failed", err);
+  }
+}
+
 /** Monitor hot-plug: primary overlay should rebuild the overlay layout. */
 export async function listenDisplaysChanged(
   cb: () => void,
@@ -76,6 +90,13 @@ export async function listenTray(
   cb: (cmd: TrayCommand) => void,
 ): Promise<UnlistenFn> {
   return listen<string>("tray-command", (e) => cb(e.payload as TrayCommand));
+}
+
+/** Primary overlay broadcasts chaos events so every display banners + reacts. */
+export async function listenRandomEvent(
+  cb: (kind: RandomEventKind) => void,
+): Promise<UnlistenFn> {
+  return listen<{ kind: RandomEventKind }>("random-event", (e) => cb(e.payload.kind));
 }
 
 export async function fitWindowToDisplay(): Promise<{
