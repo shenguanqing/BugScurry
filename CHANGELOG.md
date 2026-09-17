@@ -16,7 +16,7 @@ Spray tool, random events with title cards, snow/fog/sandstorm weather, settings
 - Atmosphere layer: `atmosphere.ts` shares a gust envelope between sand visuals and audio
 - Formal QA page under `qa/` (legacy `.tmp-species-qa` URL still maps in Vite dev)
 - Settings → Random events: while enabled, auto-rolls chaos every ~90–240s (plus the event window); never rewrites the saved bug count
-- Event pool: **虫潮 / Bug tide** (temporary double count, cap 50), fat invasion (5–7 chonky invaders), berserk dash (×1.8 for 10s), size chaos (0.7–1.6× for 12s), night raid (nocturnal-only pests)
+- Event pool: **Bug tide** (temporary double count, cap 50), fat invasion (5–7 chonky invaders), berserk dash (×1.8 for 10s), size chaos (0.7–1.6× for 12s), night raid (nocturnal-only pests)
 - Full-viewport title card before each auto event (pointer-events: none); card plays out and fades **before** the event starts; every display banners and reacts together
 - Spray broadcasts to every display overlay; cooldown text updates in place so an open tray menu does not flash closed
 - Settings toggle rows use ⓘ info popovers (teleported, fixed, list-capable); random-events and random-weather tips list their pools
@@ -25,7 +25,7 @@ Spray tool, random events with title cards, snow/fog/sandstorm weather, settings
 ### Changed
 
 - Tray weather no longer offers a one-shot “Random shower”; random kind is only via Settings → Random weather
-- Tray stop label is “Stop / 停止” (was awkward “停天气”)
+- Tray stop label is “Stop” (was awkward mixed-language wording)
 - Settings toggles reordered: repellent → sound/stains/particles → random weather/events → autostart
 - Tray order: stats → show/hide → count controls → spray → feed → weather → settings/quit
 
