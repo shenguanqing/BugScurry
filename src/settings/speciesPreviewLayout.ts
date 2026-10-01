@@ -14,4 +14,7 @@ export const CENTER_BIAS: Record<string, readonly [number, number]> = {
   spider: [0, 0.04],
   cockroach: [0, -0.06],
   ladybug: [0, 0.02],
+  firefly: [-0.06, 0],
+  worm: [0.02, 0],
+  beetle: [0, 0],
 };

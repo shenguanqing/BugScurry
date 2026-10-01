@@ -16,10 +16,13 @@ export function initSpeciesQa() {
     "mosquito",
     "cockroach",
     "spider",
+    "firefly",
+    "worm",
+    "beetle",
   ] as const;
   type SpeciesId = (typeof IDS)[number];
 
-  const SIDE_VIEW = new Set(["ant", "bee", "caterpillar", "mosquito"]);
+  const SIDE_VIEW = new Set(["ant", "bee", "caterpillar", "mosquito", "firefly", "worm"]);
   /** Visual weight of the two centering cells — keep Emoji ≈ Canvas. */
   const PREVIEW_SIZE = 36;
   const EMOJI_FONT = 64;

@@ -27,12 +27,38 @@ function tt(key: string): string {
   return t(key);
 }
 
-/** Built-in species from the registry — new species show up automatically. */
+/**
+ * Visual-family order for the picker (not pinyin): flyers → hard shells →
+ * crawlers → soft bodies. New species append at the end via fallback rank.
+ */
+const SPECIES_UI_ORDER = [
+  "butterfly",
+  "bee",
+  "firefly",
+  "ladybug",
+  "beetle",
+  "cockroach",
+  "ant",
+  "spider",
+  "fly",
+  "mosquito",
+  "caterpillar",
+  "worm",
+] as const;
+
+/** Built-in species from the registry — order follows SPECIES_UI_ORDER. */
 const speciesOptions = computed(() => {
   void localeVersion.value;
+  const rank = new Map<string, number>(
+    SPECIES_UI_ORDER.map((id, i) => [id, i]),
+  );
   return listSpecies()
     .slice()
-    .sort((a, b) => a.label.localeCompare(b.label, "zh-CN"))
+    .sort((a, b) => {
+      const ra = rank.get(a.id) ?? SPECIES_UI_ORDER.length + 1;
+      const rb = rank.get(b.id) ?? SPECIES_UI_ORDER.length + 1;
+      return ra - rb || a.label.localeCompare(b.label, "zh-CN");
+    })
     .map((s) => ({
       id: s.id,
       label: t(`species.${s.id}`) !== `species.${s.id}` ? t(`species.${s.id}`) : s.label,

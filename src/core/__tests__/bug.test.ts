@@ -39,13 +39,16 @@ describe("species registry", () => {
     expect(ids).toEqual([
       "ant",
       "bee",
+      "beetle",
       "butterfly",
       "caterpillar",
       "cockroach",
+      "firefly",
       "fly",
       "ladybug",
       "mosquito",
       "spider",
+      "worm",
     ]);
   });
 

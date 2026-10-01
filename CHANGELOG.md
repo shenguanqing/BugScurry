@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-10-01
+
+Three new species (firefly, earthworm, beetle) and a visually grouped species picker.
+
+### Added
+
+- New species — firefly: nocturnal, sugar-lover with a breathing lantern glow on its tail; joins the night raid pool
+- New species — earthworm: slow diurnal crawler with a peristalsis wave (thick and thin segments travel down the body); fruit-lover
+- New species — beetle: green-gold diurnal crawler modeled on the Apple 🪲 emoji; cookie-lover
+- Species roster is now 12 + random; i18n names added for zh-CN / zh-TW / en / ja / ko
+
+### Changed
+
+- Settings species picker is ordered by visual family (flyers → hard shells → crawlers → soft bodies) instead of pinyin sort; unknown species append at the end
+- Random-weather and random-events info tips end with a lead-in line for their pool lists in every locale
+
 ## [0.4.0] - 2026-09-17
 
 Spray tool, random events with title cards, snow/fog/sandstorm weather, settings info popovers, and a hidden debug panel.
@@ -175,6 +191,9 @@ First public baseline: desktop bug overlay for macOS and Windows.
 
 - Production binaries must be built with `pnpm tauri build` (not bare `cargo build --release`)
 
+[0.4.1]: https://github.com/shenguanqing/BugScurry/compare/v0.4.0...v0.4.1
+[0.4.0]: https://github.com/shenguanqing/BugScurry/compare/v0.3.2...v0.4.0
+[0.3.2]: https://github.com/shenguanqing/BugScurry/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/shenguanqing/BugScurry/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/shenguanqing/BugScurry/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/shenguanqing/BugScurry/compare/v0.1.1...v0.2.0

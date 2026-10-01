@@ -17,7 +17,7 @@ One-liner: **desktop bug pet / joke widget** — light, toggleable, adjustable, 
 - Add life and humor to the desktop
 - Stay in the background without stealing focus or clicks
 - Change count, clear screen, open settings, drop bait from tray / menu bar
-- Switch species (cockroach, ant, spider, fly, ladybug, bee, caterpillar, butterfly, mosquito; plus random)
+- Switch species (cockroach, ant, spider, fly, ladybug, bee, caterpillar, butterfly, mosquito, firefly, earthworm, beetle; plus random)
 
 ## 3. Functional requirements
 

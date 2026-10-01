@@ -30,9 +30,9 @@ Each bug gets a personality at spawn: shy bugs flee sooner, greedy bugs notice f
 
 Use **Tray → Feed bugs → Cookie / Sugar / Fruit**. Up to three snacks can coexist near live bugs; the oldest is replaced on the fourth drop. Food lasts up to 20 seconds and disappears faster while eaten. Each bug chooses by distance and preference; a heart means it is eating its favorite.
 
-- Cookies: cockroaches, spiders
-- Sugar: ants, bees, butterflies, mosquitoes
-- Fruit: flies, ladybugs, caterpillars
+- Cookies: cockroaches, spiders, beetles
+- Sugar: ants, bees, butterflies, mosquitoes, fireflies
+- Fruit: flies, ladybugs, caterpillars, earthworms
 
 These are playful preferences. The species picker shows each species’ favorite, and its expandable guide explains the personalities. Feeding does not respawn squished or cleared bugs.
 
@@ -40,7 +40,7 @@ Eating styles follow personality: shy bugs peck and bolt, greedy and lazy bugs c
 
 ## Time of day & rain
 
-Random mixes follow the local clock: dawn and day favor diurnal species (ants, bees, butterflies, caterpillars, ladybugs), while dusk and night favor nocturnal ones (cockroaches, mosquitoes, spiders). Picking a single species ignores the phase. Flies stay anytime.
+Random mixes follow the local clock: dawn and day favor diurnal species (ants, bees, butterflies, caterpillars, ladybugs, beetles, earthworms), while dusk and night favor nocturnal ones (cockroaches, mosquitoes, spiders, fireflies). Picking a single species ignores the phase. Flies stay anytime.
 
 **Tray → Weather** offers stop, light / moderate / heavy / downpour / thunderstorm, plus snow, fog, and sandstorm. Rain streaks densify and brighten with intensity; thunder adds lightning; snow drifts slowly; fog is a low-contrast wash; sandstorm uses warm diagonal grit. Bugs slow down and hug edges more in harsh weather (fog is gentler). Weather sound shares the master sound toggle — snow and fog are nearly silent, sand leans on wind noise. Weather is a preference, so it survives restarts.
 
@@ -125,7 +125,10 @@ BugScurry/
 │   │   ├── bee.ts
 │   │   ├── caterpillar.ts
 │   │   ├── butterfly.ts
-│   │   └── mosquito.ts
+│   │   ├── mosquito.ts
+│   │   ├── firefly.ts
+│   │   ├── worm.ts
+│   │   └── beetle.ts
 │   ├── settings/
 │   │   ├── main.ts
 │   │   ├── SettingsApp.vue    # Settings UI

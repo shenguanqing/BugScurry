@@ -26,7 +26,7 @@ Ship a playable loop first; every milestone must be runnable and checkable.
 - [x] Clear / regenerate / live sync
 - [x] Store persistence
 - [x] Closing settings does not quit
-- [x] Species picker (random / cockroach / ant / spider / fly / ladybug / bee / caterpillar / butterfly / mosquito)
+- [x] Species picker (random / cockroach / ant / spider / fly / ladybug / bee / caterpillar / butterfly / mosquito / firefly / worm / beetle)
 
 ## M3 — Feel & FX
 
@@ -45,7 +45,7 @@ Ship a playable loop first; every milestone must be runnable and checkable.
 ## M5 — Packaging & extension points
 
 - [x] README build paths
-- [x] Species registry (cockroach, ant, spider, fly, ladybug, bee, caterpillar, butterfly, mosquito)
+- [x] Species registry (cockroach, ant, spider, fly, ladybug, bee, caterpillar, butterfly, mosquito, firefly, worm, beetle)
 - [x] Platform matrix notes
 - [x] Unit tests for core pure logic (`pnpm test`)
 - [x] CI: typecheck + tests + cargo check + Windows NSIS + macOS DMG
@@ -55,6 +55,7 @@ Ship a playable loop first; every milestone must be runnable and checkable.
 ## M6 — Interaction & light gamification (post v0.1.1)
 
 - [x] Extra species: bee, caterpillar, butterfly, mosquito (9 total + random)
+- [x] Extra species: firefly, worm, beetle (12 total + random)
 - [x] Flee from cursor (repellent); panic bolt when almost on top
 - [x] Chase hit radius while the cursor is close
 - [x] Four persistent personalities; cookie/sugar/fruit preferences, three snacks, favorite-food hearts

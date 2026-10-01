@@ -97,10 +97,10 @@ describe("phase-weighted species mix", () => {
     const diurnal = listSpecies().filter((s) => s.traits.activity === "diurnal");
     const nocturnal = listSpecies().filter((s) => s.traits.activity === "nocturnal");
     expect(diurnal.map((s) => s.id).sort()).toEqual(
-      ["ant", "bee", "butterfly", "caterpillar", "ladybug"].sort(),
+      ["ant", "bee", "beetle", "butterfly", "caterpillar", "ladybug", "worm"].sort(),
     );
     expect(nocturnal.map((s) => s.id).sort()).toEqual(
-      ["cockroach", "mosquito", "spider"].sort(),
+      ["cockroach", "firefly", "mosquito", "spider"].sort(),
     );
   });
 });

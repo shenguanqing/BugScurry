@@ -369,7 +369,7 @@ export class BugManager {
     return n;
   }
 
-  /** Spawn nocturnal-only invaders (spider / mosquito / cockroach). */
+  /** Spawn nocturnal-only invaders (spider / mosquito / cockroach / firefly). */
   startNightRaid(rng: Rng = new Rng(randomSeed())): number {
     const n = rng.int(PRANK.nightRaidMin, PRANK.nightRaidMax);
     this.suppressed = false;
