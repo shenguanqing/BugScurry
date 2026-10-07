@@ -36,6 +36,14 @@ The deciding capability is **pass-through + selective click**.
 
 **Tauri:** no forward mode. When ignoring cursor events the WebView gets nothing. Fix: poll global cursor in Rust, emit per-window local coords, toggle `ignore_cursor_events` on hover.
 
+### Screenshot exclusion
+
+**Requirement:** overlays stay out of screenshots/recordings unless the user opts in — without breaking macOS window capture (`⌘⇧4` → Space must still select the windows underneath).
+
+**macOS content protection considered and rejected:** `setContentProtected` keeps the overlay selectable in the system window picker but makes capturing the selected window fail — worse than appearing in the shot. **Decision:** detect screenshot sessions with a `CGEventTap` (passive with Input Monitoring, active with Accessibility) and hide overlays natively for the session; `⌘⇧5` toolbar completion is observed via the screenshot save directory. No public API covers ScreenCaptureKit capture; tray Hide remains the guaranteed path.
+
+**Windows:** `WDA_EXCLUDEFROMCAPTURE` has no such side effect and is kept (supported from Windows 10 version 2004).
+
 ## 3. Decision: Tauri 2 + Vue 3 + TypeScript
 
 Reasons:

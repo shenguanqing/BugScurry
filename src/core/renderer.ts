@@ -77,21 +77,35 @@ function applySquishTransform(ctx: CanvasRenderingContext2D, bug: Bug): number {
   return 1 - fade * fade * (3 - 2 * fade);
 }
 
+let glowSprite: HTMLCanvasElement | null = null;
+
+/** One baked warm-glow sprite; radial gradients are scale-invariant, so the
+    per-frame pulse only scales drawImage and multiplies globalAlpha. */
+function getGlowSprite(): HTMLCanvasElement {
+  if (glowSprite) return glowSprite;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 128;
+  const g = canvas.getContext("2d");
+  if (g) {
+    const grad = g.createRadialGradient(64, 64, 64 * 0.15, 64, 64, 64);
+    grad.addColorStop(0, "rgba(255, 204, 140, 0.18)");
+    grad.addColorStop(0.55, "rgba(255, 190, 120, 0.08)");
+    grad.addColorStop(1, "rgba(255, 190, 120, 0)");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 128, 128);
+  }
+  glowSprite = canvas;
+  return canvas;
+}
+
 export function drawBug(ctx: CanvasRenderingContext2D, bug: Bug): void {
   // Warm post-meal glow (favorite snacks linger longer).
   if (bug.satisfiedTimer > 0 && bug.state !== "dying" && bug.state !== "squishing") {
     const k = Math.min(1, bug.satisfiedTimer / 3.5);
     const r = bug.size * (1.2 + 0.1 * Math.sin(bug.legPhase * Math.PI * 2));
     ctx.save();
-    ctx.translate(bug.x, bug.y);
-    const glow = ctx.createRadialGradient(0, 0, r * 0.15, 0, 0, r);
-    glow.addColorStop(0, `rgba(255, 204, 140, ${0.18 * k})`);
-    glow.addColorStop(0.55, `rgba(255, 190, 120, ${0.08 * k})`);
-    glow.addColorStop(1, "rgba(255, 190, 120, 0)");
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.globalAlpha = k;
+    ctx.drawImage(getGlowSprite(), bug.x - r, bug.y - r, r * 2, r * 2);
     ctx.restore();
   }
 
@@ -294,100 +308,180 @@ export function drawBait(ctx: CanvasRenderingContext2D, bait: Bait): void {
   ctx.restore();
 }
 
-export function drawStain(ctx: CanvasRenderingContext2D, stain: Stain): void {
-  const t = 1 - stain.life / stain.maxLife;
-  const alpha = Math.max(0, 0.28 * (1 - t * t));
+// ---------------------------------------------------------------------------
+// Baked stain sprites: stains persist for minutes, so baking each one into a
+// static base + time-fading wet layer keeps gradient allocation out of the
+// frame loop. Time curves (splash scale, drying, fade) apply at drawImage.
+// ---------------------------------------------------------------------------
+
+interface StainSpritePair {
+  /** Static base (kill blob / juice blot), baked opaque. */
+  base: HTMLCanvasElement;
+  /** Time-fading layer (wet spots / juice highlight), baked at its own k. */
+  wet: HTMLCanvasElement;
+  /** World units from the stain origin to each sprite edge. */
+  half: number;
+  /** Kill stains bake their heading; juice blots stay unrotated. */
+  rotated: boolean;
+}
+
+let stainSpriteDpr = 0;
+const stainSprites = new Map<string, StainSpritePair>();
+
+function bakeCanvas(
+  half: number,
+  dpr: number,
+  draw: (g: CanvasRenderingContext2D) => void,
+): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = Math.max(2, Math.ceil(half * 2 * dpr));
+  const g = canvas.getContext("2d");
+  if (!g) return canvas;
+  g.scale(dpr, dpr);
+  g.translate(half, half);
+  draw(g);
+  return canvas;
+}
+
+function bakeStainSprites(stain: Stain): StainSpritePair {
   const seed = hashStr(stain.id) * 1000;
 
   // Fruit juice: soft pink blot, not a kill stain.
   if (stain.species === "__juice") {
-    ctx.save();
-    ctx.translate(stain.x, stain.y);
-    ctx.globalAlpha = Math.max(0, 0.32 * (1 - t * t));
-    ctx.fillStyle = "#f06a7a";
-    smoothBlobPath(ctx, 0, 0, stain.size * 0.7, stain.size * 0.42, seed, 9, 0.38);
-    ctx.fill();
-    ctx.globalAlpha = Math.max(0, 0.18 * (1 - t));
-    ctx.fillStyle = "#ffb0b8";
-    ctx.beginPath();
-    ctx.ellipse(-stain.size * 0.12, -stain.size * 0.08, stain.size * 0.22, stain.size * 0.12, -0.4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-    return;
+    const half = stain.size * 1.1;
+    const base = bakeCanvas(half, stainSpriteDpr, (g) => {
+      g.fillStyle = "#f06a7a";
+      smoothBlobPath(g, 0, 0, stain.size * 0.7, stain.size * 0.42, seed, 9, 0.38);
+      g.fill();
+    });
+    const wet = bakeCanvas(half, stainSpriteDpr, (g) => {
+      g.fillStyle = "#ffb0b8";
+      g.beginPath();
+      g.ellipse(-stain.size * 0.12, -stain.size * 0.08, stain.size * 0.22, stain.size * 0.12, -0.4, 0, Math.PI * 2);
+      g.fill();
+    });
+    return { base, wet, half, rotated: false };
   }
 
   const species = getSpecies(stain.species);
   const color = species?.traits.stainColor ?? "#3b2a1a";
-
-  ctx.save();
-  ctx.translate(stain.x, stain.y);
-  ctx.rotate(stain.heading);
-  const spread = 1 - Math.pow(1 - Math.min(1, t * stain.maxLife / 0.1), 3);
-  ctx.scale(0.65 + spread * 0.35, 0.65 + spread * 0.35);
-
-  ctx.globalAlpha = alpha;
-  ctx.fillStyle = color;
-  smoothBlobPath(ctx, 0, 0, stain.size * 0.85, stain.size * 0.46, seed, 10, 0.34);
-  ctx.fill();
-
   const fluid = species?.traits.fluidColor ?? "#b3a45b";
   const highlight = species?.traits.fluidHighlight ?? "#fff3cf";
   const shadow = species?.traits.fluidShadow ?? "#82743c";
-  const wetAlpha = Math.max(0, (1 - t * t) * spread);
-  const s = stain.size;
-  for (let i = 0; i < 4; i++) {
-    const side = i % 2 === 0 ? -1 : 1;
-    const x = (hash(seed + i * 4.7) - 0.55) * s * 0.95;
-    const y = side * s * (0.24 + spread * (0.15 + hash(seed + i * 2.3) * 0.14));
-    const rx = s * (0.16 + hash(seed + i * 7.1) * 0.12);
-    const ry = s * (0.11 + hash(seed + i * 3.9) * 0.09);
-    const gradient = ctx.createRadialGradient(x - rx * 0.2, y - ry * 0.3, 0, x, y, rx * 1.15);
-    gradient.addColorStop(0, highlight);
-    gradient.addColorStop(0.6, fluid);
-    gradient.addColorStop(1, shadow);
-    ctx.globalAlpha = wetAlpha * 0.38;
-    ctx.strokeStyle = fluid;
-    ctx.lineWidth = ry * 0.85;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(x * 0.8, side * s * 0.17);
-    ctx.quadraticCurveTo(x - s * 0.06, y * 0.75, x, y);
-    ctx.stroke();
-    ctx.globalAlpha = wetAlpha * 0.62;
-    ctx.fillStyle = gradient;
-    smoothBlobPath(ctx, x, y, rx, ry, seed + i * 8.3, 8, 0.4);
-    ctx.fill();
-    ctx.globalAlpha = wetAlpha * 0.25;
-    ctx.strokeStyle = shadow;
-    ctx.lineWidth = Math.max(0.35, s * 0.012);
-    ctx.stroke();
-    ctx.globalAlpha = wetAlpha * 0.62;
-    ctx.strokeStyle = highlight;
-    ctx.lineCap = "round";
-    ctx.lineWidth = Math.max(0.45, s * 0.02);
-    ctx.beginPath();
-    ctx.ellipse(x - rx * 0.08, y - ry * 0.12, rx * 0.65, ry * 0.6, 0, Math.PI * 1.12, Math.PI * 1.65);
-    ctx.stroke();
+  const half = stain.size * 1.45;
+  const base = bakeCanvas(half, stainSpriteDpr, (g) => {
+    g.rotate(stain.heading);
+    g.fillStyle = color;
+    smoothBlobPath(g, 0, 0, stain.size * 0.85, stain.size * 0.46, seed, 10, 0.34);
+    g.fill();
+  });
+  // Wet layers baked at their original k factors; the drying curve
+  // ((1 - t²) × splash) multiplies on top at draw time.
+  const wet = bakeCanvas(half, stainSpriteDpr, (g) => {
+    g.rotate(stain.heading);
+    const s = stain.size;
+    for (let i = 0; i < 4; i++) {
+      const side = i % 2 === 0 ? -1 : 1;
+      const x = (hash(seed + i * 4.7) - 0.55) * s * 0.95;
+      const y = side * s * (0.24 + (0.15 + hash(seed + i * 2.3) * 0.14));
+      const rx = s * (0.16 + hash(seed + i * 7.1) * 0.12);
+      const ry = s * (0.11 + hash(seed + i * 3.9) * 0.09);
+      const gradient = g.createRadialGradient(x - rx * 0.2, y - ry * 0.3, 0, x, y, rx * 1.15);
+      gradient.addColorStop(0, highlight);
+      gradient.addColorStop(0.6, fluid);
+      gradient.addColorStop(1, shadow);
+      g.globalAlpha = 0.38;
+      g.strokeStyle = fluid;
+      g.lineWidth = ry * 0.85;
+      g.lineCap = "round";
+      g.beginPath();
+      g.moveTo(x * 0.8, side * s * 0.17);
+      g.quadraticCurveTo(x - s * 0.06, y * 0.75, x, y);
+      g.stroke();
+      g.globalAlpha = 0.62;
+      g.fillStyle = gradient;
+      smoothBlobPath(g, x, y, rx, ry, seed + i * 8.3, 8, 0.4);
+      g.fill();
+      g.globalAlpha = 0.25;
+      g.strokeStyle = shadow;
+      g.lineWidth = Math.max(0.35, s * 0.012);
+      g.stroke();
+      g.globalAlpha = 0.62;
+      g.strokeStyle = highlight;
+      g.lineCap = "round";
+      g.lineWidth = Math.max(0.45, s * 0.02);
+      g.beginPath();
+      g.ellipse(x - rx * 0.08, y - ry * 0.12, rx * 0.65, ry * 0.6, 0, Math.PI * 1.12, Math.PI * 1.65);
+      g.stroke();
+    }
+
+    for (let i = 0; i < 3; i++) {
+      const a = hash(seed + i * 6.6) * Math.PI * 2;
+      const dist = s * (0.7 + hash(seed + i * 2.2) * 0.4);
+      const r = s * (0.035 + hash(seed + i * 9.4) * 0.035);
+      const x = Math.cos(a) * dist;
+      const y = Math.sin(a) * dist;
+      g.globalAlpha = 0.65;
+      g.fillStyle = fluid;
+      g.beginPath();
+      g.ellipse(x, y, r * 1.3, r, a, 0, Math.PI * 2);
+      g.fill();
+      g.globalAlpha = 0.7;
+      g.fillStyle = highlight;
+      g.beginPath();
+      g.ellipse(x - r * 0.25, y - r * 0.3, r * 0.35, r * 0.22, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+  });
+  return { base, wet, half, rotated: true };
+}
+
+/** Drop sprites for stains that no longer exist. */
+function pruneStainSprites(stains: Stain[]): void {
+  if (stainSprites.size <= stains.length) return;
+  const alive = new Set(stains.map((s) => s.id));
+  for (const id of [...stainSprites.keys()]) {
+    if (!alive.has(id)) stainSprites.delete(id);
+  }
+}
+
+export function drawStain(ctx: CanvasRenderingContext2D, stain: Stain, dpr = 1): void {
+  const t = 1 - stain.life / stain.maxLife;
+  if (t >= 1) return;
+  if (dpr !== stainSpriteDpr) {
+    stainSpriteDpr = dpr;
+    stainSprites.clear();
+  }
+  let sprites = stainSprites.get(stain.id);
+  if (!sprites) {
+    sprites = bakeStainSprites(stain);
+    stainSprites.set(stain.id, sprites);
   }
 
-  for (let i = 0; i < 3; i++) {
-    const a = hash(seed + i * 6.6) * Math.PI * 2;
-    const dist = s * (0.7 + hash(seed + i * 2.2) * 0.4) * spread;
-    const r = s * (0.035 + hash(seed + i * 9.4) * 0.035);
-    const x = Math.cos(a) * dist;
-    const y = Math.sin(a) * dist;
-    ctx.globalAlpha = wetAlpha * 0.65;
-    ctx.fillStyle = fluid;
-    ctx.beginPath();
-    ctx.ellipse(x, y, r * 1.3, r, a, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = wetAlpha * 0.7;
-    ctx.fillStyle = highlight;
-    ctx.beginPath();
-    ctx.ellipse(x - r * 0.25, y - r * 0.3, r * 0.35, r * 0.22, 0, 0, Math.PI * 2);
-    ctx.fill();
+  const spread = 1 - Math.pow(1 - Math.min(1, t * stain.maxLife / 0.1), 3);
+  const scale = 0.65 + spread * 0.35;
+  const half = sprites.half;
+  ctx.save();
+  ctx.translate(stain.x, stain.y);
+  ctx.scale(scale, scale);
+  if (sprites.rotated) {
+    ctx.globalAlpha = Math.max(0, 0.28 * (1 - t * t));
+    ctx.drawImage(sprites.base, -half, -half, half * 2, half * 2);
+    const wet = Math.max(0, (1 - t * t) * spread);
+    if (wet > 0.004) {
+      ctx.globalAlpha = wet;
+      ctx.drawImage(sprites.wet, -half, -half, half * 2, half * 2);
+    }
+  } else {
+    // Juice blot: two layers on different fade curves.
+    ctx.globalAlpha = Math.max(0, 0.32 * (1 - t * t));
+    ctx.drawImage(sprites.base, -half, -half, half * 2, half * 2);
+    const highlightAlpha = Math.max(0, 0.18 * (1 - t));
+    if (highlightAlpha > 0.004) {
+      ctx.globalAlpha = highlightAlpha;
+      ctx.drawImage(sprites.wet, -half, -half, half * 2, half * 2);
+    }
   }
-
   ctx.restore();
 }
 
@@ -636,7 +730,8 @@ export function render(
   ctx.setTransform(viewport.dpr, 0, 0, viewport.dpr, 0, 0);
   ctx.clearRect(0, 0, viewport.width, viewport.height);
 
-  for (const stain of stains) drawStain(ctx, stain);
+  pruneStainSprites(stains);
+  for (const stain of stains) drawStain(ctx, stain, viewport.dpr);
   for (const bait of baits) drawBait(ctx, bait);
   for (const bug of bugs) drawBug(ctx, bug);
   drawParticles(ctx, particles);

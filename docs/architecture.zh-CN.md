@@ -45,7 +45,8 @@ lib.rs
   └── 命令             — clickable、设置、多屏、退出
 
 tray.rs
-  └── 菜单 → tray-command → overlay
+  ├── 显示/隐藏 → 原生覆盖层可见状态 + overlay-visibility-changed
+  └── 其他菜单操作 → tray-command → overlay
 ```
 
 ## 3. 模块职责
@@ -103,14 +104,14 @@ squishing → dying → 移除（不重生）
 ## 6. 鼠标穿透
 
 ```text
-Rust 轮询 → 每窗 cursor-local {x,y,inside}
+Rust 轮询 → 每窗 cursor-local {x,y,inside}（逐窗去重）
                      │
-前端命中检测 ────────┤
+前端缓存 payload，命中检测按 rAF 帧执行
                      ├─ 命中 → setIgnoreCursorEvents(false) → click → squish
                      └─ 未中 → setIgnoreCursorEvents(true)
 ```
 
-只在 hover 状态变化时切换穿透。覆盖层 `focusable: false`。
+轮询器在窗口的计算结果与上次完全一致时跳过 emit；覆盖层几何或可见性变化会递增布局纪元并清空该缓存。虫子会从静止光标下爬过，因此前端在每帧 rAF 里用缓存 payload 评估悬停——光标事件只负责刷新数据。仅在 hover 状态变化时切换穿透。覆盖层 `focusable: false`。
 
 ## 7. 设置同步
 
@@ -160,6 +161,34 @@ primary overlay 前端
 ```
 
 前端 rAF 首帧 `dt` 可能极大，已由 `MAX_DT` 截断，不会把虫子瞬移。事件带 4s 防抖。睡眠唤醒后副屏 WebView 可能变成僵尸（空白/几何过期），必须 close+recreate，不能只 `set_size`/`set_position`。
+
+## 9.2 覆盖层显示与隐藏
+
+实际可见状态为 `user_visible && (show_in_captures || !capture_ui_active)`：托盘选择、截图允许、截图期间临时隐藏是三个独立状态。托盘显示/隐藏据此对所有覆盖窗口调用原生 `show()` / `hide()`，再广播 `overlay-visibility-changed`。仅隐藏 Canvas 会留下透明置顶窗口，macOS 窗口截图仍能选中它。
+
+- 显示覆盖层后，前端调用 `request_overlay_cursor` 使原生光标缓存失效，即使光标静止也重新发送。
+- 各覆盖层先经 `listenOverlayVisibility` 订阅事件，再查 `get_overlay_visible`，新建或重建的 WebView 按当前状态初始化（查询中途到达的事件优先）。rAF、音频与 Rust 光标轮询都跟这一个状态，不依赖前端监听器。
+- 显示器变化与睡眠唤醒重建保留两种状态；打开设置不改变可见状态；截图结束不覆盖手动隐藏。
+
+## 9.3 截图偏好
+
+`Settings.showInCaptures` 默认 `false`，只有字面值 `true` 才允许捕获。与托盘显示/隐藏独立持久化，对所有覆盖层（虫子、天气与特效）及重建生效，设置窗口不受影响。
+
+**检测（macOS）。**`macos_capture.rs` 用 `CGEventTap` 监听输入：仅输入监控权限时被动监听，有辅助功能权限时用 active tap。只比对按键码与修饰键是否符合截图快捷键：不读文本、不存数据、事件原样通过。唯一例外是录制自定义快捷键，几秒内拦截按键（组合键转发给设置窗口后丢弃）。启动时 `CGPreflightListenEventAccess` 检查，设置窗口用 `CGRequestListenEventAccess` 申请；界面按实际 `listening` / `canRecord` 报告状态。权限变化后状态刷新会补启动或切换 tap；被拒绝或重复请求会直接打开输入监控设置页，避免按钮无反馈。录制自定义键需要已安装的 active tap：10 秒截止，吞掉录制按键（含重复与释放），期间跳过会话检测。
+
+**会话。**`capture_guard.rs` 把输入事件转成会话：
+
+| 会话 | 开始 | 结束 |
+|---|---|---|
+| `⌘⇧4` 式选择（含 `⌃` 变体与自定义选取键——微信 `⌘⌃A`、Snipaste `Fn+F1`，经 `set_capture_hotkeys` 推送） | 按下快捷键 | 松开鼠标、Esc、Enter（空格只切换窗口选取） |
+| `⌘⇧5` 工具栏 | 按下快捷键（再按重启） | 存成新的截图文件——截图与录屏结束都算（存剪贴板仍需按 Esc） |
+| 任意会话 | — | Esc（录屏中也一样，要干净录屏请用托盘隐藏）、`⌘⌃Esc`、30 分钟兜底 |
+
+每次会话结束都经过 400 ms 退出宽限才恢复。偏好关闭时，活动会话隐藏所有原生窗口，暂停前端 rAF/音频与光标工作；轮询器只做超时/宽限簿记，外加保存目录扫描（每秒两次，工具栏点击后立刻补扫；只读文件名与修改时间，不读内容、不查窗口列表）。显式开启偏好则绕过隐藏。macOS 不开内容保护，避免 `⌘⇧4` → 空格选中覆盖层后无法捕获。
+
+**设置同步。**主覆盖层与设置界面在加载返回前应用 `setOverlayCaptureVisible`；副屏用 `loadSettings(false)` 加载，避免旧存储覆盖较新的原生选择。保存先等原生更新，再存盘广播 `settings-changed`；原生失败则拒绝保存、恢复原偏好并提示。首次加载的原生失败只记日志。
+
+**限度。**均为尽力而为：按键即拍的 `⌘⇧3`、超出会话上限的录屏、未配置的第三方工具都不覆盖。Windows 用原生 `WDA_EXCLUDEFROMCAPTURE`，不用输入检测。必须不入镜时请用托盘隐藏。
 
 ## 10. 进食与满足态
 

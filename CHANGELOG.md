@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-10-07
+
+Screenshot compatibility: overlays stay out of screenshots and recordings unless explicitly allowed.
+
+### Added
+
+- Settings “Show in screenshots / recordings” (default off). On macOS a `CGEventTap` detects screenshot sessions — passive with Input Monitoring alone, active with Accessibility alone — and temporarily hides every overlay; it only matches the screenshot shortcuts, passes events through, and stores nothing. On Windows the overlay requests `WDA_EXCLUDEFROMCAPTURE`
+- Third-party picker shortcuts (WeChat `⌘⌃A`, Snipaste `Fn+F1` presets, editable in settings); recording a shortcut needs Accessibility, swallows the combo for a few seconds, then discards it
+- `⌘⇧5` toolbar sessions end automatically once the capture file is saved (the save-directory scan reads file names and mtimes only); clipboard saves still restore with Esc, and tray Show recovers a stuck session
+- Permission UX: explicit opt-in, a recheck delay so the one-time system alert isn't covered by our own Settings pane, manual-add steps, and stale-entry-after-update guidance
+
+### Changed
+
+- Screenshot copy follows one-permission-per-section: Input Monitoring for hiding, Accessibility for recording
+- The “open Input Monitoring settings” row hides while the compatibility status row is shown
+- The compatibility action in long hints starts on its own line
+
 ## [0.4.1] - 2026-10-01
 
 Three new species (firefly, earthworm, beetle) and a visually grouped species picker.
@@ -191,6 +208,8 @@ First public baseline: desktop bug overlay for macOS and Windows.
 
 - Production binaries must be built with `pnpm tauri build` (not bare `cargo build --release`)
 
+[Unreleased]: https://github.com/shenguanqing/BugScurry/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/shenguanqing/BugScurry/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/shenguanqing/BugScurry/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/shenguanqing/BugScurry/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/shenguanqing/BugScurry/compare/v0.3.1...v0.3.2

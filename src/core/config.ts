@@ -10,6 +10,12 @@ export const DEFAULT_SETTINGS: Settings = {
   particles: true,
   repellent: true,
   autostart: false,
+  showInCaptures: false,
+  captureCompatibilityEnabled: false,
+  captureHotkeys: [
+    { name: "snipaste", mods: "fn", code: "F1" },
+    { name: "wechat", mods: "cmd+ctrl", code: "KeyA" },
+  ],
   monitorMode: "primary",
   species: "random",
   theme: "auto",

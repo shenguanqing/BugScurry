@@ -16,7 +16,7 @@ Cross-platform desktop app for **macOS** and **Windows**. Runs in the background
 - Squish on click: flatten animation, optional Web Audio snap, stains, particles
 - Four personalities + species favorites for cookie / sugar / fruit feeding
 - Day/night species mix; tray weather (five rain intensities plus snow, fog, sandstorm — wind, lightning, ambient sound)
-- Settings window: count 1–50, size, speed, randomness, sound/stains/particles, autostart, random weather, random events, multi-monitor, light/dark/auto theme
+- Settings window: count 1–50, size, speed, randomness, sound/stains/particles, autostart, random weather, random events, show in screenshots/recordings, multi-monitor, light/dark/auto theme
 - Tray / Menu Bar: show-hide, add/remove, regenerate, feed, weather, insecticide spray, settings, quit
 - Closing settings does not quit the app
 - Squished bugs are **not** auto-replaced (regenerate or raise count to spawn more)

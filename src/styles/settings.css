@@ -292,7 +292,10 @@ body {
 
 /* Shared focus ring for all interactive controls. */
 .toggle-switch:focus-visible,
-.btn:focus-visible {
+.btn:focus-visible,
+.compat-enable:focus-visible,
+.debug-chip:focus-visible,
+.debug-x:focus-visible {
   outline: none;
   box-shadow:
     0 0 0 2px var(--card-solid),
@@ -444,7 +447,7 @@ output {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  min-height: 52px;
+  min-height: 48px;
   gap: 12px;
   padding: 4px 0;
   border-bottom: 1px solid var(--line);
@@ -468,7 +471,6 @@ output {
   min-width: 0;
   font-weight: 500;
   line-height: 1.4;
-  cursor: pointer;
 }
 
 .toggle-label-wrap {
@@ -489,8 +491,8 @@ output {
   padding: 0;
   flex-shrink: 0;
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: 10px;
   background: transparent;
   cursor: pointer;
@@ -500,7 +502,7 @@ output {
 .toggle-switch::before {
   content: "";
   position: absolute;
-  inset: 9px 0;
+  inset: 7px 0;
   border-radius: 999px;
   background: var(--toggle-off);
   transition: background 0.18s ease;
@@ -509,7 +511,7 @@ output {
 .toggle-switch::after {
   content: "";
   position: absolute;
-  top: 11px;
+  top: 9px;
   left: 2px;
   width: 22px;
   height: 22px;
@@ -524,7 +526,181 @@ output {
 }
 
 .toggle-switch.on::after {
-  transform: translateX(18px);
+  transform: translateX(14px);
+}
+
+/* Subtle track tint so the 44px hit area reads as clickable. */
+@media (hover: hover) {
+  .toggle-switch:hover::before {
+    background: color-mix(in srgb, var(--toggle-off) 82%, var(--muted));
+  }
+
+  .toggle-switch.on:hover::before {
+    background: color-mix(in srgb, var(--ok) 88%, var(--ink));
+  }
+}
+
+/* iOS-style section footer: gray note under the card, action link flowing
+   right after the text (连续排列，不两端对齐). */
+.settings-footnote {
+  margin: -4px 0 16px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.card:has(+ .settings-footnote) {
+  margin-bottom: 8px;
+}
+
+.settings-footnote .hint {
+  display: inline;
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* The action reads as plain text inside the sentence: it wraps like text,
+   keeps a small gap after the note, and has no hover pill. */
+.settings-footnote .compat-enable {
+  display: inline;
+  padding: 0 0 0 4px;
+  margin: 0;
+}
+
+/* Long compat hint: the action starts on its own line so it is not lost
+   at the end of a wrapped paragraph. Other footnotes keep inline flow. */
+.settings-footnote .compat-enable--newline {
+  display: inline-block;
+  margin-top: 2px;
+  padding-left: 0;
+}
+
+
+/* Hover/active fall through to the global compat-enable backgrounds. */
+
+.compat-enable {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 1px 4px;
+  margin-left: 2px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.compat-enable:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.compat-enable:active:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.compat-enable:disabled,
+.compat-enable[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.hotkey-rows {
+  display: grid;
+  padding-bottom: 4px;
+}
+
+.hotkey-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 36px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--line);
+}
+
+.hotkey-row:last-child {
+  border-bottom-color: transparent;
+}
+
+.hotkey-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.hotkey-name-editable {
+  cursor: text;
+}
+
+.hotkey-name-editable:hover {
+  color: var(--accent);
+}
+
+.hotkey-name-input {
+  appearance: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+}
+
+.hotkey-name-input:focus {
+  outline: none;
+}
+
+.hotkey-combo {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hotkey-remove {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.hotkey-remove:hover {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.hotkey-remove {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.hotkey-remove:hover {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.compat-enable.recording {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .select-row {
@@ -547,7 +723,7 @@ output {
   max-width: 58%;
   flex-shrink: 0;
   /* Match the toggle hit area while keeping the native select compact. */
-  min-height: 44px;
+  min-height: 40px;
 }
 
 .select-wrap::after {
@@ -568,7 +744,7 @@ output {
   -webkit-appearance: none;
   width: 100%;
   min-width: 0;
-  min-height: 44px;
+  min-height: 40px;
   border: 0;
   background: transparent;
   color: var(--muted);
@@ -588,6 +764,25 @@ output {
   outline: none;
   border: none;
   box-shadow: none;
+}
+
+/* Keyboard focus still gets the shared ring — the suppression above only
+   removes WebKit's default blue flash; this rule restores our own. */
+.select:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--card-solid),
+    0 0 0 4px var(--accent);
+}
+
+/* Hover feedback on the control only — the label itself opens nothing. */
+@media (hover: hover) {
+  .select:hover {
+    color: var(--ink);
+  }
+
+  .select-wrap:hover::after {
+    border-color: var(--ink);
+  }
 }
 
 .select option {
@@ -753,7 +948,7 @@ output {
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.08s ease, opacity 0.15s ease;
+  transition: transform 0.08s ease, background 0.15s ease, opacity 0.15s ease;
 }
 
 .btn:active:not(:disabled) {
@@ -793,6 +988,21 @@ output {
   }
 }
 
+/* Hover: color-mix targets adapt to both themes via the flipping variables. */
+@media (hover: hover) {
+  .btn:not(.primary):not(.danger):hover:not(:disabled) {
+    background: color-mix(in srgb, var(--fill) 80%, var(--muted));
+  }
+
+  .btn.primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 88%, var(--ink));
+  }
+
+  .btn.danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--danger) 20%, transparent);
+  }
+}
+
 .footer {
   margin-top: 16px;
   text-align: center;
@@ -807,7 +1017,8 @@ output {
   .toggle-switch,
   .toggle-switch::before,
   .toggle-switch::after,
-  .btn {
+  .btn,
+  .compat-enable {
     transition: none;
   }
 }
@@ -851,10 +1062,19 @@ output {
 .disclosure-chevron {
   flex-shrink: 0;
   color: var(--muted);
+  transition: color 0.15s ease;
 }
 
 .feeding-guide[open] .disclosure-chevron {
   transform: rotate(90deg);
+}
+
+/* Row fill reads heavy on a full-width disclosure; the chevron alone hints
+   the click target without repainting the row. */
+@media (hover: hover) {
+  .feeding-guide summary:hover .disclosure-chevron {
+    color: var(--ink);
+  }
 }
 
 .feeding-content {

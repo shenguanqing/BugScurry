@@ -282,8 +282,13 @@ fn on_menu_event(app: &tauri::AppHandle, id: &str) {
     }
 }
 
+/// Visibility is native so a hidden WebView is never needed to restore windows.
 /// Spray must hit every display; other commands stay on the primary overlay.
 pub fn emit_tray_to_overlays(app: &tauri::AppHandle, cmd: &str) {
+    if cmd == "toggle_visibility" {
+        super::toggle_overlay_visibility(app);
+        return;
+    }
     if cmd == "prank_spray" {
         for (label, win) in app.webview_windows() {
             if label == "overlay" || label.starts_with("overlay-") {

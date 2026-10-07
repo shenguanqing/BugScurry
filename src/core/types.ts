@@ -109,6 +109,12 @@ export interface Settings {
   /** Bugs flee when the cursor gets close */
   repellent: boolean;
   autostart: boolean;
+  /** Allow bugs, weather, and overlay effects in screenshots and recordings. */
+  showInCaptures: boolean;
+  /** Explicit opt-in, independent of permissions retained by macOS. */
+  captureCompatibilityEnabled: boolean;
+  /** Third-party screenshot picker hotkeys (mods: cmd/ctrl/alt/shift/fn). */
+  captureHotkeys: Array<{ name?: string; mods: string; code: string }>;
   monitorMode: "primary" | "all";
   /** "random" or a species id */
   species: string;

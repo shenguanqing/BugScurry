@@ -1,6 +1,6 @@
 [package]
 name = "bugscurry"
-version = "0.4.1"
+version = "0.5.0"
 description = "Desktop bugs that crawl on your screen"
 authors = ["shenguanqing"]
 edition = "2021"
@@ -24,6 +24,7 @@ tauri-plugin-autostart = "2"
 tauri-plugin-global-shortcut = "2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.10"
 core-graphics = "0.24"
 
 [profile.release]

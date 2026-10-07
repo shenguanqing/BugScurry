@@ -45,7 +45,8 @@ lib.rs
   └── commands           — clickable, settings, monitor mode, quit
 
 tray.rs
-  └── menu → tray-command events → overlay
+  ├── show/hide → native overlay visibility + overlay-visibility-changed
+  └── other menu actions → tray-command events → overlay
 ```
 
 ## 3. Module responsibilities
@@ -103,14 +104,14 @@ Viewport for drawing uses `window.innerWidth/innerHeight` + `devicePixelRatio`.
 ## 6. Mouse pass-through
 
 ```text
-Rust poller → cursor-local {x,y,inside} per overlay
+Rust poller → cursor-local {x,y,inside} per overlay (deduped per window)
                      │
-frontend hit test ───┤
+frontend caches payload, hit test runs per rAF frame
                      ├─ hit  → setIgnoreCursorEvents(false) → click → squish
                      └─ miss → setIgnoreCursorEvents(true)
 ```
 
-Only flip pass-through when hover state changes. Overlay windows are `focusable: false`.
+The poller skips a window's emit while the computed payload is bit-identical to the last one; overlay geometry or visibility changes bump a layout epoch that clears this cache. Bugs move under a stationary cursor, so the frontend evaluates hover per rAF frame from the cached payload — cursor events only refresh the data. Pass-through flips only when hover state changes. Overlay windows are `focusable: false`.
 
 ## 7. Settings sync
 
@@ -161,6 +162,34 @@ primary overlay frontend
 ```
 
 The first rAF `dt` after wake is huge and already clamped by `MAX_DT`, so bugs do not teleport. The event is debounced for 4s. After sleep, secondary overlay WebViews can become zombies (blank canvas / stale geometry) — they must be closed and recreated, not merely resized.
+
+## 9.2 Overlay visibility
+
+Effective visibility is `user_visible && (show_in_captures || !capture_ui_active)`: the tray choice, the capture opt-in, and temporary screenshot suppression are three independent flags. Tray show/hide applies the result with native `show()` / `hide()` on every overlay window, then broadcasts `overlay-visibility-changed`. Hiding only the canvas would leave a transparent topmost window selectable by macOS window capture.
+
+- After Show, the frontend calls `request_overlay_cursor`, invalidating the native cursor cache so even a stationary cursor is replayed.
+- Each overlay subscribes via `listenOverlayVisibility` before querying `get_overlay_visible`, so new or rebuilt WebViews initialize from the current flag (an event arriving mid-query wins). rAF, audio, and the Rust cursor poller all follow this one flag — nothing depends on a frontend listener.
+- Monitor changes and sleep/wake rebuilds preserve both flags; opening settings changes nothing; ending a capture session never overrides a manual Hide.
+
+## 9.3 Capture preference
+
+`Settings.showInCaptures` defaults to `false` (only literal `true` opts in). It is persisted independently of the tray visibility choice, covers bugs, weather, and effects on every overlay including rebuilds, and never affects the settings window.
+
+**Detection (macOS).** `macos_capture.rs` watches input with a `CGEventTap` — passive with Input Monitoring alone, active with Accessibility alone. It only compares key codes and modifier flags against the screenshot shortcuts: never reads text, stores nothing, passes events through untouched. The one exception is custom-key recording, which swallows key-downs for a few seconds (the combo goes to the settings window, then is discarded). Permission is preflighted at startup (`CGPreflightListenEventAccess`) and requested from the settings window (`CGRequestListenEventAccess`); the UI reports the real `listening` / `canRecord` flags. Status refresh restarts or reconfigures the tap after permission changes; a denied or repeated request falls back to opening the Input Monitoring pane. Recording a custom key needs an installed active tap, has a 10-second deadline, consumes the recorded key through release (including repeats), and bypasses session detection meanwhile.
+
+**Sessions.** `capture_guard.rs` turns input edges into sessions:
+
+| Session | Starts on | Ends on |
+|---|---|---|
+| `⌘⇧4`-style selection (incl. `⌃` variant and custom picker keys — WeChat `⌘⌃A`, Snipaste `Fn+F1` via `set_capture_hotkeys`) | shortcut key-down | mouse release, Esc, Enter (Space only switches to window picking) |
+| `⌘⇧5` toolbar | shortcut key-down (re-press restarts) | a newly saved capture file — screenshots and finished recordings alike (clipboard saves still need Esc) |
+| Any session | — | Esc (also mid-recording: use tray Hide for guaranteed-clean recordings), `⌘⌃Esc`, 30-minute bound |
+
+Every session end flows through a 400 ms exit grace before overlays return. While suppressed (preference off), overlays hide natively and frontend rAF/audio plus cursor work pause; the poller only replays timeout/grace bookkeeping plus a save-directory scan for toolbar completion (twice per second, expedited after toolbar clicks; file names and mtimes only — no content, no window-list queries). Opt-in bypasses suppression. macOS content protection stays off, so a selected overlay never becomes uncapturable in `⌘⇧4` → Space.
+
+**Settings sync.** Primary overlay and settings apply `setOverlayCaptureVisible` before load resolves; secondaries load with `loadSettings(false)` so stale store data can't overwrite a newer native choice. Saves await the native update before persisting and broadcasting `settings-changed`; a native failure rejects the save, restores the previous preference, and shows a failure state. A first-load native failure only logs.
+
+**Limits.** Best effort only: instant `⌘⇧3` captures (taken on key-down), recordings outlasting the session bound, and unconfigured third-party tools are not covered. Windows uses native `WDA_EXCLUDEFROMCAPTURE` instead of input detection. When exclusion is required, use tray Hide.
 
 ## 10. Feeding & post-meal state
 

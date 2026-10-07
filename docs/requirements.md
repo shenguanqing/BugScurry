@@ -32,6 +32,7 @@ One-liner: **desktop bug pet / joke widget** — light, toggleable, adjustable, 
 | F-WIN-05 | Bug area accepts clicks | P0 |
 | F-WIN-06 | No keyboard focus steal | P0 |
 | F-WIN-07 | Correct Retina / Windows DPI scaling | P0 |
+| F-WIN-08 | Keep overlay content out of supported captures: temporarily hide native overlays during the macOS system Screenshot UI; request Windows capture exclusion; platform best effort | P1 |
 
 ### 3.2 Lifecycle
 
@@ -116,6 +117,9 @@ Independent small window. **Closing settings must not quit the app.**
 | F-SET-12 | Current screen / all screens | P1 |
 | F-SET-13 | Immediate effect + persistence | P0 |
 | F-SET-14 | Random events toggle (auto-rolls the event pool); info popover lists events | P0 |
+| F-SET-15 | Show overlay in screenshots / recordings: default off, explicit opt-in, persisted, applied to all overlays including rebuilt windows; settings window is unaffected | P1 |
+
+Capture exclusion covers bugs, weather, and effects in the overlay. On macOS, turning the preference off temporarily hides every native overlay during a detected screenshot session (`⌘⇧4`, including Space for window selection, or `⌘⇧5`). Sessions are identified by an input monitor that matches the system screenshot shortcuts plus user-configured third-party picker keys (defaults WeChat `⌘⌃A`, Snipaste `Fn+F1`), keeps the original shortcuts intact, and stores no keyboard content; events pass through except for the few seconds spent recording a custom key, when key-downs are swallowed and discarded; it requires macOS Input Monitoring (passive listening) or Accessibility (active filtering) permission and the settings window must clearly say so when it is not granted. Application windows must remain selectable and window capture must not fail because a protected BugScurry overlay was selected. Overlays resume after the session ends (mouse release, Esc, Enter, `⌘⌃Esc`); `⌘⇧5` stays suppressed through toolbar options, region adjustments, and timed captures; a saved `⌘⇧5` capture file (screenshot or finished recording) ends the session automatically, while clipboard saves still need Esc; Esc restores during screen recordings too, so recordings that must stay bug-free should use tray Hide; a user's tray Hide choice remains in force. Outside these sessions, bugs remain visible on the desktop. The setting does not guarantee exclusion from immediate `⌘⇧3` captures, recordings that outlast the session bound, or third-party capture tools whose hotkeys are not configured (WeChat `⌘⌃A` and Snipaste `Fn+F1` are preset and editable in settings). macOS native content protection is not used because it can leave an uncapturable overlay in the system window picker. Apple reports no public API that prevents screen capture in the ScreenCaptureKit scenario. Windows retains OS content protection; `WDA_EXCLUDEFROMCAPTURE` is supported on Windows 10 version 2004 and later. See [Apple's response](https://developer.apple.com/forums/thread/792152) and [Microsoft's API documentation](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowdisplayaffinity).
 
 ### 3.7 Tray / menu bar
 

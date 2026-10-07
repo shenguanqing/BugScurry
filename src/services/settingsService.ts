@@ -7,6 +7,7 @@ import { emptyDailyStats, normalizeDailyStats } from "../core/bugManager";
 import { clampSettings } from "../core/settings";
 import type { DailyStats, Settings } from "../core/types";
 import { setLocalePref, syncTrayLocale } from "../i18n";
+import { setCaptureCompatibilityEnabled, setCaptureHotkeys, setOverlayCaptureVisible } from "./tauriBridge";
 
 export { clampSettings };
 
@@ -42,24 +43,43 @@ export function applyThemeToDocument(
   }
 }
 
-export async function loadSettings(): Promise<Settings> {
+export async function loadSettings(applyCapturePreference = true): Promise<Settings> {
+  let next = { ...DEFAULT_SETTINGS };
   try {
     const store = await getStore();
     const raw = await store.get<Partial<Settings>>("settings");
-    let next = clampSettings(raw ?? {});
+    next = clampSettings(raw ?? {});
     try {
       next.autostart = await isEnabled();
     } catch {
       // ignore
     }
-    return next;
   } catch {
-    return { ...DEFAULT_SETTINGS };
+    // A missing or unavailable store uses the same default capture preference.
   }
+  if (applyCapturePreference) {
+    try {
+      await setOverlayCaptureVisible(next.showInCaptures);
+    } catch (err) {
+      // Capture exclusion is best effort; a native failure must not stop the app.
+      console.error("apply capture preference failed", err);
+    }
+    try {
+      await setCaptureHotkeys(next.captureHotkeys);
+      await setCaptureCompatibilityEnabled(next.captureCompatibilityEnabled);
+    } catch (err) {
+      console.error("apply capture hotkeys failed", err);
+    }
+  }
+  return next;
 }
 
 export async function saveSettings(settings: Settings): Promise<void> {
   const next = clampSettings(settings);
+  // Apply from the saving UI even when hidden overlay WebViews are suspended.
+  await setOverlayCaptureVisible(next.showInCaptures);
+  await setCaptureHotkeys(next.captureHotkeys);
+  await setCaptureCompatibilityEnabled(next.captureCompatibilityEnabled);
   try {
     const store = await getStore();
     await store.set("settings", next);

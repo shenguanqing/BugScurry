@@ -81,6 +81,15 @@
 - [x] 正式 QA 页：`qa/`（Vite 映射旧 `.tmp-species-qa` 书签）
 - [x] 单测：`prank` / `randomEvents` / `atmosphere` / weather 家族
 
+## M8 — 截图兼容
+
+- [x] 设置“出现在截图/录屏中”（默认关闭）；macOS 在检测到的会话期间隐藏覆盖层，Windows 请求 `WDA_EXCLUDEFROMCAPTURE`
+- [x] macOS `CGEventTap` 检测：仅输入监控时被动监听，有辅助功能时用 active tap；事件原样通过、不存数据
+- [x] 第三方选取键（微信 `⌘⌃A`、Snipaste `Fn+F1` 预置，可改）；录制需要辅助功能，10 秒截止
+- [x] `⌘⇧5` 存成文件后自动恢复（保存目录扫描，只读文件名与修改时间）；存剪贴板按 Esc；托盘显示可救卡住的会话
+- [x] 权限体验：显式 opt-in、一次性弹窗竞态处理、手动添加与更新后旧条目指引
+- [x] 单测：`capture_guard` 会话、补扫、monitor service
+
 ### 后续可选（未阻塞当前版本）
 
 - [x] 覆盖层跟随所有 macOS Spaces（2026-09-11 在 2 个 Space 上 soak 通过）

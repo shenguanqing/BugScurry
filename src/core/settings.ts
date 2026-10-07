@@ -12,6 +12,36 @@ const RAIN_KINDS: readonly RainKind[] = [
   "sand",
 ];
 
+
+const HOTKEY_MODS = new Set(["cmd", "ctrl", "alt", "shift", "fn"]);
+const HOTKEY_LIMIT = 8;
+
+/** Structural validation only; unknown key codes are dropped at push time. */
+function sanitizeCaptureHotkeys(
+  input: Settings["captureHotkeys"],
+): Settings["captureHotkeys"] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  const list: Settings["captureHotkeys"] = [];
+  for (const entry of input) {
+    if (!entry || typeof entry !== "object") continue;
+    const { name, mods, code } = entry as {
+      name?: unknown;
+      mods?: unknown;
+      code?: unknown;
+    };
+    if (typeof mods !== "string" || typeof code !== "string" || !code) continue;
+    if (mods.split("+").some((m) => m && !HOTKEY_MODS.has(m))) continue;
+    const cleanName = typeof name === "string" ? name.trim().slice(0, 24) : "";
+    const key = `${cleanName}+${mods}+${code}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    list.push({ name: cleanName || undefined, mods, code });
+    if (list.length >= HOTKEY_LIMIT) break;
+  }
+  return list;
+}
+
 export function clampSettings(input: Partial<Settings>): Settings {
   const next: Settings = { ...DEFAULT_SETTINGS, ...input };
   next.count = Math.min(LIMITS.countMax, Math.max(LIMITS.countMin, Math.round(next.count)));
@@ -26,6 +56,9 @@ export function clampSettings(input: Partial<Settings>): Settings {
   next.particles = !!next.particles;
   next.repellent = !!next.repellent;
   next.autostart = !!next.autostart;
+  next.showInCaptures = next.showInCaptures === true;
+  next.captureCompatibilityEnabled = next.captureCompatibilityEnabled === true;
+  next.captureHotkeys = sanitizeCaptureHotkeys(next.captureHotkeys);
   next.rain = !!next.rain;
   next.autoRain = !!next.autoRain;
   next.randomEvents = !!next.randomEvents;

@@ -91,6 +91,14 @@ await getCurrentWindow().setIgnoreCursorEvents(true);
 
 结论：Tauri 可以做到同等体验，但需要自研约 100–300 行跨平台原生代码，并处理权限与坐标问题；Electron 开箱即用。
 
+### 2.5 截图排除
+
+需求：默认不入镜（用户显式允许除外），且不能破坏 macOS 窗口截图（`⌘⇧4` → 空格仍要能选中下层窗口）。
+
+macOS 原生内容保护试过但否决：`setContentProtected` 会让覆盖层在窗口选择器里仍可选中、但选中后截图失败——比入镜更糟。**决策：** macOS 用 `CGEventTap` 检测截图会话（仅输入监控时被动监听，有辅助功能时用 active tap），会话期间原生隐藏覆盖层；`⌘⇧5` 工具栏的完成靠截图保存目录感知。ScreenCaptureKit 场景没有公开 API 可防，托盘隐藏是兜底。
+
+Windows 的 `WDA_EXCLUDEFROMCAPTURE` 无此副作用，保留（Windows 10 2004 起支持）。
+
 ### 2.3 性能与常驻
 
 | 指标 | 期望 | Tauri | Electron |

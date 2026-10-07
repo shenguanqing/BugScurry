@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from "vue";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LIMITS } from "../core/config";
@@ -7,6 +7,20 @@ import { RAIN_KIND_ORDER } from "../core/weather";
 import type { FoodKind, Settings } from "../core/types";
 import { t } from "../i18n";
 import { getSpecies, listSpecies } from "../species";
+import {
+  beginHotkeyRecording,
+  endHotkeyRecording,
+  getCaptureMonitorStatus,
+  keycodeToCode,
+  listenHotkeyCaptured,
+  openSystemSettingsPane,
+} from "../services/tauriBridge";
+import {
+  enableCaptureCompatibility as enableNativeCaptureCompatibility,
+  isCaptureCompatibilityReady,
+  shouldPollCaptureStatus,
+} from "../services/captureMonitorService";
+import { hotkeyFromKeyboardEvent } from "../services/hotkeyRecording";
 import SpeciesPreview from "./SpeciesPreview.vue";
 import InfoTip from "./InfoTip.vue";
 import {
@@ -67,6 +81,7 @@ const speciesOptions = computed(() => {
 });
 
 const settings = reactive<Settings>({
+  captureHotkeys: [],
   count: 1,
   size: 1,
   speed: 1,
@@ -76,6 +91,8 @@ const settings = reactive<Settings>({
   particles: true,
   repellent: true,
   autostart: false,
+  showInCaptures: false,
+  captureCompatibilityEnabled: false,
   monitorMode: "primary",
   species: "random",
   theme: "auto",
@@ -106,6 +123,17 @@ const randomEventTipLines = computed(() => {
   const kinds = ["swarm", "fat_invasion", "berserk", "size_chaos", "night_raid"] as const;
   return kinds.map(
     (k) => `${tt(`event.${k}.title`)} — ${tt(`event.${k}.subtitle`)}`,
+  );
+});
+
+/** Capture tip as scannable bullets: permission, privacy, behavior, limits. */
+const captureTipLines = computed(() => {
+  void localeVersion.value;
+  const keys = captureMonitorStatus.value?.supported
+    ? ["keys", "permission", "limits"]
+    : ["windows"];
+  return keys.map(
+    (k) => tt(`toggle.showInCaptures.tip.${k}`),
   );
 });
 const hoveredSpecies = ref<string | null>(null);
@@ -167,13 +195,208 @@ const previewTarget = computed(() => {
 });
 
 const savedFlash = ref(false);
+const captureSavePending = ref(false);
+const captureSaveFailed = ref(false);
+const captureMonitorStatus = ref<Awaited<ReturnType<typeof getCaptureMonitorStatus>> | null>(null);
+const capturePermissionPending = ref(false);
+const capturePermissionRequestFailed = ref(false);
+const hotkeyRecording = ref(false);
+let hotkeyRecorderTimer = 0;
+let unlistenHotkeyCaptured: UnlistenFn | null = null;
+const captureCompatibilityReady = computed(() => settings.captureCompatibilityEnabled && isCaptureCompatibilityReady(captureMonitorStatus.value));
+
+const HOTKEY_MOD_GLYPHS: Record<string, string> = { cmd: "⌘", ctrl: "⌃", alt: "⌥", shift: "⇧", fn: "Fn+" };
+
+function formatHotkey(hotkey: { mods: string; code: string }): string {
+  const key = hotkey.code.replace(/^Key|^Digit/, "");
+  const glyphs = hotkey.mods
+    .split("+")
+    .filter(Boolean)
+    .map((mod) => HOTKEY_MOD_GLYPHS[mod] ?? mod)
+    .join("");
+  return glyphs + key;
+}
+
+function hotkeyDisplayName(hotkey: { name?: string }): string {
+  if (hotkey.name && HOTKEY_PRESET_KEYS.has(hotkey.name)) {
+    return tt(`capture.hotkeys.preset.${hotkey.name}`);
+  }
+  return hotkey.name || tt("capture.hotkeys.custom");
+}
+
+const HOTKEY_PRESET_KEYS = new Set(["wechat", "snipaste"]);
+
+const hotkeyNameEditing = ref<{ name?: string; mods: string; code: string } | null>(null);
+const hotkeyNameDraft = ref("");
+const hotkeyNameInput = ref<HTMLInputElement | null>(null);
+
+function setHotkeyNameInput(element: unknown): void {
+  hotkeyNameInput.value = element instanceof HTMLInputElement ? element : null;
+}
+
+function startHotkeyNameEdit(hotkey: { name?: string; mods: string; code: string }): void {
+  // Presets store a stable id ("wechat") but display a localized label — edit
+  // the label, not the id.
+  hotkeyNameDraft.value =
+    hotkey.name && HOTKEY_PRESET_KEYS.has(hotkey.name)
+      ? hotkeyDisplayName(hotkey)
+      : hotkey.name ?? "";
+  hotkeyNameEditing.value = hotkey;
+  void nextTick(() => {
+    hotkeyNameInput.value?.focus();
+    hotkeyNameInput.value?.select();
+  });
+}
+
+function cancelHotkeyNameEdit(): void {
+  hotkeyNameEditing.value = null;
+  hotkeyNameDraft.value = "";
+}
+
+function commitHotkeyName(hotkey: { name?: string; mods: string; code: string }): void {
+  if (hotkeyNameEditing.value !== hotkey) return;
+  const name = hotkeyNameDraft.value.trim().slice(0, 24);
+  hotkey.name = name || undefined;
+  cancelHotkeyNameEdit();
+  void persist();
+}
+
+function removeHotkey(hotkey: { name?: string; mods: string; code: string }): void {
+  settings.captureHotkeys = settings.captureHotkeys.filter((h) => h !== hotkey);
+  if (hotkeyNameEditing.value === hotkey) cancelHotkeyNameEdit();
+  void persist();
+}
+
+/** The native tap swallows key-downs while recording and reports the combo. */
+function stopHotkeyRecording(): void {
+  window.clearTimeout(hotkeyRecorderTimer);
+  hotkeyRecording.value = false;
+  void endHotkeyRecording().catch((err) => console.error("end hotkey recording failed", err));
+}
+
+async function toggleHotkeyRecording(): Promise<void> {
+  if (hotkeyRecording.value) {
+    stopHotkeyRecording();
+    return;
+  }
+  if (!captureMonitorStatus.value?.canRecord) return;
+  hotkeyRecording.value = true;
+  try {
+    await beginHotkeyRecording();
+    // Blur/cancel can happen while the native command is in flight.
+    if (!hotkeyRecording.value) { await endHotkeyRecording(); return; }
+  } catch (err) {
+    console.error("begin hotkey recording failed", err);
+    stopHotkeyRecording();
+    captureSaveFailed.value = true;
+    void refreshCaptureMonitorStatus();
+    return;
+  }
+  // No input within 10s ends the recording (the native flag stays clean).
+  window.clearTimeout(hotkeyRecorderTimer);
+  hotkeyRecorderTimer = window.setTimeout(stopHotkeyRecording, 10000);
+}
+
+function saveRecordedHotkey(entry: { mods: string; code: string }): void {
+  if (settings.captureHotkeys.some((h) => h.mods === entry.mods && h.code === entry.code)) return;
+  settings.captureHotkeys = [...settings.captureHotkeys, { name: "", ...entry }];
+  void persist().catch((err) => {
+    captureSaveFailed.value = true;
+    console.error("save recorded hotkey failed", err);
+  });
+}
+
+function onHotkeyCaptured(payload: { mods: string; keycode: number; cancelled: boolean }): void {
+  if (!hotkeyRecording.value) return;
+  window.clearTimeout(hotkeyRecorderTimer);
+  hotkeyRecording.value = false;
+  if (payload.cancelled) return;
+  const code = keycodeToCode(payload.keycode);
+  if (code) saveRecordedHotkey({ mods: payload.mods, code });
+}
+
+function onRecordingKeyDown(event: KeyboardEvent): void {
+  if (!hotkeyRecording.value) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  if (event.code === "Escape") { stopHotkeyRecording(); return; }
+  const entry = hotkeyFromKeyboardEvent(event);
+  if (!entry || event.repeat) return;
+  stopHotkeyRecording();
+  saveRecordedHotkey(entry);
+}
+const showCaptureCompatibilityHint = computed(() => {
+  const status = captureMonitorStatus.value;
+  return !settings.showInCaptures && status?.supported && !captureCompatibilityReady.value;
+});
 let flashTimer: number | undefined;
+let captureStatusTimer: number | undefined;
+let captureStatusRefreshPending = false;
+let captureStatusVersion = 0;
+let settingsUnmounted = false;
 let unlistenSettings: UnlistenFn | null = null;
 let ignoreNextBroadcast = false;
+
+function scheduleCaptureStatusRefresh(): void {
+  window.clearTimeout(captureStatusTimer);
+  if (settingsUnmounted || capturePermissionPending.value || !captureMonitorStatus.value?.supported) return;
+  // A healthy listener needs no polling (each check is a TCC round-trip);
+  // Window focus re-checks permissions; keep polling while a newly authorized
+  // active tap is being installed, including when capture inclusion is on.
+  const status = captureMonitorStatus.value;
+  if (!settings.captureCompatibilityEnabled || !shouldPollCaptureStatus(status, settings.showInCaptures)) return;
+  captureStatusTimer = window.setTimeout(() => {
+    void refreshCaptureMonitorStatus();
+  }, 1000);
+}
+
+async function refreshCaptureMonitorStatus(): Promise<void> {
+  if (settingsUnmounted || captureStatusRefreshPending || capturePermissionPending.value) return;
+  captureStatusRefreshPending = true;
+  const version = ++captureStatusVersion;
+  try {
+    const status = await getCaptureMonitorStatus();
+    if (!settingsUnmounted && version === captureStatusVersion) captureMonitorStatus.value = status;
+  } catch (err) {
+    console.error("capture monitor status failed", err);
+  } finally {
+    captureStatusRefreshPending = false;
+    scheduleCaptureStatusRefresh();
+  }
+}
+
+function onWindowFocus(): void {
+  void refreshCaptureMonitorStatus();
+}
+
+function onWindowBlur(): void {
+  if (hotkeyRecording.value) stopHotkeyRecording();
+}
+
+async function enableCaptureCompatibility(): Promise<void> {
+  if (capturePermissionPending.value || !captureMonitorStatus.value?.supported) return;
+  capturePermissionPending.value = true;
+  capturePermissionRequestFailed.value = false;
+  ++captureStatusVersion;
+  window.clearTimeout(captureStatusTimer);
+  try {
+    settings.captureCompatibilityEnabled = true;
+    await persist();
+    const status = await enableNativeCaptureCompatibility();
+    if (!settingsUnmounted) captureMonitorStatus.value = status;
+  } catch (err) {
+    capturePermissionRequestFailed.value = true;
+    console.error("capture input monitoring request failed", err);
+  } finally {
+    capturePermissionPending.value = false;
+    scheduleCaptureStatusRefresh();
+  }
+}
 
 async function persist() {
   ignoreNextBroadcast = true;
   await saveSettings({ ...settings });
+  captureSaveFailed.value = false;
   localeVersion.value++;
   savedFlash.value = true;
   window.clearTimeout(flashTimer);
@@ -202,6 +425,28 @@ function toggle(
 ) {
   settings[key] = !settings[key];
   void persist();
+}
+
+async function toggleCaptureVisibility() {
+  if (captureSavePending.value) return;
+  const previous = settings.showInCaptures;
+  captureSavePending.value = true;
+  captureSaveFailed.value = false;
+  savedFlash.value = false;
+  settings.showInCaptures = !previous;
+  try {
+    await persist();
+  } catch (err) {
+    settings.showInCaptures = previous;
+    ignoreNextBroadcast = false;
+    savedFlash.value = false;
+    captureSaveFailed.value = true;
+    console.error("capture settings save failed", err);
+  } finally {
+    captureSavePending.value = false;
+    // The hint's visibility depends on this preference — re-arm the poller.
+    scheduleCaptureStatusRefresh();
+  }
 }
 
 async function toggleAutostart() {
@@ -291,8 +536,13 @@ async function syncWindowTitle() {
 }
 
 onMounted(async () => {
+  window.addEventListener("keydown", onRecordingKeyDown, true);
+  window.addEventListener("focus", onWindowFocus);
+  window.addEventListener("blur", onWindowBlur);
+  unlistenHotkeyCaptured = await listenHotkeyCaptured(onHotkeyCaptured);
   const loaded = await loadSettings();
   Object.assign(settings, loaded);
+  void refreshCaptureMonitorStatus();
   applyThemeToDocument(document, settings.theme);
   await applyUiLocale(settings.locale);
   localeVersion.value++;
@@ -305,6 +555,8 @@ onMounted(async () => {
     }
     Object.assign(settings, next);
     applyThemeToDocument(document, settings.theme);
+    // Another window may have flipped showInCaptures — re-arm the poller.
+    scheduleCaptureStatusRefresh();
     void applyUiLocale(settings.locale).then(() => {
       localeVersion.value++;
       void syncWindowTitle();
@@ -313,6 +565,14 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  settingsUnmounted = true;
+  window.removeEventListener("keydown", onRecordingKeyDown, true);
+  window.removeEventListener("focus", onWindowFocus);
+  window.removeEventListener("blur", onWindowBlur);
+  unlistenHotkeyCaptured?.();
+  window.clearTimeout(hotkeyRecorderTimer);
+  void endHotkeyRecording().catch((err) => console.error("end hotkey recording failed", err));
+  window.clearTimeout(captureStatusTimer);
   window.clearTimeout(flashTimer);
   window.clearTimeout(debugClickTimer);
   unlistenSettings?.();
@@ -326,8 +586,8 @@ onUnmounted(() => {
         <h1>BugScurry</h1>
         <p class="tagline">{{ tt("app.tagline") }}</p>
       </div>
-      <span class="badge" :class="{ on: savedFlash }">
-        {{ savedFlash ? tt("badge.saved") : tt("badge.live") }}
+      <span class="badge" :class="{ on: savedFlash }" role="status" aria-live="polite">
+        {{ captureSaveFailed ? tt("badge.failed") : savedFlash ? tt("badge.saved") : tt("badge.live") }}
       </span>
     </header>
 
@@ -516,7 +776,7 @@ onUnmounted(() => {
       <div class="toggles">
         <div class="toggle-row">
           <div class="toggle-label-wrap">
-            <label for="toggle-repellent" class="toggle-label">{{ tt("toggle.repellent") }}</label>
+            <span class="toggle-label">{{ tt("toggle.repellent") }}</span>
             <InfoTip :text="tt('toggle.repellent.tip')" :label="tt('toggle.repellent')" />
           </div>
           <button
@@ -531,7 +791,7 @@ onUnmounted(() => {
           ></button>
         </div>
         <div class="toggle-row">
-          <label for="toggle-sound" class="toggle-label">{{ tt("toggle.sound") }}</label>
+          <span class="toggle-label">{{ tt("toggle.sound") }}</span>
           <button
             type="button"
             class="toggle-switch"
@@ -544,7 +804,7 @@ onUnmounted(() => {
           ></button>
         </div>
         <div class="toggle-row">
-          <label for="toggle-stains" class="toggle-label">{{ tt("toggle.stains") }}</label>
+          <span class="toggle-label">{{ tt("toggle.stains") }}</span>
           <button
             type="button"
             class="toggle-switch"
@@ -558,7 +818,7 @@ onUnmounted(() => {
         </div>
         <div class="toggle-row">
           <div class="toggle-label-wrap">
-            <label for="toggle-particles" class="toggle-label">{{ tt("toggle.particles") }}</label>
+            <span class="toggle-label">{{ tt("toggle.particles") }}</span>
             <InfoTip :text="tt('toggle.particles.tip')" :label="tt('toggle.particles')" />
           </div>
           <button
@@ -574,7 +834,7 @@ onUnmounted(() => {
         </div>
         <div class="toggle-row">
           <div class="toggle-label-wrap">
-            <label for="toggle-auto-rain" class="toggle-label">{{ tt("toggle.autoRain") }}</label>
+            <span class="toggle-label">{{ tt("toggle.autoRain") }}</span>
             <InfoTip
               :label="tt('toggle.autoRain')"
               :text="tt('toggle.autoRain.tip')"
@@ -594,7 +854,7 @@ onUnmounted(() => {
         </div>
         <div class="toggle-row">
           <div class="toggle-label-wrap">
-            <label for="toggle-random-events" class="toggle-label">{{ tt("toggle.randomEvents") }}</label>
+            <span class="toggle-label">{{ tt("toggle.randomEvents") }}</span>
             <InfoTip
               :label="tt('toggle.randomEvents')"
               :text="tt('toggle.randomEvents.tip')"
@@ -612,8 +872,13 @@ onUnmounted(() => {
             @click="toggle('randomEvents')"
           ></button>
         </div>
+      </div>
+    </section>
+
+    <section class="card list-card">
+      <div class="toggles">
         <div class="toggle-row">
-          <label for="toggle-autostart" class="toggle-label">{{ tt("toggle.autostart") }}</label>
+          <span class="toggle-label">{{ tt("toggle.autostart") }}</span>
           <button
             type="button"
             class="toggle-switch"
@@ -627,6 +892,127 @@ onUnmounted(() => {
         </div>
       </div>
     </section>
+    <div v-if="captureMonitorStatus?.supported" class="settings-footnote">
+      <p class="hint">{{ tt("autostart.loginItemsHint") }}</p>
+      <span class="compat-enable" @click="openSystemSettingsPane('login-items')">{{ tt("autostart.openLoginItems") }}</span>
+    </div>
+
+    <section class="card list-card">
+      <div class="toggles">
+        <div class="toggle-row">
+          <div class="toggle-label-wrap">
+            <span class="toggle-label">{{ tt("toggle.showInCaptures") }}</span>
+            <InfoTip
+              :text="tt('toggle.showInCaptures.tip')"
+              :lines="captureTipLines"
+              :label="tt('toggle.showInCaptures')"
+            />
+          </div>
+          <button
+            type="button"
+            class="toggle-switch"
+            id="toggle-show-in-captures"
+            :class="{ on: settings.showInCaptures }"
+            role="switch"
+            :aria-checked="settings.showInCaptures"
+            :aria-label="tt('toggle.showInCaptures')"
+            :aria-busy="captureSavePending"
+            :disabled="captureSavePending"
+            @click="toggleCaptureVisibility"
+          ></button>
+        </div>
+      </div>
+    </section>
+    <div v-if="showCaptureCompatibilityHint" class="settings-footnote">
+      <p class="hint" role="status" aria-live="polite">
+        {{ capturePermissionRequestFailed
+          ? tt("capture.compatibility.requestFailed")
+          : !settings.captureCompatibilityEnabled
+            ? tt("capture.compatibility.disabled")
+            : captureMonitorStatus?.authorized || captureMonitorStatus?.accessibility
+            ? tt("capture.compatibility.connecting")
+            : tt("capture.compatibility.permissionHint") }}
+      </p>
+      <button
+        type="button"
+        class="compat-enable compat-enable--newline"
+        :disabled="capturePermissionPending"
+        @click="enableCaptureCompatibility"
+      >{{ settings.captureCompatibilityEnabled && (captureMonitorStatus?.authorized || captureMonitorStatus?.accessibility)
+        ? tt("capture.compatibility.retry")
+        : tt("capture.compatibility.enable") }}</button>
+    </div>
+    <div v-if="captureMonitorStatus?.supported && !showCaptureCompatibilityHint" class="settings-footnote">
+      <p v-if="captureCompatibilityReady" class="hint" role="status">{{ tt("capture.compatibility.enabled") }}</p>
+      <button type="button" class="compat-enable" @click="openSystemSettingsPane('input-monitoring')">{{ tt("capture.compatibility.openInputMonitoring") }}</button>
+    </div>
+
+    <section v-if="captureMonitorStatus?.supported" class="card list-card">
+      <div class="toggles">
+        <div class="toggle-row">
+          <div class="toggle-label-wrap">
+            <span class="toggle-label">{{ tt("capture.hotkeys.title") }}</span>
+              <InfoTip :text="tt('capture.hotkeys.tip')" :label="tt('capture.hotkeys.title')" />
+            </div>
+            <button
+              type="button"
+              class="compat-enable"
+              :class="{ recording: hotkeyRecording }"
+              :disabled="!hotkeyRecording && !captureMonitorStatus?.canRecord"
+              :title="captureMonitorStatus?.canRecord
+                ? tt('capture.hotkeys.add')
+                : captureMonitorStatus?.accessibility
+                  ? tt('capture.hotkeys.waiting')
+                  : tt('capture.compatibility.accessibilityOff')"
+              @click="toggleHotkeyRecording"
+            >{{ hotkeyRecording ? tt("capture.hotkeys.recording") : tt("capture.hotkeys.add") }}</button>
+          </div>
+          <div v-if="settings.captureHotkeys.length" class="hotkey-rows">
+            <div
+              v-for="hotkey in settings.captureHotkeys"
+              :key="hotkey.name + hotkey.mods + hotkey.code"
+              class="hotkey-row"
+            >
+              <span class="hotkey-name">
+                <input
+                  v-if="hotkeyNameEditing === hotkey"
+                  :ref="setHotkeyNameInput"
+                  v-model="hotkeyNameDraft"
+                  class="hotkey-name-input"
+                  maxlength="24"
+                  :aria-label="tt('capture.hotkeys.rename')"
+                  @keydown.enter.prevent="commitHotkeyName(hotkey)"
+                  @keydown.escape.prevent="cancelHotkeyNameEdit()"
+                  @blur="commitHotkeyName(hotkey)"
+                />
+                <span
+                  v-else
+                  class="hotkey-name-editable"
+                  :title="tt('capture.hotkeys.rename')"
+                  @click="startHotkeyNameEdit(hotkey)"
+                >{{ hotkeyDisplayName(hotkey) }}</span>
+              </span>
+              <span class="hotkey-combo">{{ formatHotkey(hotkey) }}</span>
+              <button
+                type="button"
+                class="hotkey-remove"
+                :aria-label="tt('capture.hotkeys.remove')"
+                @click="removeHotkey(hotkey)"
+              >×</button>
+            </div>
+          </div>
+      </div>
+    </section>
+    <div v-if="settings.captureCompatibilityEnabled && captureMonitorStatus?.supported && captureMonitorStatus.accessibility && !captureMonitorStatus.canRecord" class="settings-footnote">
+      <p class="hint" role="status">{{ tt("capture.hotkeys.waiting") }}</p>
+      <button type="button" class="compat-enable" :disabled="capturePermissionPending" @click="enableCaptureCompatibility">{{ tt("capture.compatibility.retry") }}</button>
+    </div>
+    <div v-if="captureMonitorStatus?.supported" class="settings-footnote">
+      <p class="hint" role="status">
+        {{ captureMonitorStatus.accessibility ? tt("capture.compatibility.accessibilityOn") : tt("capture.compatibility.accessibilityOff") }}
+      </p>
+      <span class="compat-enable" @click="openSystemSettingsPane('accessibility')">{{ tt("capture.compatibility.openAccessibility") }}</span>
+    </div>
 
     <section class="card list-card">
       <div class="selects">

@@ -9,14 +9,36 @@ function glowPulse(bug: Bug): number {
   return 0.28 + 0.72 * (0.5 + 0.5 * Math.sin(t * 1.35));
 }
 
+let lanternSprite: HTMLCanvasElement | null = null;
+const LANTERN_PX = 96;
+
+/** Baked lantern halo; the pulse scales drawImage and multiplies alpha. */
+function getLanternSprite(): HTMLCanvasElement {
+  if (lanternSprite) return lanternSprite;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = LANTERN_PX;
+  const g = canvas.getContext("2d");
+  if (g) {
+    const half = LANTERN_PX / 2;
+    const grad = g.createRadialGradient(half, half, 0, half, half, half);
+    grad.addColorStop(0, "rgba(255, 240, 150, 0.55)");
+    grad.addColorStop(0.35, "rgba(250, 204, 80, 0.28)");
+    grad.addColorStop(1, "rgba(250, 204, 80, 0)");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, LANTERN_PX, LANTERN_PX);
+  }
+  lanternSprite = canvas;
+  return canvas;
+}
+
 function drawLantern(ctx: CanvasRenderingContext2D, pulse: number, pressure: number): void {
   const strength = pulse * (1 - pressure * 0.85);
   const r = 0.22 + strength * 0.08;
-  const outer = ctx.createRadialGradient(-0.72, 0, 0, -0.72, 0, r * 2.4);
-  outer.addColorStop(0, `rgba(255, 240, 150, ${0.55 * strength})`);
-  outer.addColorStop(0.35, `rgba(250, 204, 80, ${0.28 * strength})`);
-  outer.addColorStop(1, "rgba(250, 204, 80, 0)");
-  ellipse(ctx, -0.72, 0, r * 2.4, r * 2.0, outer);
+  ctx.save();
+  // Multiply: draw() already scaled globalAlpha by the bug-wide fade.
+  ctx.globalAlpha = ctx.globalAlpha * strength;
+  ctx.drawImage(getLanternSprite(), -0.72 - r * 2.4, -r * 2.0, r * 4.8, r * 4.0);
+  ctx.restore();
   ellipse(ctx, -0.72, 0, r * 0.72, r * 0.62, `rgba(255, 250, 200, ${0.85 * strength})`);
   ellipse(ctx, -0.70, 0, r * 0.32, r * 0.28, `rgba(255, 255, 240, ${Math.min(1, 0.95 * strength)})`);
 }

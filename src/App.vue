@@ -13,10 +13,11 @@ import {
   listenCursorLocal,
   listenDisplaysChanged,
   listenSystemResumed,
+  listenOverlayVisibility,
   listenTray,
   listenKillReports,
   reportKill,
-  setCursorPollerEnabled,
+  requestOverlayCursor,
   setOverlayClickable,
   setTrayStats,
   setTrayRain,
@@ -73,6 +74,7 @@ let unlistenCursor: (() => void) | null = null;
 let unlistenDisplays: (() => void) | null = null;
 let unlistenSystemResumed: (() => void) | null = null;
 let unlistenTray: (() => void) | null = null;
+let unlistenVisibility: (() => void) | null = null;
 /** Debounce wake recovery — sleep/wake can emit more than once. */
 let resumeHoldUntil = 0;
 let unlistenSettings: (() => void) | null = null;
@@ -285,7 +287,7 @@ function onPointerMove(ev: PointerEvent) {
 }
 
 function onPointerDown(ev: PointerEvent) {
-  if (!manager) return;
+  if (!manager || !visible.value) return;
   cursorState.x = ev.clientX;
   cursorState.y = ev.clientY;
   ensureAudio();
@@ -311,19 +313,35 @@ function isPrimaryOverlay(): boolean {
   }
 }
 
-/** Stop rAF + cursor polling while bugs are hidden; restore on show. */
+/** Bugs move under a stationary cursor, so hover is evaluated every rAF
+ * frame from the cached payload; cursor events only refresh that payload. */
+function updateCursorHover() {
+  if (!manager || !visible.value) return;
+  if (!cursorState.inside) {
+    setClickable(false);
+    return;
+  }
+  if (performance.now() < hoverHoldUntil) return;
+  const hit = hitTestBug(manager.list, cursorState.x, cursorState.y, viewport.value);
+  setClickable(!!hit);
+}
+
+/** Native windows and cursor polling follow the shared tray visibility state. */
 function applyVisibility(show: boolean) {
   if (!manager) return;
   visible.value = show;
   manager.setVisible(show);
+  // Native transitions reset pass-through; discard any stale hover state too.
+  setClickable(false);
+  cursorState.inside = false;
+  hoverHoldUntil = 0;
   if (show) {
+    refreshViewportSync();
+    void requestOverlayCursor().catch((err) => console.error("refresh cursor failed", err));
     loop?.start();
-    if (isPrimaryOverlay()) void setCursorPollerEnabled(true);
   } else {
     loop?.stop();
-    setClickable(false);
     stopRainAudio();
-    if (isPrimaryOverlay()) void setCursorPollerEnabled(false);
   }
 }
 
@@ -360,9 +378,6 @@ async function recoverFromSystemResume() {
 function handleTray(cmd: string) {
   if (!manager) return;
   switch (cmd) {
-    case "toggle_visibility":
-      applyVisibility(!visible.value);
-      break;
     case "add_one": {
       manager.addOne();
       const next = { ...settings.value, count: manager.list.length };
@@ -403,7 +418,8 @@ function handleTray(cmd: string) {
 
 onMounted(async () => {
   await refreshViewport();
-  const loaded = await loadSettings();
+  // Secondary rebuilds inherit native capture state rather than overwriting it.
+  const loaded = await loadSettings(isPrimaryOverlay());
   settings.value = loaded;
   await applyUiLocale(loaded.locale);
   const daily = await loadDailyStats();
@@ -482,29 +498,23 @@ onMounted(async () => {
     getCanvas: () => canvasRef.value,
     getCursor: () => cursorState,
     onFrame: (timeSec, s, show) => {
+      updateCursorHover();
       if (!isPrimaryOverlay()) return;
       tickRainAudio(s, timeSec, show);
     },
   });
-  loop.start();
+  unlistenVisibility = await listenOverlayVisibility(applyVisibility);
 
   window.addEventListener("pointerdown", onPointerDown);
   window.addEventListener("pointermove", onPointerMove);
   window.addEventListener("resize", refreshViewportSync);
   window.addEventListener("load", refreshViewportSync);
 
+  // Data only: hover evaluation happens per frame in updateCursorHover.
   unlistenCursor = await listenCursorLocal((pos) => {
-    if (!manager) return;
     cursorState.x = pos.x;
     cursorState.y = pos.y;
     cursorState.inside = pos.inside;
-    if (!cursorState.inside) {
-      setClickable(false);
-      return;
-    }
-    if (performance.now() < hoverHoldUntil) return;
-    const hit = hitTestBug(manager.list, cursorState.x, cursorState.y, viewport.value);
-    setClickable(!!hit);
   });
 
   unlistenTray = await listenTray((cmd) => handleTray(cmd));
@@ -568,6 +578,7 @@ onUnmounted(() => {
   unlistenDisplays?.();
   unlistenSystemResumed?.();
   unlistenTray?.();
+  unlistenVisibility?.();
   unlistenSettings?.();
   unlistenCommands?.();
   unlistenRandomEvent?.();

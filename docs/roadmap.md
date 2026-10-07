@@ -81,6 +81,15 @@ Ship a playable loop first; every milestone must be runnable and checkable.
 - [x] First-class QA page: `qa/` (Vite maps legacy `.tmp-species-qa` bookmarks)
 - [x] Unit tests: `prank` / `randomEvents` / `atmosphere` / weather families
 
+## M8 — Screenshot compatibility
+
+- [x] Settings “Show in screenshots / recordings” (default off); macOS hides overlays during detected sessions, Windows requests `WDA_EXCLUDEFROMCAPTURE`
+- [x] macOS `CGEventTap` detection: passive with Input Monitoring alone, active with Accessibility alone; passes events through, stores nothing
+- [x] Third-party picker keys (WeChat `⌘⌃A`, Snipaste `Fn+F1` presets, editable); recording needs Accessibility with a 10-second deadline
+- [x] `⌘⇧5` auto-restore on saved capture file (save-directory scan, names/mtimes only); Esc covers clipboard saves; tray Show recovers stuck sessions
+- [x] Permission UX: explicit opt-in, one-time-prompt race handled, manual-add and stale-entry-after-update guidance
+- [x] Unit tests: `capture_guard` sessions, completion scan, monitor service
+
 ## Later (not blocking)
 
 - [x] Overlay on all macOS Spaces (soaked 2 Spaces on macOS 15.7.9; overlay stayed onscreen)

@@ -18,6 +18,9 @@ Windows column remains unverified on this machine.
 - Menu bar tray, not a Dock-primary app
 - Fullscreen apps / Stage Manager may cover the overlay (system policy)
 - **Spaces:** overlays use `visibleOnAllWorkspaces` so bugs follow desktop switches
+- Tray hide calls native `hide()` on every overlay, so the transparent window is absent from macOS window capture; Show restores the overlays without taking focus.
+- Capture preference: with `showInCaptures: false` (default), screenshot sessions temporarily hide all native overlays (tray Hide still wins); they restore ~400 ms after the session ends. Detection only matches the screenshot shortcuts, passes events through, stores nothing, and needs Input Monitoring or Accessibility — the settings window guides granting. Content protection stays off so window capture can't break on a selected overlay. Internals: [architecture §9.3](../architecture.md#93-capture-preference).
+- Sessions at a glance: `⌘⇧4`-style selections end on mouse release / Esc / Enter; `⌘⇧5` ends when its capture file is saved (clipboard saves need Esc); Esc or `⌘⌃Esc` ends anything, including mid-recording. Not covered: instant `⌘⇧3`, over-long recordings, unconfigured third-party tools. No public API prevents ScreenCaptureKit capture (Apple DTS, macOS 15.4+). [Apple response](https://developer.apple.com/forums/thread/792152).
 
 ### Pass-through
 
@@ -56,6 +59,8 @@ Windows column remains unverified on this machine.
 - Transparent topmost via Tauri (layered / topmost / tool window)
 - `skipTaskbar: true`
 - Requires WebView2 runtime
+- Tray hide/show changes every overlay's native visibility, using the same shared state as macOS.
+- Capture preference requests `WDA_EXCLUDEFROMCAPTURE` when `showInCaptures` is off; supported from Windows 10 version 2004, with `WDA_MONITOR` behavior on older versions. It applies to supported OS capture methods and depends on desktop composition; coverage of actual capture tools remains unverified. [Microsoft API documentation](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowdisplayaffinity).
 
 ### Pass-through
 
@@ -80,7 +85,7 @@ Windows column remains unverified on this machine.
 |-------|----------|
 | Different resolutions | One overlay window + viewport per display |
 | Different scales | Per-window dpr |
-| Hot-plug / primary change | Rebuild overlays |
+| Hot-plug / primary change | Rebuild overlays while preserving shared native visibility |
 | “Current screen” | Primary display (documented in UI) |
 
 ## Spaces / virtual desktops
@@ -91,10 +96,11 @@ macOS: set `visibleOnAllWorkspaces` so the overlay is not stuck on one Space. So
 
 ### Production (`pnpm tauri build` · BugScurry.app · M1 Pro)
 
-- [x] Idle CPU with 1 bug — **~4.8%** process CPU (primary overlay only)
-- [x] 10 bugs, both displays — **~8.2%** process CPU
-- [x] 50 bugs, both displays — **~4.9%** short sample (high variance; not CPU-bound)
-- [x] Near-zero CPU when hidden — **Pass after poller pause.** Tray hide stops rAF and the Rust cursor poller (`set_cursor_poller_enabled(false)`); measured ~**0.0%** CPU while hidden vs ~5.5% visible (debug, 12 bugs).
+- [x] Idle CPU with 1 bug — **2026-10-06 re-measure (release, macOS 15.8.1, arm64): ~15.6%** total — host ~7.7% + overlay WebView ~7.9% (10s `top` samples, primary ProMotion display, firefly, quiet settings). Up from the historical **~4.8%**: 0.4.x species/weather polish roughly doubled per-frame work. Stain sprites + glow sprites (this change) keep gradients out of the frame loop.
+- [x] 10 bugs — **~10.4%** total (host ~4.4% + web ~6.0%), same conditions
+- [x] 50 bugs — **~6.3%** total (host ~2.8% + web ~3.5%), same conditions
+- [ ] Idle cost scales **inversely** with bug count (reproducible): lighter frames hold a higher rAF cadence on the ProMotion panel (likely 120Hz vs 60Hz), so idle 1-bug costs more than idle 50. If confirmed, capping the render loop (e.g. 60fps) is a cheap future win; not yet verified with frame instrumentation.
+- [x] Near-zero CPU when hidden — **Historical measurement:** ~**0.0%** CPU while hidden vs ~5.5% visible (debug, 12 bugs). The current implementation stops frontend rAF/audio from the shared visibility event, and the Rust poller skips cursor work from the native visibility flag; the hidden path did not change in 0.4.x, re-measure needs tray-menu automation.
 - [x] Overlay keeps running while settings is open — settings stays hidden unless opened from tray; overlays independent
 - [x] Sleep/wake recovery — **Pass (2026-09-16).** Lid closed >30s; primary/secondary bugs and rain recovered automatically. Path: `system-resumed` → `force_rebuild_overlays` (close+recreate secondaries, same as toggling multi-monitor) → refresh viewport / resume audio.
 
@@ -115,7 +121,12 @@ Higher than production (Vite HMR + debug codegen). Earlier samples: ~10–15% (1
 | Retina / DPI OK | Pass (CSS×dpr; overlay 1512×982 @2x; prod paint verified) | Pending |
 | External display | Pass (`monitorMode: all` second overlay, prod + dev) | Pending |
 | Switch Spaces (macOS) | Pass — 2 Spaces; overlay remained onscreen with bug pixels after switch | — |
-| Hide bugs (tray) | Pass (toggle works; hidden CPU ~0% after poller pause) | Pending |
+| Hide bugs (tray) | Previous render/poller toggle passed; native hide/show change pending | Pending |
+| Hidden overlays absent from window capture | Pending | Pending |
+| Monitor rebuild / wake preserves hidden state | Pending | Pending |
+| Capture preference off: system window picker hides overlays and captures application | Pending | — |
+| Capture UI exit / cancel restores overlays, preserves manual Hide | Pending | — |
+| Capture opt-in and screenshot / recording tool coverage | Pending (immediate full-screen / ongoing recording not guaranteed) | Pending |
 
 ## How to re-run the macOS soak
 
@@ -125,6 +136,22 @@ pnpm tauri dev          # requires Vite on :1420 — do not run the debug binary
 ```
 
 For a production-shaped binary use `pnpm tauri build`, then launch the bundled app. Do not treat `cargo build --release` alone as a release artifact.
+
+### Native hide / window capture acceptance (manual; pending)
+
+1. Start the app with monitor mode **All screens**; confirm bugs appear on each display.
+2. Choose tray **Hide bugs**. On macOS, press `⌘⇧4`, then Space, and select an application window on each display. The selected window and captured image must belong to that application, with no BugScurry layer. On Windows, perform the equivalent window capture with Snipping Tool; desktop interaction must also remain normal.
+3. While hidden, open/close settings and switch monitor mode between primary/all. Repeat window capture; no overlay should reappear or intercept capture.
+4. While hidden, sleep for at least 30 seconds and wake; repeat window capture on every display. Monitor hot-plug while hidden should also preserve this state.
+5. Choose **Show bugs**. All applicable overlays must resume movement, audio (if enabled), and click-to-squish without taking keyboard focus. Repeat hide/show to check both transitions.
+
+### Capture preference acceptance (manual; pending)
+
+1. With bugs visible, leave `showInCaptures` off (the default). With neither Input Monitoring nor Accessibility granted, the settings window must show the screenshot-compatibility hint. Click Enable: request authorization, then open Input Monitoring settings if it remains denied. Grant Input Monitoring alone and confirm screenshot detection works while recording remains disabled; separately grant Accessibility alone and confirm both screenshot detection and shortcut recording become available without additionally granting Input Monitoring. On macOS, press `⌘⇧4`, then Space. All overlay windows must hide, an underlying application must be selectable, and saving its window capture must succeed. Repeat with a region capture and `⌘⇧5` on every display. On Windows, check supported capture tools' exclusion with bugs still visible on the desktop.
+2. Complete or cancel macOS capture (selection: mouse release, Esc, Enter; toolbar: Esc after capture, or `⌘⌃Esc` to stop recording). Overlays must resume after the session ends without taking focus. Choose tray Hide before or during capture and repeat; exit must not unhide them. Change monitor mode during capture and check that rebuilt overlays stay suppressed.
+3. Turn the preference on. macOS should leave overlay windows visible during Screenshot UI; supported captures can include overlay content. The settings window must remain capturable with either value.
+4. After replacing the app with a new build, confirm the permission status belongs to the current installed app. If authorization is reported but the listener remains unavailable, the settings window must show a retry/restart hint instead of an unexplained disabled recording button.
+5. Turn the preference off while bugs are hidden, then show them again. Restart and change monitor mode; verify that the persisted preference is applied to every rebuilt overlay. Record immediate `⌘⇧3`, ongoing system recording, and third-party tool behavior separately; macOS exclusion is not guaranteed for these cases. Use tray Hide for recordings that must exclude bugs.
 
 ### Sleep/wake soak (manual)
 
