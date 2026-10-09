@@ -6,6 +6,8 @@ export function hitTestBug(
   x: number,
   y: number,
   _viewport: Viewport,
+  /** Extra CSS px for fat-finger taps (touch pointers). */
+  radiusBonus = 0,
 ): Bug | null {
   // Topmost last-drawn bug wins: search from end.
   for (let i = bugs.length - 1; i >= 0; i--) {
@@ -16,7 +18,7 @@ export function hitTestBug(
     const dist = Math.hypot(dx, dy);
     // Already on top of it → wider hit radius so a chase still connects.
     const scale = dist <= REPELLENT_RADIUS ? HIT_RADIUS_CHASE : HIT_RADIUS_SCALE;
-    const r = bug.size * scale;
+    const r = bug.size * scale + radiusBonus;
     if (dist <= r) return bug;
   }
   return null;

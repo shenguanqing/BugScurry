@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-10-09
+
+Web demo shell: the same `dist/` now runs as a standalone page (Cloudflare Pages) with near-full feature parity.
+
+### Added
+
+- Page-embedded toolbar replacing the tray (settings / hide / add-remove / regenerate / spray with live cooldown / feed / weather / backdrop picker / today-kills chip) and settings as a code-split right drawer
+- Fake-desktop backdrop: checkerboard, solid colors with swatches + custom picker, and an uploadable multi-wallpaper library with thumbnails (persisted on a best-effort quota budget; oversized uploads stay session-only)
+- Touch support: larger tap hit radius, no-hover cursor handling, mobile viewport with safe-area-aware toolbar
+- `src/platform/desktop.ts` runtime boundary: every native call degrades to a no-op off Tauri; settings/stats persist to `localStorage` on web while desktop keeps `settings.json`
+- Share links (`?count=&species=&weather=`): validated/clamped overrides, ephemeral by design
+- Installable PWA (`manifest.webmanifest` + icons, standalone display, iOS web-app meta); no service worker — first load needs network
+
+### Fixed
+
+- Web Audio no longer constructs an `AudioContext` before the first user gesture (removes the "AudioContext was not allowed to start" warning); rain ambience fades in after first interaction
+
 ## [0.5.0] - 2026-10-07
 
 Screenshot compatibility: overlays stay out of screenshots and recordings unless explicitly allowed.

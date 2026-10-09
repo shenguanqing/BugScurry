@@ -7,6 +7,8 @@ import { emptyDailyStats, normalizeDailyStats } from "../core/bugManager";
 import { clampSettings } from "../core/settings";
 import type { DailyStats, Settings } from "../core/types";
 import { setLocalePref, syncTrayLocale } from "../i18n";
+import { emitLocal, isTauri, listenLocal } from "../platform/desktop";
+import { defaultStorage, loadJson, saveJson } from "../platform/webStorage";
 import { setCaptureCompatibilityEnabled, setCaptureHotkeys, setOverlayCaptureVisible } from "./tauriBridge";
 
 export { clampSettings };
@@ -14,6 +16,10 @@ export { clampSettings };
 export const SETTINGS_EVENT = "settings-changed";
 export const COMMAND_EVENT = "overlay-command";
 export const SETTINGS_STORE_FILE = "settings.json";
+
+/** Web persistence keys (localStorage). Desktop keeps `settings.json`. */
+export const WEB_SETTINGS_KEY = "bugscurry.settings";
+export const WEB_DAILY_KEY = "bugscurry.dailyStats";
 
 let storePromise: Promise<Store> | null = null;
 
@@ -44,6 +50,10 @@ export function applyThemeToDocument(
 }
 
 export async function loadSettings(applyCapturePreference = true): Promise<Settings> {
+  if (!isTauri()) {
+    // Web demo: localStorage only; native capture/autostart do not exist.
+    return clampSettings(loadJson(defaultStorage(), WEB_SETTINGS_KEY) ?? {});
+  }
   let next = { ...DEFAULT_SETTINGS };
   try {
     const store = await getStore();
@@ -76,6 +86,12 @@ export async function loadSettings(applyCapturePreference = true): Promise<Setti
 
 export async function saveSettings(settings: Settings): Promise<void> {
   const next = clampSettings(settings);
+  if (!isTauri()) {
+    saveJson(defaultStorage(), WEB_SETTINGS_KEY, next);
+    await applyUiLocale(next.locale);
+    emitLocal(SETTINGS_EVENT, next);
+    return;
+  }
   // Apply from the saving UI even when hidden overlay WebViews are suspended.
   await setOverlayCaptureVisible(next.showInCaptures);
   await setCaptureHotkeys(next.captureHotkeys);
@@ -94,6 +110,9 @@ export async function saveSettings(settings: Settings): Promise<void> {
 const DAILY_KEY = "dailyStats";
 
 export async function loadDailyStats(): Promise<DailyStats | null> {
+  if (!isTauri()) {
+    return normalizeDailyStats(loadJson(defaultStorage(), WEB_DAILY_KEY));
+  }
   try {
     const store = await getStore();
     return normalizeDailyStats(await store.get(DAILY_KEY));
@@ -103,14 +122,22 @@ export async function loadDailyStats(): Promise<DailyStats | null> {
 }
 
 export async function saveDailyStats(stats: DailyStats): Promise<void> {
+  const next = normalizeDailyStats(stats);
+  if (!isTauri()) {
+    saveJson(defaultStorage(), WEB_DAILY_KEY, next);
+    return;
+  }
   const store = await getStore();
-  await store.set(DAILY_KEY, normalizeDailyStats(stats));
+  await store.set(DAILY_KEY, next);
   await store.save();
 }
 
 export async function listenSettings(
   cb: (settings: Settings) => void,
 ): Promise<UnlistenFn> {
+  if (!isTauri()) {
+    return Promise.resolve(listenLocal<Settings>(SETTINGS_EVENT, (payload) => cb(clampSettings(payload))));
+  }
   return listen<Settings>(SETTINGS_EVENT, (e) => cb(clampSettings(e.payload)));
 }
 
@@ -128,28 +155,41 @@ export type OverlayCommand =
   | "debug_spray";
 
 export async function sendOverlayCommand(cmd: OverlayCommand): Promise<void> {
+  if (!isTauri()) {
+    emitLocal(COMMAND_EVENT, cmd);
+    return;
+  }
   await emit(COMMAND_EVENT, cmd);
 }
 
 export async function listenOverlayCommands(
   cb: (cmd: string) => void,
 ): Promise<UnlistenFn> {
+  if (!isTauri()) {
+    return Promise.resolve(listenLocal<string>(COMMAND_EVENT, (cmd) => cb(cmd)));
+  }
   return listen<string>(COMMAND_EVENT, (e) => cb(e.payload));
 }
 
 export async function openSettingsWindow(): Promise<void> {
+  // Web embeds settings as a drawer — there is no second window to open.
+  if (!isTauri()) return;
   await invoke("open_settings_window");
 }
 
 export async function applyMonitorMode(mode: Settings["monitorMode"]): Promise<void> {
+  // Single viewport on web; nothing to re-layout.
+  if (!isTauri()) return;
   await invoke("apply_monitor_mode_cmd", { mode });
 }
 
 export async function setAutostart(on: boolean): Promise<void> {
+  if (!isTauri()) return;
   if (on) await enable();
   else await disable();
 }
 
 export async function quitApp(): Promise<void> {
+  if (!isTauri()) return;
   await invoke("quit_app");
 }

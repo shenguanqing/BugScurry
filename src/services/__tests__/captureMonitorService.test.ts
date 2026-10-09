@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockTauriRuntime } from "./runtimeEnv";
 import type { CaptureMonitorStatus } from "../tauriBridge";
 import {
   enableCaptureCompatibility,
@@ -19,7 +20,9 @@ const status = (patch: Partial<CaptureMonitorStatus> = {}): CaptureMonitorStatus
 });
 
 describe("capture compatibility permissions", () => {
-  beforeEach(() => { vi.resetAllMocks(); });
+  beforeEach(() => {
+    mockTauriRuntime();
+    vi.resetAllMocks(); });
 
   /** The enable flow waits ~1s for the one-time system alert before re-checking. */
   async function enableWithSettledClock(): Promise<CaptureMonitorStatus> {

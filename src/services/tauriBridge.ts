@@ -1,7 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
-import { emitTo, listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { emit, emitTo, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { KillReport } from "./dailyStatsService";
 import type { RandomEventKind, TrayCommand } from "../core/types";
+import { emitLocal, invokeNative, isTauri, listenLocal, listenNative } from "../platform/desktop";
 
 /** Cursor in this overlay window's local logical CSS pixels. */
 export interface CursorLocal {
@@ -11,16 +12,19 @@ export interface CursorLocal {
 }
 
 export async function setOverlayClickable(clickable: boolean): Promise<void> {
+  if (!isTauri()) return;
   await invoke("set_overlay_clickable", { clickable });
 }
 
 /** Request capture inclusion/exclusion for every native overlay window. */
 export async function setOverlayCaptureVisible(visible: boolean): Promise<void> {
+  if (!isTauri()) return;
   await invoke("set_overlay_capture_visible", { visible });
 }
 
 /** Enable detection only after an explicit application preference. */
 export async function setCaptureCompatibilityEnabled(enabled: boolean): Promise<void> {
+  if (!isTauri()) return;
   await invoke("set_capture_compatibility_enabled", { enabled });
 }
 
@@ -38,12 +42,22 @@ export interface CaptureMonitorStatus {
   canRecord: boolean;
 }
 
+const UNSUPPORTED_CAPTURE_STATUS: CaptureMonitorStatus = {
+  supported: false,
+  authorized: false,
+  listening: false,
+  accessibility: false,
+  canRecord: false,
+};
+
 export async function getCaptureMonitorStatus(): Promise<CaptureMonitorStatus> {
+  if (!isTauri()) return { ...UNSUPPORTED_CAPTURE_STATUS };
   return invoke<CaptureMonitorStatus>("get_capture_monitor_status");
 }
 
 /** Start/retry detection; request Input Monitoring if neither permission path is authorized. */
 export async function requestCaptureInputMonitoring(): Promise<CaptureMonitorStatus> {
+  if (!isTauri()) return { ...UNSUPPORTED_CAPTURE_STATUS };
   return invoke<CaptureMonitorStatus>("request_capture_input_monitoring");
 }
 
@@ -77,16 +91,19 @@ export interface HotkeyCaptured {
 
 /** While recording, the native tap swallows key-downs and reports them here. */
 export async function beginHotkeyRecording(): Promise<void> {
+  if (!isTauri()) return;
   await invoke("begin_hotkey_recording");
 }
 
 export async function endHotkeyRecording(): Promise<void> {
+  if (!isTauri()) return;
   await invoke("end_hotkey_recording");
 }
 
 export function listenHotkeyCaptured(
   cb: (payload: HotkeyCaptured) => void,
 ): Promise<UnlistenFn> {
+  if (!isTauri()) return Promise.resolve(() => {});
   return listen<HotkeyCaptured>("hotkey-captured", (event) => cb(event.payload));
 }
 
@@ -98,6 +115,7 @@ const KEYCODE_TO_CODE: Record<number, string> = Object.fromEntries(
 export async function setCaptureHotkeys(
   hotkeys: Array<{ mods: string; code: string }>,
 ): Promise<void> {
+  if (!isTauri()) return;
   const parsed = hotkeys
     .map((hotkey) => ({ mods: hotkey.mods, keycode: KEYBOARD_CODE_TO_KEYCODE[hotkey.code] }))
     .filter((hotkey) => typeof hotkey.keycode === "number");
@@ -108,6 +126,7 @@ export type SystemSettingsPane = "input-monitoring" | "accessibility" | "login-i
 
 /** Open System Settings on a known pane (macOS; no-op elsewhere). */
 export async function openSystemSettingsPane(pane: SystemSettingsPane): Promise<void> {
+  if (!isTauri()) return;
   await invoke("open_settings_pane", { pane });
 }
 
@@ -115,6 +134,11 @@ export async function openSystemSettingsPane(pane: SystemSettingsPane): Promise<
 export async function listenOverlayVisibility(
   cb: (show: boolean) => void,
 ): Promise<UnlistenFn> {
+  if (!isTauri()) {
+    // The web shell is a normal page: always visible until the user hides it.
+    cb(true);
+    return () => {};
+  }
   let receivedChange = false;
   const unlisten = await listen<boolean>("overlay-visibility-changed", (event) => {
     receivedChange = true;
@@ -132,17 +156,23 @@ export async function listenOverlayVisibility(
 }
 
 export async function getOverlayScale(): Promise<number> {
-  return invoke<number>("get_overlay_scale");
+  if (!isTauri()) {
+    return typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+  }
+  return invokeNative<number>("get_overlay_scale");
 }
 
 /** Close + recreate secondary overlays (sleep/wake zombie recovery). */
 export async function forceRebuildOverlays(mode: string): Promise<void> {
+  if (!isTauri()) return;
   await invoke("force_rebuild_overlays", { mode });
 }
 
 export async function listenCursorLocal(
   cb: (pos: CursorLocal) => void,
 ): Promise<UnlistenFn> {
+  // Web drives the cursor from DOM pointer events instead of the Rust poller.
+  if (!isTauri()) return () => {};
   const unlisten = await listen<CursorLocal>("cursor-local", (e) => cb(e.payload));
   try {
     await requestOverlayCursor();
@@ -155,11 +185,13 @@ export async function listenCursorLocal(
 
 /** Ask the native poller to replay even a stationary cursor. */
 export async function requestOverlayCursor(): Promise<void> {
+  if (!isTauri()) return;
   await invoke("request_overlay_cursor");
 }
 
 /** Update the disabled "today" line in the tray menu (numbers only; label follows locale). */
 export async function setTrayStats(kills: number, bestCombo: number): Promise<void> {
+  if (!isTauri()) return;
   try {
     await invoke("set_tray_stats", {
       kills: Math.max(0, Math.floor(kills)),
@@ -175,6 +207,7 @@ export async function setTrayRain(
   raining: boolean,
   kind: string | null,
 ): Promise<void> {
+  if (!isTauri()) return;
   try {
     await invoke("set_tray_rain", { raining, kind });
   } catch (err) {
@@ -187,6 +220,7 @@ export async function setTrayRain(
  * The primary overlay ticks this every second so the label shows a countdown.
  */
 export async function setTraySpray(sprayCooldownSec: number): Promise<void> {
+  if (!isTauri()) return;
   try {
     await invoke("set_tray_spray", {
       sprayCooldownSec: Math.max(0, Math.ceil(sprayCooldownSec)),
@@ -200,19 +234,20 @@ export async function setTraySpray(sprayCooldownSec: number): Promise<void> {
 export async function listenDisplaysChanged(
   cb: () => void,
 ): Promise<UnlistenFn> {
-  return listen("displays-changed", () => cb());
+  return listenNative("displays-changed", () => cb());
 }
 
 /** System sleep → wake: primary overlay should re-fit displays and resume audio. */
 export async function listenSystemResumed(
   cb: () => void,
 ): Promise<UnlistenFn> {
-  return listen("system-resumed", () => cb());
+  return listenNative("system-resumed", () => cb());
 }
 
 export async function listenTray(
   cb: (cmd: TrayCommand) => void,
 ): Promise<UnlistenFn> {
+  if (!isTauri()) return () => {};
   return listen<string>("tray-command", (e) => cb(e.payload as TrayCommand));
 }
 
@@ -220,7 +255,17 @@ export async function listenTray(
 export async function listenRandomEvent(
   cb: (kind: RandomEventKind) => void,
 ): Promise<UnlistenFn> {
+  if (!isTauri()) return Promise.resolve(listenLocal("random-event", (e: { kind: RandomEventKind }) => cb(e.kind)));
   return listen<{ kind: RandomEventKind }>("random-event", (e) => cb(e.payload.kind));
+}
+
+/** Broadcast a chaos event: native fan-out on desktop, same-page on web. */
+export async function emitRandomEvent(kind: RandomEventKind): Promise<void> {
+  if (!isTauri()) {
+    emitLocal("random-event", { kind });
+    return;
+  }
+  await emit("random-event", { kind });
 }
 
 export async function fitWindowToDisplay(): Promise<{
@@ -238,11 +283,17 @@ export async function fitWindowToDisplay(): Promise<{
 
 /** Route reports from every display to the single stats owner. */
 export async function reportKill(report: KillReport): Promise<void> {
+  if (!isTauri()) {
+    // Single-page shell: loop the report back to our own listener.
+    emitLocal("bug-killed", report);
+    return;
+  }
   await emitTo("overlay", "bug-killed", report);
 }
 
 export async function listenKillReports(
   cb: (report: KillReport) => void,
 ): Promise<UnlistenFn> {
+  if (!isTauri()) return Promise.resolve(listenLocal<KillReport>("bug-killed", (report) => cb(report)));
   return listen<KillReport>("bug-killed", (event) => cb(event.payload));
 }

@@ -69,6 +69,8 @@ tray.rs
 | Species | `src/species/*` | Registry, traits (`favoriteFood`, `activity`, `eatStyle`), per-species drawing; shared `contactShadow` / `glint` / `shell` highlights |
 | Settings UI | `src/settings/*` | Settings window |
 | Services | `src/services/*` | Tauri events/commands, store, theme, monitors |
+| Platform boundary | `src/platform/desktop.ts` + `src/platform/webStorage.ts` | `isTauri()` gate, native/local event bridge, localStorage persistence |
+| Web backdrop | `src/services/webBackdrop.ts` | Web-only fake desktop (checker / solid / wallpaper library) |
 | DailyStatsService | `src/services/dailyStatsService.ts` | Primary-overlay owner: queue kills, serialize store writes, refresh tray stats |
 | Prank / random events | `BugManager.sprayKillAll` / `startSwarm` / `startFatInvasion` / `startBerserk` / `startSizeChaos` / `startNightRaid`; `randomEvents.ts` | Tray spray + in-place cooldown; Settings random-event pool (tide/fat/berserk/size/night); temp state never writes `settings.count` |
 | Shell | `src-tauri/src/lib.rs` | Windows, cursor, monitors, commands, overlay/settings z-order |

@@ -3,6 +3,7 @@ import { createRainTexture, createWindTexture } from "../rainTexture";
 import { Rng } from "../rng";
 import { DEFAULT_SETTINGS } from "../config";
 import { disposeRainAudio, stopRainAudio, tickRainAudio } from "../rainAudio";
+import { unlockAudio } from "../audio";
 
 function rms(data: Float32Array): number {
   return Math.sqrt(data.reduce((sum, value) => sum + value * value, 0) / data.length);
@@ -67,6 +68,8 @@ function audioHarness() {
     createBiquadFilter() { return { ...node(), frequency: param(), Q: param(), type: "" }; }
   }
   vi.stubGlobal("window", { AudioContext: Context });
+  // Autoplay policy: the bed builds only after a user gesture.
+  unlockAudio();
   return { sources, gains };
 }
 
@@ -77,6 +80,20 @@ afterEach(() => {
 });
 
 describe("rain playback lifecycle", () => {
+  it("creates no AudioContext before the first user gesture", async () => {
+    vi.resetModules();
+    const Ctor = vi.fn(() => {
+      throw new Error("must not construct before a gesture");
+    });
+    vi.stubGlobal("window", { AudioContext: Ctor });
+    const fresh = await import("../rainAudio");
+    const settings = { ...DEFAULT_SETTINGS, sound: true, rain: true, rainKind: "heavy" as const };
+    fresh.tickRainAudio(settings, 0);
+    fresh.tickRainAudio(settings, 1);
+    expect(Ctor).not.toHaveBeenCalled();
+    fresh.disposeRainAudio();
+  });
+
   it("only schedules mix changes and reuses sources across intensity changes", () => {
     const { sources, gains } = audioHarness();
     const settings = { ...DEFAULT_SETTINGS, sound: true, rain: true, rainKind: "light" as const };

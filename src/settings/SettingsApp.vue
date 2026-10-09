@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from "vue";
 import type { UnlistenFn } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { isTauri, setWindowTitle } from "../platform/desktop";
 import { LIMITS } from "../core/config";
 import { RAIN_KIND_ORDER } from "../core/weather";
 import type { FoodKind, Settings } from "../core/types";
@@ -33,6 +33,12 @@ import {
   sendOverlayCommand,
   setAutostart,
 } from "../services/settingsService";
+
+/** True inside the Tauri settings window; the web drawer hides native-only rows. */
+const isDesktop = isTauri();
+
+const props = defineProps<{ embedded?: boolean }>();
+const emit = defineEmits<{ (e: "close"): void }>();
 
 /** Force re-render of t() strings when locale changes. */
 const localeVersion = ref(0);
@@ -527,12 +533,10 @@ async function regenerate() {
 
 async function syncWindowTitle() {
   const title = t("app.settingsTitle");
-  document.title = title;
-  try {
-    await getCurrentWindow().setTitle(title);
-  } catch (err) {
-    console.error("set window title failed", err);
-  }
+  // Desktop renames the native window; the embedded web drawer must not
+  // hijack the page tab title.
+  if (!props.embedded) document.title = title;
+  setWindowTitle(title);
 }
 
 onMounted(async () => {
@@ -581,6 +585,10 @@ onUnmounted(() => {
 
 <template>
   <div class="shell">
+    <div v-if="props.embedded" class="drawer-head">
+      <span class="drawer-title">{{ tt("web.settings") }}</span>
+      <button type="button" class="btn ghost drawer-close" :aria-label="tt('web.close')" @click="emit('close')">×</button>
+    </div>
     <header class="header">
       <div>
         <h1>BugScurry</h1>
@@ -678,23 +686,7 @@ onUnmounted(() => {
             <label for="count-slider">{{ tt("count.title") }}</label>
             <p class="hint">1 – {{ LIMITS.countMax }} · {{ tt("count.hint") }}</p>
           </div>
-          <div class="stepper">
-            <button
-              type="button"
-              class="btn ghost"
-              :aria-label="tt('count.title') + ' −'"
-              :disabled="settings.count <= LIMITS.countMin"
-              @click="setCount(settings.count - 1)"
-            >−</button>
-            <span class="count">{{ settings.count }}</span>
-            <button
-              type="button"
-              class="btn ghost"
-              :aria-label="tt('count.title') + ' +'"
-              :disabled="settings.count >= LIMITS.countMax"
-              @click="setCount(settings.count + 1)"
-            >+</button>
-          </div>
+          <output>{{ settings.count }}</output>
         </div>
         <input
           id="count-slider"
@@ -875,7 +867,7 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <section class="card list-card">
+    <section v-if="isDesktop" class="card list-card">
       <div class="toggles">
         <div class="toggle-row">
           <span class="toggle-label">{{ tt("toggle.autostart") }}</span>
@@ -892,12 +884,12 @@ onUnmounted(() => {
         </div>
       </div>
     </section>
-    <div v-if="captureMonitorStatus?.supported" class="settings-footnote">
+    <div v-if="isDesktop && captureMonitorStatus?.supported" class="settings-footnote">
       <p class="hint">{{ tt("autostart.loginItemsHint") }}</p>
       <span class="compat-enable" @click="openSystemSettingsPane('login-items')">{{ tt("autostart.openLoginItems") }}</span>
     </div>
 
-    <section class="card list-card">
+    <section v-if="isDesktop" class="card list-card">
       <div class="toggles">
         <div class="toggle-row">
           <div class="toggle-label-wrap">
@@ -1007,7 +999,7 @@ onUnmounted(() => {
       <p class="hint" role="status">{{ tt("capture.hotkeys.waiting") }}</p>
       <button type="button" class="compat-enable" :disabled="capturePermissionPending" @click="enableCaptureCompatibility">{{ tt("capture.compatibility.retry") }}</button>
     </div>
-    <div v-if="captureMonitorStatus?.supported" class="settings-footnote">
+    <div v-if="isDesktop && captureMonitorStatus?.supported" class="settings-footnote">
       <p class="hint" role="status">
         {{ captureMonitorStatus.accessibility ? tt("capture.compatibility.accessibilityOn") : tt("capture.compatibility.accessibilityOff") }}
       </p>
@@ -1032,7 +1024,7 @@ onUnmounted(() => {
           </span>
         </div>
 
-        <div class="select-row">
+        <div v-if="isDesktop" class="select-row">
           <label for="monitor-select">{{ tt("monitor.title") }}</label>
           <span class="select-wrap">
             <select
@@ -1141,7 +1133,7 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <footer class="footer footer-hot" @click="onFooterClick">
+    <footer v-if="!props.embedded" class="footer footer-hot" @click="onFooterClick">
       {{ tt("footer") }}
     </footer>
   </div>

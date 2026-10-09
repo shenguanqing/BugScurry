@@ -124,6 +124,32 @@ body {
   padding: 22px 18px 20px;
 }
 
+/* Web drawer head (embedded settings): title + close. */
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.drawer-title {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.drawer-close {
+  min-width: 34px;
+  min-height: 34px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* Specificity beats .btn.ghost so the drawer close is a full circle. */
+.btn.ghost.drawer-close {
+  border-radius: 50%;
+}
+
 .header {
   display: flex;
   align-items: flex-start;
@@ -353,21 +379,6 @@ output {
   font-size: 14px;
   font-weight: 600;
   opacity: 0.72;
-}
-
-.stepper {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.count {
-  min-width: 22px;
-  text-align: center;
-  font-weight: 700;
-  font-size: 15px;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
 }
 
 /* —— Sliders —— */

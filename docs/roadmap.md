@@ -90,6 +90,18 @@ Ship a playable loop first; every milestone must be runnable and checkable.
 - [x] Permission UX: explicit opt-in, one-time-prompt race handled, manual-add and stale-entry-after-update guidance
 - [x] Unit tests: `capture_guard` sessions, completion scan, monitor service
 
+## M9 — Web demo (Cloudflare Pages) + mobile
+
+- [x] `src/platform/desktop.ts` capability boundary (`isTauri`, native/local event bridge); no `@tauri-apps/*` calls off-runtime
+- [x] Web persistence: settings + daily stats in `localStorage` (memory fallback); backdrop in its own key
+- [x] Page-embedded toolbar (settings / hide / ± / regen / spray + cooldown / feed / weather / backdrop / today chip) replaces tray; settings as code-split drawer
+- [x] Fake-desktop backdrop: checker / solid color / multi-wallpaper library with thumbnails (+ swatches, custom color)
+- [x] Touch: `touch-action:none`, +14px hit bonus, no-hover cursor forget on lift
+- [x] `vite.config.ts` `base: './'`; `dist/` runs on static hosting as-is
+- [x] Share links (`?count=&species=&weather=`): validated, ephemeral, never rewrite storage
+- [x] Installable PWA (`manifest.webmanifest`, standalone; no service worker by design)
+- [ ] CF Pages production deploy + Safari/Chrome mobile soak
+
 ## Later (not blocking)
 
 - [x] Overlay on all macOS Spaces (soaked 2 Spaces on macOS 15.7.9; overlay stayed onscreen)

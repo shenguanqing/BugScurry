@@ -90,6 +90,18 @@
 - [x] 权限体验：显式 opt-in、一次性弹窗竞态处理、手动添加与更新后旧条目指引
 - [x] 单测：`capture_guard` 会话、补扫、monitor service
 
+## M9 — 网页试玩（Cloudflare Pages）+ 移动端
+
+- [x] `src/platform/desktop.ts` 能力边界（`isTauri`、原生/页内事件桥）；非 Tauri 下零原生调用
+- [x] 网页持久化：设置 + 每日战绩进 `localStorage`（内存兜底）；背景独立 key
+- [x] 页内工具栏（设置/隐藏/±/重生/喷雾+冷却/投喂/天气/背景/今日数）替代托盘；设置为按需加载的抽屉
+- [x] 假桌面背景：棋盘格/纯色/多壁纸库缩略图（+ 色板、自定义色）
+- [x] 触屏：`touch-action:none`、+14px 命中、抬起后遗忘光标
+- [x] `vite.config.ts` `base: './'`；`dist/` 可直接跑在静态托管
+- [x] 分享链接（`?count=&species=&weather=`）：校验钳制、临时覆盖、不写回存档
+- [x] 可安装 PWA（`manifest.webmanifest`，standalone；有意不带 service worker）
+- [ ] CF Pages 生产部署 + Safari/Chrome 移动端 soak
+
 ### 后续可选（未阻塞当前版本）
 
 - [x] 覆盖层跟随所有 macOS Spaces（2026-09-11 在 2 个 Space 上 soak 通过）

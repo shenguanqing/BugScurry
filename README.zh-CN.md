@@ -24,6 +24,16 @@
 
 ![托盘菜单与设置窗口](docs/screenshots/ui-tray-settings-zh.png)
 
+## 网页试玩
+
+同一份 `dist/` 可直接当独立网页跑——无后端、无账号。扔到任何静态托管即可（例如 Cloudflare Pages：构建命令 `pnpm build`，输出目录 `dist/`）。
+
+- 工具栏替代托盘（设置/隐藏/增减/重生/喷雾/投喂/天气/背景/今日数）；设置以侧边抽屉打开
+- 假桌面背景：棋盘格、纯色，或上传多张壁纸建图库
+- 支持触屏；受浏览器自动播放策略限制，声音从第一次点击后开始
+- 分享链接：`?count=12&species=ant&weather=heavy`——链接参数只临时覆盖，不会写回本地存档
+- 可安装 PWA（`manifest.webmanifest`，standalone 显示）；不带 service worker，首次打开需要联网
+
 ## 性格与投喂
 
 每只虫子出生时会随机获得一种性格：胆小的更早逃跑；贪吃的能察觉更远处的食物，也会提前结束休息去吃；慵懒的移动更慢、休息更久；好奇的会远远试探光标，太近时仍然逃跑。关闭「怕光逃跑」也会关闭对光标的好奇行为。
@@ -54,7 +64,7 @@
 | 前端 | Vue 3 + TypeScript + Vite |
 | 包管理 | pnpm |
 | 渲染 | Canvas 2D |
-| 持久化 | tauri-plugin-store |
+| 持久化 | tauri-plugin-store（桌面）/ localStorage（网页试玩） |
 | 自启动 | tauri-plugin-autostart |
 
 选型对比见 [docs/tech-analysis.md](docs/tech-analysis.md)。
@@ -65,8 +75,9 @@
 
 ```text
 BugScurry/
-├── index.html                 # 覆盖层 Web 入口
+├── index.html                 # 覆盖层 Web 入口（同时也是网页试玩页）
 ├── settings.html              # 设置窗口入口
+├── public/                    # favicon、PWA manifest 与图标（构建时拷到 dist/）
 ├── package.json
 ├── vite.config.ts
 ├── tsconfig.json
@@ -131,15 +142,20 @@ BugScurry/
 │   │   └── beetle.ts
 │   ├── settings/
 │   │   ├── main.ts
-│   │   ├── SettingsApp.vue    # 设置界面
+│   │   ├── SettingsApp.vue    # 设置界面（网页端以内嵌抽屉复用）
 │   │   ├── SpeciesPreview.vue # 虫种悬停步态预览
 │   │   ├── InfoTip.vue        # ⓘ 说明弹层
 │   │   └── speciesPreviewLayout.ts
 │   ├── qa/                    # QA 页脚本
+│   ├── platform/
+│   │   ├── desktop.ts         # isTauri 门控 + 原生/页内事件桥
+│   │   └── webStorage.ts      # 网页试玩的 localStorage 持久化
 │   ├── services/
-│   │   ├── tauriBridge.ts     # 覆盖层 ↔ Tauri 事件/命令
-│   │   ├── settingsService.ts # 配置存储、主题、多屏
+│   │   ├── tauriBridge.ts     # 覆盖层 ↔ Tauri 事件/命令（网页下 no-op）
+│   │   ├── settingsService.ts # 配置存储（桌面 store / 网页 localStorage）、主题、多屏
 │   │   ├── dailyStatsService.ts # 主覆盖层独占：击杀落盘与托盘战绩
+│   │   ├── webBackdrop.ts     # 网页专属假桌面（棋盘格/纯色/壁纸库）
+│   │   ├── webShare.ts        # 网页分享链接参数（?count=&species=&weather=）
 │   │   └── __tests__/
 │   ├── i18n/
 │   │   ├── index.ts
@@ -191,6 +207,7 @@ pnpm tauri dev        # 开发运行（会启动 Vite :1420，必须先有它）
 pnpm typecheck        # TypeScript 检查
 pnpm test             # 单元测试（Vitest）
 pnpm build            # 前端生产构建
+pnpm preview          # 本地跑 dist/（网页试玩在 :4173）
 pnpm tauri build      # 打包安装包
 ```
 

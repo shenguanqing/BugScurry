@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockTauriRuntime } from "./runtimeEnv";
 import type { Event } from "@tauri-apps/api/event";
 import { listenOverlayVisibility } from "../tauriBridge";
 
@@ -25,6 +26,7 @@ describe("overlay visibility initialization", () => {
   }
 
   beforeEach(() => {
+    mockTauriRuntime();
     vi.resetAllMocks();
     listeners = new Set();
     cleanups = [];

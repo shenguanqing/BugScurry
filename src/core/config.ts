@@ -43,6 +43,8 @@ export const BASE_SPEED = 70;
 
 /** Hit radius multiplier relative to drawn body size. */
 export const HIT_RADIUS_SCALE = 1.35;
+/** Extra CSS px hit bonus for touch taps (fat fingers, no hover). */
+export const TOUCH_HIT_BONUS = 14;
 /**
  * More forgiving hit radius while the cursor is already close to a bug —
  * chasing a fleeing bug should still land.

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockTauriRuntime } from "./runtimeEnv";
 import { listenCursorLocal, requestOverlayCursor } from "../tauriBridge";
 
 const native = vi.hoisted(() => ({ invoke: vi.fn(), listen: vi.fn() }));
@@ -6,7 +7,9 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: native.invoke }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: native.listen }));
 
 describe("stationary cursor initialization", () => {
-  beforeEach(() => { vi.resetAllMocks(); });
+  beforeEach(() => {
+    mockTauriRuntime();
+    vi.resetAllMocks(); });
 
   it("subscribes before asking the native poller to replay cached coordinates", async () => {
     let finishSubscription!: (cleanup: () => void) => void;

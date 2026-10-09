@@ -1,9 +1,18 @@
 /** Tiny Web Audio "啪" — no asset files needed. */
+
+/**
+ * Autoplay policy: constructing an AudioContext outside a user gesture logs
+ * "The AudioContext was not allowed to start" and leaves it suspended.
+ * Creation is therefore gated behind the first gesture (`unlockAudio`);
+ * everything else degrades to a silent no-op until then.
+ */
 let ctx: AudioContext | null = null;
+let unlocked = false;
 
 function getCtx(): AudioContext | null {
   if (typeof window === "undefined") return null;
   if (!ctx) {
+    if (!unlocked) return null;
     const Ctor =
       window.AudioContext ||
       (window as unknown as { webkitAudioContext?: typeof AudioContext })
@@ -14,9 +23,24 @@ function getCtx(): AudioContext | null {
   return ctx;
 }
 
+/** True once the page has seen a user gesture. */
+export function isAudioUnlocked(): boolean {
+  return unlocked;
+}
+
+/**
+ * Call from a real user gesture (pointerdown/keydown): allow context
+ * creation from now on and resume immediately. Idempotent.
+ */
+export function unlockAudio(): void {
+  unlocked = true;
+  const ac = getCtx();
+  if (ac && ac.state === "suspended") void ac.resume().catch(() => {});
+}
+
 export function ensureAudio(): void {
   const ac = getCtx();
-  if (ac && ac.state === "suspended") void ac.resume();
+  if (ac && ac.state === "suspended") void ac.resume().catch(() => {});
 }
 
 export function playSquishSound(combo = 1): void {

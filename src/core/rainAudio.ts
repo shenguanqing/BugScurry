@@ -1,5 +1,6 @@
 import type { RainKind, Settings } from "./types";
 import { lightningFlash } from "./weather";
+import { isAudioUnlocked } from "./audio";
 
 import { createRainTexture, createWindTexture, type RainLayer, type WindLayer } from "./rainTexture";
 import { sandGust } from "./atmosphere";
@@ -49,6 +50,8 @@ let nextWindUpdate = 0;
 function getCtx(): Ctx | null {
   if (typeof window === "undefined") return null;
   if (!ctx) {
+    // Never build the bed before the first gesture (autoplay policy).
+    if (!isAudioUnlocked()) return null;
     const Ctor = window.AudioContext ||
       (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctor) return null;

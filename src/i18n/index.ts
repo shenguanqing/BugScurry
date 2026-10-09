@@ -1,5 +1,6 @@
 import { ref, type Ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { isTauri } from "../platform/desktop";
 import { messages, resolveLocale, type Locale, type LocalePref } from "./messages";
 
 export type { Locale, LocalePref };
@@ -19,8 +20,9 @@ export function setLocalePref(pref: LocalePref): Locale {
   return localeRef.value;
 }
 
-/** Push tray menu strings to the Rust shell. */
+/** Push tray menu strings to the Rust shell. No-op on the web shell. */
 export async function syncTrayLocale(locale: Locale): Promise<void> {
+  if (!isTauri()) return;
   try {
     await invoke("apply_locale", {
       locale,

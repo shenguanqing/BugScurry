@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockTauriRuntime } from "./runtimeEnv";
 import { DEFAULT_SETTINGS } from "../../core/config";
 
 const native = vi.hoisted(() => ({
@@ -39,6 +40,7 @@ vi.mock("../../i18n", () => ({
 
 describe("persisted overlay capture settings", () => {
   beforeEach(() => {
+    mockTauriRuntime();
     vi.resetModules();
     vi.resetAllMocks();
     native.loadStore.mockResolvedValue({ get: native.get, set: native.set, save: native.save });

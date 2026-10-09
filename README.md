@@ -24,6 +24,16 @@ Cross-platform desktop app for **macOS** and **Windows**. Runs in the background
 
 ![Tray menu and settings window](docs/screenshots/ui-tray-settings-en.png)
 
+## Web demo
+
+The same `dist/` runs as a standalone page — no backend, no account. Deploy it anywhere static (e.g. Cloudflare Pages: build command `pnpm build`, output directory `dist/`).
+
+- Toolbar replaces the tray (settings / hide / add-remove / regenerate / spray / feed / weather / backdrop / today kills); settings open as a side drawer
+- Fake-desktop backdrop: checkerboard, solid colors, or an uploadable multi-wallpaper library
+- Touch supported; audio starts after the first tap (browser autoplay policy)
+- Share links: `?count=12&species=ant&weather=heavy` — link overrides are ephemeral and never rewrite stored settings
+- Installable PWA (`manifest.webmanifest`, standalone display); ships without a service worker, so the first load needs network
+
 ## Personalities & feeding
 
 Each bug gets a personality at spawn: shy bugs flee sooner, greedy bugs notice food farther away and wake to eat, lazy bugs move slowly and rest longer, and curious bugs approach the cursor from a distance before fleeing up close. Turning off cursor repellent also disables curiosity toward the cursor.
@@ -54,7 +64,7 @@ Turn on **Random weather** in Settings and the app starts and stops weather on i
 | UI | Vue 3 + TypeScript + Vite |
 | Package manager | pnpm |
 | Rendering | Canvas 2D |
-| Persistence | tauri-plugin-store |
+| Persistence | tauri-plugin-store (desktop) / localStorage (web demo) |
 | Autostart | tauri-plugin-autostart |
 
 Why Tauri instead of Electron: see [docs/tech-analysis.md](docs/tech-analysis.md).
@@ -65,8 +75,9 @@ Single source of truth for the file tree. Design rationale and module duties liv
 
 ```text
 BugScurry/
-├── index.html                 # Overlay webview entry
+├── index.html                 # Overlay webview entry (also the web demo page)
 ├── settings.html              # Settings window entry
+├── public/                    # favicon, PWA manifest + icons (copied to dist/)
 ├── package.json
 ├── vite.config.ts
 ├── tsconfig.json
@@ -131,15 +142,20 @@ BugScurry/
 │   │   └── beetle.ts
 │   ├── settings/
 │   │   ├── main.ts
-│   │   ├── SettingsApp.vue    # Settings UI
+│   │   ├── SettingsApp.vue    # Settings UI (also embedded as the web drawer)
 │   │   ├── SpeciesPreview.vue # Live gait popover on species hover
 │   │   ├── InfoTip.vue        # ⓘ info popovers
 │   │   └── speciesPreviewLayout.ts
 │   ├── qa/                    # QA page scripts
+│   ├── platform/
+│   │   ├── desktop.ts         # isTauri gate + native/local event bridge
+│   │   └── webStorage.ts      # localStorage persistence for the web demo
 │   ├── services/
-│   │   ├── tauriBridge.ts     # Overlay ↔ Tauri events / commands
-│   │   ├── settingsService.ts # Store, theme, monitor mode
+│   │   ├── tauriBridge.ts     # Overlay ↔ Tauri events / commands (no-op on web)
+│   │   ├── settingsService.ts # Store (desktop) / localStorage (web), theme, monitor mode
 │   │   ├── dailyStatsService.ts # Primary overlay only: kill log + tray stats
+│   │   ├── webBackdrop.ts     # Web-only fake desktop (checker / solid / wallpapers)
+│   │   ├── webShare.ts        # Web share-link params (?count=&species=&weather=)
 │   │   └── __tests__/
 │   ├── i18n/
 │   │   ├── index.ts
@@ -191,6 +207,7 @@ pnpm tauri dev        # run in development (starts Vite on :1420 — required)
 pnpm typecheck        # TypeScript check
 pnpm test             # unit tests (Vitest)
 pnpm build            # frontend production build
+pnpm preview          # serve dist/ locally (web demo at :4173)
 pnpm tauri build      # platform installer
 ```
 

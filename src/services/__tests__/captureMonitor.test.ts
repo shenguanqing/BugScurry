@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockTauriRuntime } from "./runtimeEnv";
 import {
   getCaptureMonitorStatus,
   requestCaptureInputMonitoring,
@@ -10,6 +11,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: tauri.invoke }));
 
 describe("capture monitor bridge", () => {
   beforeEach(() => {
+    mockTauriRuntime();
     vi.resetAllMocks();
   });
 

@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "vue";
-import { emit } from "@tauri-apps/api/event";
-import { ensureAudio, playHurtSound, playSprayHiss, playSquishSound } from "./core/audio";
-import { DEFAULT_SETTINGS, EVENT_BANNER, PRANK } from "./core/config";
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from "vue";
+import { ensureAudio, playHurtSound, playSprayHiss, playSquishSound, unlockAudio } from "./core/audio";
+import { DEFAULT_SETTINGS, EVENT_BANNER, PRANK, TOUCH_HIT_BONUS } from "./core/config";
 import { BugManager, emptyDailyStats } from "./core/bugManager";
 import { hitTestBug } from "./core/hitTest";
 import { createLoop } from "./core/loop";
-import type { CursorState, Settings, Viewport } from "./core/types";
+import type { CursorState, FoodKind, Settings, Viewport } from "./core/types";
+import { RAIN_KIND_ORDER } from "./core/weather";
 import {
+  emitRandomEvent,
   fitWindowToDisplay,
   forceRebuildOverlays,
   listenCursorLocal,
@@ -24,7 +25,18 @@ import {
   setTraySpray,
   listenRandomEvent,
 } from "./services/tauriBridge";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getWindowLabel, isTauri } from "./platform/desktop";
+import {
+  BACKDROP_SWATCHES,
+  addBackdropImage,
+  backdropStyle,
+  loadBackdrop,
+  removeBackdropImage,
+  saveBackdrop,
+  selectBackdropImage,
+  type BackdropState,
+} from "./services/webBackdrop";
+import { parseShareParams } from "./services/webShare";
 import {
   applyMonitorMode,
   applyUiLocale,
@@ -98,6 +110,107 @@ const bannerVisible = ref(false);
 const bannerTitle = ref("");
 const bannerSub = ref("");
 
+/**
+ * Web shell (Cloudflare demo): the tray menu and settings window become a
+ * page-embedded toolbar, drawer, and fake-desktop backdrop. Desktop never
+ * reads any of this.
+ */
+const isWeb = !isTauri();
+const settingsOpen = ref(false);
+const openPopover = ref<"feed" | "weather" | "backdrop" | null>(null);
+const backdrop = ref<BackdropState>(
+  isWeb ? loadBackdrop() : { mode: "checker", color: "#000000", image: null, images: [] },
+);
+const backdropCss = computed(() => (isWeb ? backdropStyle(backdrop.value) : {}));
+const todayStats = ref({ kills: 0, bestCombo: 0 });
+const sprayLeft = ref(0);
+const weatherKinds = RAIN_KIND_ORDER;
+const swatches = BACKDROP_SWATCHES;
+/** Settings drawer is code-split: the desktop overlay never downloads it. */
+const SettingsPanel = defineAsyncComponent(() => import("./settings/SettingsApp.vue"));
+if (isWeb) {
+  void import("./styles/settings.css");
+}
+
+function togglePopover(name: "feed" | "weather" | "backdrop"): void {
+  openPopover.value = openPopover.value === name ? null : name;
+}
+
+function toggleVisibility(): void {
+  applyVisibility(!visible.value);
+}
+
+function feed(kind: FoodKind): void {
+  ensureAudio();
+  manager?.dropBait(kind);
+  openPopover.value = null;
+}
+
+function setBackdropMode(mode: BackdropState["mode"]): void {
+  backdrop.value = saveBackdrop({ ...backdrop.value, mode });
+}
+
+/** Keep the browser chrome (Safari top bar, task switcher) in sync with the backdrop. */
+function syncThemeColor(): void {
+  if (!isWeb || typeof document === "undefined") return;
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute("content", backdrop.value.color);
+}
+
+watch(backdrop, syncThemeColor);
+
+function setBackdropColor(color: string): void {
+  backdrop.value = saveBackdrop({ ...backdrop.value, color });
+}
+
+function clearBackdropImage(image: string): void {
+  backdrop.value = removeBackdropImage(backdrop.value, image);
+}
+
+function pickBackdropImage(image: string): void {
+  backdrop.value = selectBackdropImage(backdrop.value, image);
+}
+
+/** Wallpaper tab: show the library, or open the picker when empty. */
+function onImageTab(): void {
+  if (backdrop.value.images.length > 0) {
+    setBackdropMode("image");
+    return;
+  }
+  fileInput.value?.click();
+}
+
+const fileInput = ref<HTMLInputElement | null>(null);
+
+function onBackdropFile(ev: Event): void {
+  const input = ev.target as HTMLInputElement;
+  const files = Array.from(input.files ?? []).filter((file) => file.type.startsWith("image/"));
+  input.value = "";
+  for (const file of files) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== "string") return;
+      backdrop.value = addBackdropImage(backdrop.value, reader.result);
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+/** Esc / outside-tap dismisses the web toolbar layers (never the bugs). */
+function onWebKeydown(ev: KeyboardEvent): void {
+  if (ev.key !== "Escape") return;
+  if (openPopover.value) openPopover.value = null;
+  else if (settingsOpen.value) settingsOpen.value = false;
+}
+
+function onDismissPointer(ev: Event): void {
+  const target = ev.target as HTMLElement | null;
+  if (!target?.closest) return;
+  if (target.closest(".web-pop") || target.closest(".web-tools") || target.closest(".web-drawer")) return;
+  openPopover.value = null;
+}
+
 function resizeCanvas() {
   const canvas = canvasRef.value;
   if (!canvas) return;
@@ -170,6 +283,7 @@ function cooldownSecLeft(readyAt: number, now = performance.now()): number {
 
 async function syncSprayTray() {
   if (!isPrimaryOverlay()) return;
+  sprayLeft.value = cooldownSecLeft(sprayReadyAt);
   await setTraySpray(cooldownSecLeft(sprayReadyAt));
 }
 
@@ -282,16 +396,31 @@ function applyRainTrayCommand(cmd: string): boolean {
 }
 
 function onPointerMove(ev: PointerEvent) {
+  if (isWeb && (ev.target as HTMLElement | null)?.closest?.(".web-ui")) return;
   cursorState.x = ev.clientX;
   cursorState.y = ev.clientY;
+  // Desktop learns hover from the Rust cursor poller; web learns it from DOM.
+  if (isWeb) cursorState.inside = true;
+}
+
+function onPointerLeave() {
+  if (isWeb) cursorState.inside = false;
+}
+
+function onPointerUp(ev: PointerEvent) {
+  // Touch has no hover: forget the cursor so bugs stop fleeing the last tap.
+  if (isWeb && ev.pointerType === "touch") cursorState.inside = false;
 }
 
 function onPointerDown(ev: PointerEvent) {
   if (!manager || !visible.value) return;
+  if (isWeb && (ev.target as HTMLElement | null)?.closest?.(".web-ui")) return;
   cursorState.x = ev.clientX;
   cursorState.y = ev.clientY;
-  ensureAudio();
-  const target = hitTestBug(manager.list, ev.clientX, ev.clientY, viewport.value);
+  if (isWeb) cursorState.inside = true;
+  unlockAudio();
+  const bonus = ev.pointerType === "touch" ? TOUCH_HIT_BONUS : 0;
+  const target = hitTestBug(manager.list, ev.clientX, ev.clientY, viewport.value, bonus);
   if (!target) return;
   const result = manager.hit(target);
   if (result.kind === "killed") {
@@ -306,11 +435,15 @@ function onPointerDown(ev: PointerEvent) {
 }
 
 function isPrimaryOverlay(): boolean {
-  try {
-    return getCurrentWindow().label === "overlay";
-  } catch {
-    return true;
+  // Single-page web shell: this is the only overlay.
+  if (isTauri()) {
+    try {
+      return getWindowLabel() === "overlay";
+    } catch {
+      return true;
+    }
   }
+  return true;
 }
 
 /** Bugs move under a stationary cursor, so hover is evaluated every rAF
@@ -417,9 +550,18 @@ function handleTray(cmd: string) {
 }
 
 onMounted(async () => {
+  // A stored non-default backdrop must re-tint the browser chrome on load.
+  syncThemeColor();
   await refreshViewport();
   // Secondary rebuilds inherit native capture state rather than overwriting it.
   const loaded = await loadSettings(isPrimaryOverlay());
+  if (isWeb) {
+    // Share links (?count=&species=&weather=) win over stored prefs,
+    // ephemerally: the link always reproduces the scene, never rewrites it.
+    const shared = parseShareParams(window.location.search);
+    Object.assign(loaded, shared);
+    if (shared.rain) loaded.rainWind = pickRainWind();
+  }
   settings.value = loaded;
   await applyUiLocale(loaded.locale);
   const daily = await loadDailyStats();
@@ -429,7 +571,10 @@ onMounted(async () => {
     dailyStatsService = createDailyStatsService(
       manager.dailyStats,
       saveDailyStats,
-      (stats) => setTrayStats(stats.kills, stats.bestCombo),
+      (stats) => {
+        todayStats.value = { kills: stats.kills, bestCombo: stats.bestCombo };
+        return setTrayStats(stats.kills, stats.bestCombo);
+      },
     );
     unlistenKills = await listenKillReports((report) => {
       void dailyStatsService?.record(report)
@@ -464,7 +609,7 @@ onMounted(async () => {
         return;
       }
       // Every overlay (including this one) banners + starts via the listener.
-      void emit("random-event", { kind });
+      void emitRandomEvent(kind);
       rearmAfterEvent(
         autoEventClock,
         now,
@@ -480,7 +625,7 @@ onMounted(async () => {
   });
 
   try {
-    const label = getCurrentWindow().label;
+    const label = getWindowLabel();
     if (label === "overlay") {
       await applyMonitorMode(loaded.monitorMode);
       window.setTimeout(() => {
@@ -509,6 +654,15 @@ onMounted(async () => {
   window.addEventListener("pointermove", onPointerMove);
   window.addEventListener("resize", refreshViewportSync);
   window.addEventListener("load", refreshViewportSync);
+  // Autoplay policy: the first real gesture unlocks Web Audio. Capture runs
+  // before the squish handler, so the very first click already makes sound.
+  window.addEventListener("pointerdown", unlockAudio, { capture: true, once: true });
+  window.addEventListener("keydown", unlockAudio, { capture: true, once: true });
+  if (isWeb) {
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointerdown", onDismissPointer, true);
+    window.addEventListener("keydown", onWebKeydown, true);
+  }
 
   // Data only: hover evaluation happens per frame in updateCursorHover.
   unlistenCursor = await listenCursorLocal((pos) => {
@@ -570,7 +724,12 @@ onUnmounted(() => {
   window.clearInterval(autoEventTimer);
   window.clearInterval(sprayTickTimer);
   window.removeEventListener("pointerdown", onPointerDown);
+  window.removeEventListener("pointerdown", unlockAudio, true);
+  window.removeEventListener("keydown", unlockAudio, true);
   window.removeEventListener("pointermove", onPointerMove);
+  window.removeEventListener("pointerup", onPointerUp);
+  window.removeEventListener("pointerdown", onDismissPointer, true);
+  window.removeEventListener("keydown", onWebKeydown, true);
   window.removeEventListener("resize", refreshViewportSync);
   window.removeEventListener("load", refreshViewportSync);
   unlistenKills?.();
@@ -586,8 +745,9 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="overlay" :class="{ hidden: !visible, clickable }">
-    <canvas ref="canvasRef" class="bugs-canvas" />
+  <div class="overlay" :class="{ hidden: !visible, clickable, web: isWeb }">
+    <div v-if="isWeb" class="backdrop" :style="backdropCss" aria-hidden="true" />
+    <canvas ref="canvasRef" class="bugs-canvas" @pointerleave="onPointerLeave" />
     <Transition name="event-banner">
       <div v-if="bannerVisible" class="event-banner" aria-live="polite">
         <div class="event-banner-veil" />
@@ -595,6 +755,109 @@ onUnmounted(() => {
           <p class="event-banner-title">{{ bannerTitle }}</p>
           <p class="event-banner-sub">{{ bannerSub }}</p>
         </div>
+      </div>
+    </Transition>
+    <div v-if="isWeb" class="web-ui web-tools" role="toolbar" :aria-label="t('web.settings')">
+      <button type="button" class="web-btn" :title="t('web.settings')" :aria-label="t('web.settings')" @click="settingsOpen = true">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h8.6M18.6 7H20M4 17h3.6M13.4 17H20" /><circle cx="15.8" cy="7" r="2.4" /><circle cx="10.2" cy="17" r="2.4" /></svg>
+      </button>
+      <button type="button" class="web-btn" :title="visible ? t('web.hide') : t('web.show')" :aria-label="visible ? t('web.hide') : t('web.show')" @click="toggleVisibility">
+        <svg v-if="visible" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.6-5.7 9-5.7S21 12 21 12s-3.6 5.7-9 5.7S3 12 3 12Z" /><circle cx="12" cy="12" r="2.6" /></svg>
+        <svg v-else viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.6-5.7 9-5.7S21 12 21 12s-3.6 5.7-9 5.7S3 12 3 12Z" /><path d="M4.5 4.5l15 15" /></svg>
+      </button>
+      <button type="button" class="web-btn" :title="t('web.add')" :aria-label="t('web.add')" @click="handleTray('add_one')">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+      </button>
+      <button type="button" class="web-btn" :title="t('web.remove')" :aria-label="t('web.remove')" @click="handleTray('remove_one')">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" /></svg>
+      </button>
+      <button type="button" class="web-btn" :title="t('web.regen')" :aria-label="t('web.regen')" @click="handleTray('regenerate')">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="4.5" width="15" height="15" rx="4" /><g fill="currentColor" stroke="none"><circle cx="9" cy="9" r="1.2" /><circle cx="15" cy="9" r="1.2" /><circle cx="12" cy="12" r="1.2" /><circle cx="9" cy="15" r="1.2" /><circle cx="15" cy="15" r="1.2" /></g></svg>
+      </button>
+      <button type="button" class="web-btn" :title="t('web.spray')" :aria-label="t('web.spray')" :disabled="sprayLeft > 0" @click="runSpray">
+        <svg v-if="sprayLeft <= 0" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 9h4v10.5a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V9Z" /><path d="M10 9V7h4v2M12 7V5M12 5h5" /><g fill="currentColor" stroke="none"><circle cx="19" cy="4.5" r=".9" /><circle cx="20.5" cy="7" r=".9" /><circle cx="18.6" cy="9.3" r=".9" /></g></svg>
+        <span v-else class="cool">{{ sprayLeft }}</span>
+      </button>
+      <button type="button" class="web-btn" :title="t('web.feed')" :aria-label="t('web.feed')" :aria-expanded="openPopover === 'feed'" @click="togglePopover('feed')">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><g fill="currentColor" stroke="none"><circle cx="9.5" cy="10" r="1.1" /><circle cx="14.2" cy="9.3" r="1.1" /><circle cx="12" cy="13.2" r="1.1" /><circle cx="9.8" cy="15" r="1.1" /><circle cx="14.8" cy="14" r="1.1" /></g></svg>
+      </button>
+      <button type="button" class="web-btn" :title="t('web.weather')" :aria-label="t('web.weather')" :aria-expanded="openPopover === 'weather'" @click="togglePopover('weather')">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 14.5h9.5a3.75 3.75 0 0 0 .7-7.43A5.25 5.25 0 0 0 7 8.7 3.4 3.4 0 0 0 7 14.5Z" /><path d="M8.5 17.5v2.5M12 17.5v2.5M15.5 17.5v2.5" /></svg>
+      </button>
+      <button type="button" class="web-btn" :title="t('web.backdrop')" :aria-label="t('web.backdrop')" :aria-expanded="openPopover === 'backdrop'" @click="togglePopover('backdrop')">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2" /><circle cx="9" cy="10" r="1.4" /><path d="M5 17.5 10 12.5l3.5 3.5 2.5-2.5 3 3" /></svg>
+      </button>
+      <span class="today-chip" :title="t('web.today')">{{ t("web.today") }} {{ todayStats.kills }}</span>
+    </div>
+    <Transition name="web-pop">
+      <div v-if="isWeb && openPopover === 'feed'" class="web-ui web-pop" role="menu" :aria-label="t('web.feed')">
+        <button type="button" class="web-pop-item" @click="feed('cookie')">{{ t("food.cookie") }}</button>
+        <button type="button" class="web-pop-item" @click="feed('sugar')">{{ t("food.sugar") }}</button>
+        <button type="button" class="web-pop-item" @click="feed('fruit')">{{ t("food.fruit") }}</button>
+      </div>
+    </Transition>
+    <Transition name="web-pop">
+      <div v-if="isWeb && openPopover === 'weather'" class="web-ui web-pop" role="menu" :aria-label="t('web.weather')">
+        <button type="button" class="web-pop-item" :class="{ active: !settings.rain }" @click="stopRain(); openPopover = null">{{ t("tray.rainOff") }}</button>
+        <button
+          v-for="kind in weatherKinds"
+          :key="kind"
+          type="button"
+          class="web-pop-item"
+          :class="{ active: settings.rain && settings.rainKind === kind }"
+          @click="startRain(kind); openPopover = null"
+        >{{ t(`tray.rain.${kind}`) }}</button>
+      </div>
+    </Transition>
+    <Transition name="web-pop">
+      <div v-if="isWeb && openPopover === 'backdrop'" class="web-ui web-pop" :aria-label="t('web.backdrop')">
+        <div class="web-pop-row" role="group" :aria-label="t('web.backdrop')">
+          <button type="button" class="web-pop-item" :class="{ active: backdrop.mode === 'checker' }" @click="setBackdropMode('checker')">{{ t("web.backdrop.checker") }}</button>
+          <button type="button" class="web-pop-item" :class="{ active: backdrop.mode === 'color' }" @click="setBackdropMode('color')">{{ t("web.backdrop.color") }}</button>
+          <button type="button" class="web-pop-item" :class="{ active: backdrop.mode === 'image' }" @click="onImageTab()">{{ t("web.backdrop.image") }}</button>
+        </div>
+        <div v-if="backdrop.mode !== 'image'" class="web-pop-row swatches">
+          <button
+            v-for="color in swatches"
+            :key="color"
+            type="button"
+            class="swatch"
+            :class="{ active: backdrop.color === color }"
+            :style="{ background: color }"
+            :aria-label="color"
+            @click="setBackdropColor(color)"
+          />
+          <label class="swatch custom" :title="t('web.backdrop.customColor')">
+            <input type="color" :value="backdrop.color" :aria-label="t('web.backdrop.customColor')" @input="setBackdropColor(($event.target as HTMLInputElement).value)" />
+            <span aria-hidden="true">＋</span>
+          </label>
+        </div>
+        <div v-if="backdrop.mode === 'image'" class="web-pop-row thumbs">
+          <button
+            v-for="img in backdrop.images"
+            :key="img"
+            type="button"
+            class="thumb"
+            :class="{ active: backdrop.image === img }"
+            :aria-label="t('web.backdrop.image')"
+            @click="pickBackdropImage(img)"
+          >
+            <img :src="img" alt="" />
+            <span
+              class="thumb-x"
+              role="button"
+              :aria-label="t('web.backdrop.remove')"
+              @click.stop="clearBackdropImage(img)"
+            >×</span>
+          </button>
+          <button type="button" class="thumb add" :title="t('web.backdrop.upload')" :aria-label="t('web.backdrop.upload')" @click="fileInput?.click()">＋</button>
+        </div>
+        <input ref="fileInput" type="file" accept="image/*" multiple hidden @change="onBackdropFile" />
+      </div>
+    </Transition>
+    <Transition name="web-drawer">
+      <div v-if="isWeb && settingsOpen" class="web-ui web-drawer">
+        <SettingsPanel embedded @close="settingsOpen = false" />
       </div>
     </Transition>
   </div>
@@ -694,5 +957,338 @@ onUnmounted(() => {
 .event-banner-enter-from,
 .event-banner-leave-to {
   opacity: 0;
+}
+
+/* ---- Web shell (desktop overlay never sees these) ---- */
+.overlay.web {
+  pointer-events: auto;
+  /* iOS ignores user-scalable=no: this kills double-tap zoom page-wide
+     (the canvas opts out further with touch-action:none for drawing). */
+  touch-action: manipulation;
+}
+
+.overlay.web .backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.overlay.web .bugs-canvas {
+  position: relative;
+  z-index: 1;
+  touch-action: none;
+}
+
+/* Hide/show keeps the toolbar and backdrop alive: only the bugs go away. */
+.overlay.web.hidden {
+  visibility: visible;
+}
+
+.overlay.web.hidden .bugs-canvas,
+.overlay.web.hidden .event-banner {
+  visibility: hidden;
+}
+
+.web-ui {
+  pointer-events: auto;
+}
+
+.web-tools {
+  position: absolute;
+  top: calc(14px + env(safe-area-inset-top, 0px));
+  right: calc(14px + env(safe-area-inset-right, 0px));
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: calc(100dvh - 28px);
+  overflow-y: auto;
+  align-items: flex-end;
+}
+
+.web-btn {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  background: rgba(20, 20, 19, 0.42);
+  color: rgba(242, 240, 234, 0.78);
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition:
+    border-color 0.14s cubic-bezier(0.2, 0, 0, 1),
+    color 0.14s cubic-bezier(0.2, 0, 0, 1),
+    background 0.14s cubic-bezier(0.2, 0, 0, 1),
+    transform 0.12s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.web-btn:hover {
+  border-color: rgba(10, 132, 255, 0.65);
+  color: #7ab8ff;
+  background: rgba(20, 20, 19, 0.6);
+}
+
+.web-btn:active {
+  transform: scale(0.95);
+}
+
+.web-btn:focus-visible {
+  outline: 2px solid #0a84ff;
+  outline-offset: 2px;
+}
+
+.web-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.web-btn .cool {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.web-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.web-btn[aria-expanded="true"] {
+  border-color: rgba(10, 132, 255, 0.65);
+  color: #7ab8ff;
+  background: rgba(20, 20, 19, 0.6);
+}
+
+.today-chip {
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(242, 240, 234, 0.85);
+  background: rgba(20, 20, 19, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 2px 10px;
+  backdrop-filter: blur(6px);
+  white-space: nowrap;
+}
+
+.web-pop {
+  position: absolute;
+  top: calc(14px + env(safe-area-inset-top, 0px));
+  right: calc(58px + env(safe-area-inset-right, 0px));
+  z-index: 31;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 148px;
+  width: 214px;
+  max-width: calc(100vw - 120px);
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  background: rgba(20, 20, 19, 0.82);
+  backdrop-filter: blur(10px);
+}
+
+.web-pop-item {
+  display: block;
+  width: 100%;
+  text-align: center;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #f2f0ea;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.web-pop-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.web-pop-item.active {
+  background: rgba(10, 132, 255, 0.28);
+  color: #8ac2ff;
+}
+
+.web-pop-item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.web-pop-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.web-pop-row .web-pop-item {
+  width: auto;
+  flex: 1 1 auto;
+}
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(6, 28px);
+  gap: 6px;
+  justify-content: center;
+  padding: 4px 2px;
+}
+
+.swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.swatch.active {
+  border-color: #0a84ff;
+}
+
+.swatch.custom {
+  position: relative;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1.5px dashed rgba(255, 255, 255, 0.35);
+  color: rgba(242, 240, 234, 0.8);
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+}
+
+.swatch.custom:hover {
+  border-color: rgba(10, 132, 255, 0.7);
+  color: #7ab8ff;
+}
+
+.swatch.custom input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.thumbs {
+  display: grid;
+  grid-template-columns: repeat(4, 45px);
+  gap: 6px;
+  justify-content: center;
+  padding: 4px 2px;
+}
+
+.thumb {
+  position: relative;
+  width: 45px;
+  height: 45px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumb.active {
+  border-color: #0a84ff;
+}
+
+.thumb.add {
+  display: grid;
+  place-items: center;
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.35);
+  color: rgba(242, 240, 234, 0.8);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.thumb.add:hover {
+  border-color: rgba(10, 132, 255, 0.7);
+  color: #7ab8ff;
+}
+
+.thumb-x {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(10, 10, 10, 0.65);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.thumb-x:hover {
+  background: #c00;
+}
+
+.web-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  width: min(420px, 100%);
+  overflow-y: auto;
+  background: var(--bg, #f2f2f7);
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.35);
+}
+
+.web-pop-enter-active,
+.web-pop-leave-active {
+  transition: opacity 0.16s ease, transform 0.18s ease;
+  transform-origin: top right;
+}
+
+.web-pop-enter-from,
+.web-pop-leave-to {
+  opacity: 0;
+  transform: scale(0.95) translateY(-6px);
+}
+
+.web-drawer-enter-active,
+.web-drawer-leave-active {
+  transition: opacity 0.2s ease, transform 0.24s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.web-drawer-enter-from,
+.web-drawer-leave-to {
+  opacity: 0;
+  transform: translateX(40px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .web-pop-enter-active,
+  .web-pop-leave-active,
+  .web-drawer-enter-active,
+  .web-drawer-leave-active {
+    transition-duration: 0.01ms !important;
+  }
 }
 </style>

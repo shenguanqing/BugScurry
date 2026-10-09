@@ -69,6 +69,8 @@ tray.rs
 | Species | `src/species/*` | 注册表、traits（`favoriteFood` / `activity` / `eatStyle`）、各虫种绘制 |
 | Settings UI | `src/settings/*` | 设置窗口 |
 | Services | `src/services/*` | Tauri 事件/命令、配置、主题、多屏 |
+| Platform boundary | `src/platform/desktop.ts` + `src/platform/webStorage.ts` | `isTauri()` 门控、原生/页内事件桥、localStorage 持久化 |
+| Web backdrop | `src/services/webBackdrop.ts` | 网页专属假桌面（棋盘格/纯色/壁纸库） |
 | DailyStatsService | `src/services/dailyStatsService.ts` | 主覆盖层独占：排队击杀、串行落盘、刷新托盘战绩 |
 | Prank / random events | `BugManager.sprayKillAll` / `startSwarm` / `startFatInvasion` / `startBerserk` / `startSizeChaos` / `startNightRaid`；`randomEvents.ts` | 托盘喷雾 + 原地冷却；设置随机事件池（虫潮/肥虫/狂暴/体型/夜袭），临时状态不写 `settings.count` |
 | Shell | `src-tauri/src/lib.rs` | 窗口、光标、显示器、命令、覆盖层/设置层级 |

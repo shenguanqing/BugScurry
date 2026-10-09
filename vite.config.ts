@@ -6,6 +6,8 @@ import process from "node:process";
 const host = process.env.TAURI_DEV_HOST;
 
 export default defineConfig(() => ({
+  // Relative assets: the same dist serves Tauri and static hosts (CF Pages).
+  base: "./",
   plugins: [vue(), {
     name: "qa-legacy-url",
     apply: "serve",
