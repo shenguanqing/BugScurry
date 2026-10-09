@@ -101,7 +101,7 @@
 - [x] 分享链接（`?count=&species=&weather=`）：校验钳制、临时覆盖、不写回存档
 - [x] 可安装 PWA（`manifest.webmanifest`，standalone；有意不带 service worker）
 - [x] CF Pages 生产部署（https://bugscurry.blnf.dpdns.org/）
-- [ ] Safari/Chrome 移动端 soak
+- [x] Safari/Chrome 移动端 soak（2026-10-09 真机通过）
 
 ### 后续可选（未阻塞当前版本）
 

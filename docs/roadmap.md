@@ -101,7 +101,7 @@ Ship a playable loop first; every milestone must be runnable and checkable.
 - [x] Share links (`?count=&species=&weather=`): validated, ephemeral, never rewrite storage
 - [x] Installable PWA (`manifest.webmanifest`, standalone; no service worker by design)
 - [x] CF Pages production deploy (https://bugscurry.blnf.dpdns.org/)
-- [ ] Safari/Chrome mobile soak
+- [x] Safari/Chrome mobile soak (passed on-device 2026-10-09)
 
 ## Later (not blocking)
 
