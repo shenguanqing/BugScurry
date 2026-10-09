@@ -100,7 +100,8 @@
 - [x] `vite.config.ts` `base: './'`；`dist/` 可直接跑在静态托管
 - [x] 分享链接（`?count=&species=&weather=`）：校验钳制、临时覆盖、不写回存档
 - [x] 可安装 PWA（`manifest.webmanifest`，standalone；有意不带 service worker）
-- [ ] CF Pages 生产部署 + Safari/Chrome 移动端 soak
+- [x] CF Pages 生产部署（https://bugscurry.blnf.dpdns.org/）
+- [ ] Safari/Chrome 移动端 soak
 
 ### 后续可选（未阻塞当前版本）
 
