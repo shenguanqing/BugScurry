@@ -77,6 +77,14 @@ tray.rs
 | Shell | `src-tauri/src/lib.rs` | Windows, cursor, monitors, commands, overlay/settings z-order |
 | Tray | `src-tauri/src/tray.rs` | Menu bar / tray (feed, weather, spray) |
 
+## 3.1 Web backdrop selection
+
+`webBackdrop.ts` owns the web-only backdrop state: `mode` selects checker / color / image, `images` is the upload library, `image` remembers the selected upload, and `builtinId` selects a catalog entry that takes precedence over `image`.
+
+Opening the Wallpaper tab changes `mode` in memory so an empty library can be browsed. A persisted image selection requires a valid upload or catalog id; `saveBackdrop` normalizes an empty selection to solid color.
+
+Uploading selects the new image and clears `builtinId`. Selecting a catalog entry keeps the upload library. Deleting an upload preserves `builtinId`; deleting the active custom image selects the next upload, then falls back to solid color if none remain. Regression tests cover these transitions and persistence after reload.
+
 ## 4. Bug state machine
 
 ```text

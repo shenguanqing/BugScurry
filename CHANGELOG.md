@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-10-09
+
+Web-demo wallpaper picker fixes and clearer custom wallpaper labeling.
+
+### Changed
+
+- Rename the uploaded wallpaper section to "Custom wallpapers" in all five locales and keep its heading visible when the library is empty
+
+### Fixed
+
+- The Wallpaper tab now opens without a previously uploaded or selected wallpaper; browsing the library no longer saves an empty image selection that immediately falls back to solid color
+- Deleting custom wallpapers preserves the selected built-in wallpaper and the Wallpaper tab, including after reload
+- Uploading a new custom wallpaper clears the previous built-in selection so the uploaded image becomes active immediately
+
 ## [0.6.1] - 2026-10-09
 
 ### Added

@@ -34,6 +34,8 @@
 - 分享链接：`?count=12&species=ant&weather=heavy`——链接参数只临时覆盖，不会写回本地存档
 - 可安装 PWA（`manifest.webmanifest`，standalone 显示）；不带 service worker，首次打开需要联网
 
+**背景 → 壁纸** 在尚未选定图片时也能打开壁纸库。**自定义壁纸** 分区始终显示标题与上传按钮。上传后立即选中新图片；删除上传图片会保留当前选中的内置壁纸。删除正在使用的自定义图片时，优先切换到剩余上传图片，没有剩余图片则回退到纯色。
+
 ## 性格与投喂
 
 每只虫子出生时会随机获得一种性格：胆小的更早逃跑；贪吃的能察觉更远处的食物，也会提前结束休息去吃；慵懒的移动更慢、休息更久；好奇的会远远试探光标，太近时仍然逃跑。关闭「怕光逃跑」也会关闭对光标的好奇行为。
@@ -238,7 +240,7 @@ gh run download <run-id> -n BugScurry-macos-arm64 -D release
 
 ### 发布前检查
 
-1. 更新 `src-tauri/tauri.conf.json` 中的 `version`
+1. 更新 `package.json` 与 `src-tauri/tauri.conf.json` 中的 `version`，并更新 `CHANGELOG.md`
 2. macOS：可选签名与公证
 3. Windows：可选代码签名（未签名可能被 SmartScreen 拦截）
 

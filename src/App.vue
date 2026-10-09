@@ -185,7 +185,8 @@ function pickBackdropImage(image: string): void {
 
 /** Wallpaper tab: show the library (uploads + built-in catalog). */
 function onImageTab(): void {
-  setBackdropMode("image");
+  // Browsing is transient: saving without a selection falls back to solid color.
+  backdrop.value = { ...backdrop.value, mode: "image" };
 }
 
 /** Hide catalog thumbs that fail to load (dead hotlink) instead of broken tiles. */
@@ -854,7 +855,7 @@ onUnmounted(() => {
           </label>
         </div>
         <div v-if="backdrop.mode === 'image'" class="web-pop-section">
-          <p v-if="backdrop.images.length" class="web-pop-caption">{{ t("web.backdrop.uploads") }}</p>
+          <p class="web-pop-caption">{{ t("web.backdrop.uploads") }}</p>
           <div class="web-pop-row thumbs">
             <button
               v-for="img in backdrop.images"

@@ -124,7 +124,7 @@ export function addBackdropImage(
     if (idx < 0) break;
     images.splice(idx, 1);
   }
-  return saveBackdrop({ ...s, mode: "image", image: dataUrl, images }, storage);
+  return saveBackdrop({ ...s, mode: "image", image: dataUrl, images, builtinId: null }, storage);
 }
 
 /** Switch to an already-uploaded wallpaper (clears any catalog selection). */
@@ -149,7 +149,7 @@ export function selectBuiltinBackdrop(
   return saveBackdrop({ ...s, mode: "image", builtinId: id }, storage);
 }
 
-/** Delete a wallpaper; falls back to the next one, then to solid color. */
+/** Delete an upload; keep the built-in selection or fall back to the next upload. */
 export function removeBackdropImage(
   state: BackdropState,
   dataUrl: string,
@@ -158,8 +158,7 @@ export function removeBackdropImage(
   const s = normalizeBackdrop(state);
   const images = s.images.filter((img) => img !== dataUrl);
   const image = s.image === dataUrl ? (images[0] ?? null) : s.image;
-  const mode = image ? s.mode : DEFAULT_BACKDROP.mode;
-  return saveBackdrop({ ...s, images, image, mode }, storage);
+  return saveBackdrop({ ...s, images, image }, storage);
 }
 
 /** CSS background value for the backdrop layer (catalog wins when selected). */

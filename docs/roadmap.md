@@ -109,6 +109,8 @@ Ship a playable loop first; every milestone must be runnable and checkable.
 - [x] Joke screens: 4K BSOD photo, CSS-composed Windows updating screen (animated, localized), and Apple's official boot asset for macOS (3px frame shaved; contain on wide, cover on narrow)
 - [x] Image tab groups by platform → version with lazy thumbnails; dead links hide instead of broken tiles
 - [x] Selections persist as ids; uploads and catalog coexist
+- [x] Wallpaper picker polish (0.6.2): empty library opens; localized Custom wallpapers heading stays visible
+- [x] Selection regression coverage (0.6.2): deleting uploads preserves the built-in selection; new uploads become active; selections survive reload
 - [ ] Next wallpapers review (add Tahoe Day / new releases when they ship)
 
 ## Later (not blocking)

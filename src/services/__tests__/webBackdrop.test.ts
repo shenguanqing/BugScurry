@@ -140,6 +140,49 @@ describe("web backdrop state", () => {
     expect(backdropStyle({ ...stale, mode: "image" }).background).toBe("#112233");
   });
 
+  it.each(["win11-bloom-light", "mac-updating"])(
+    "keeps %s selected after deleting the last custom wallpaper",
+    (builtinId) => {
+      const storage = memory();
+      const img = "data:image/png;base64,AAA";
+      const uploaded = addBackdropImage(loadBackdrop(storage), img, storage);
+      const selected = selectBuiltinBackdrop(uploaded, builtinId, storage);
+      const removed = removeBackdropImage(selected, img, storage);
+
+      expect(removed).toMatchObject({ mode: "image", builtinId, image: null, images: [] });
+      expect(backdropStyle(removed)).toEqual(backdropStyle(selected));
+      expect(backdropFit(removed)).toBe(backdropFit(selected));
+      expect(backdropThemeColor(removed)).toBe(backdropThemeColor(selected));
+      expect(loadBackdrop(storage)).toEqual(removed);
+    },
+  );
+
+  it("keeps the built-in selection while deleting multiple custom wallpapers", () => {
+    const storage = memory();
+    const a = "data:image/png;base64,AAA";
+    const b = "data:image/png;base64,BBB";
+    let state = addBackdropImage(loadBackdrop(storage), a, storage);
+    state = addBackdropImage(state, b, storage);
+    state = selectBuiltinBackdrop(state, "win11-bloom-dark", storage);
+
+    state = removeBackdropImage(state, b, storage);
+    expect(state).toMatchObject({ mode: "image", builtinId: "win11-bloom-dark", image: a, images: [a] });
+    state = removeBackdropImage(state, a, storage);
+    expect(state).toMatchObject({ mode: "image", builtinId: "win11-bloom-dark", image: null, images: [] });
+    expect(loadBackdrop(storage)).toEqual(state);
+  });
+
+  it("selects a newly uploaded wallpaper after a built-in selection", () => {
+    const storage = memory();
+    const img = "data:image/png;base64,AAA";
+    const selected = selectBuiltinBackdrop(loadBackdrop(storage), "win11-bloom-light", storage);
+    const uploaded = addBackdropImage(selected, img, storage);
+
+    expect(uploaded).toMatchObject({ mode: "image", builtinId: null, image: img, images: [img] });
+    expect(backdropStyle(uploaded).backgroundImage).toContain(img);
+    expect(loadBackdrop(storage)).toEqual(uploaded);
+  });
+
   it("renders the CSS Windows screen, the Apple boot asset, and tints chrome", () => {
     const win = normalizeBackdrop({ mode: "image", color: "#112233", image: null, images: [], builtinId: "win-updating" });
     expect(backdropStyle(win)).toEqual({ background: "#0078d7" });

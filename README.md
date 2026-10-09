@@ -34,6 +34,8 @@ The same `dist/` runs as a standalone page — no backend, no account. Deploy it
 - Share links: `?count=12&species=ant&weather=heavy` — link overrides are ephemeral and never rewrite stored settings
 - Installable PWA (`manifest.webmanifest`, standalone display); ships without a service worker, so the first load needs network
 
+**Background → Wallpaper** opens the library even before an image is selected. The **Custom wallpapers** section always shows its heading and upload button. Uploading selects the new image; deleting an upload preserves any selected built-in wallpaper. Deleting the active custom image selects the next upload, or falls back to solid color if none remain.
+
 ## Personalities & feeding
 
 Each bug gets a personality at spawn: shy bugs flee sooner, greedy bugs notice food farther away and wake to eat, lazy bugs move slowly and rest longer, and curious bugs approach the cursor from a distance before fleeing up close. Turning off cursor repellent also disables curiosity toward the cursor.
@@ -238,7 +240,7 @@ gh run download <run-id> -n BugScurry-macos-arm64 -D release
 
 ### Release checklist
 
-1. Bump `version` in `src-tauri/tauri.conf.json`
+1. Bump `version` in `package.json` and `src-tauri/tauri.conf.json`, and update `CHANGELOG.md`
 2. macOS: signing & notarization (optional for local use)
 3. Windows: optional code signing (SmartScreen may warn on unsigned builds)
 
