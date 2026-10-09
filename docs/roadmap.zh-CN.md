@@ -103,6 +103,14 @@
 - [x] CF Pages 生产部署（https://bugscurry.blnf.dpdns.org/）
 - [x] Safari/Chrome 移动端 soak（2026-10-09 真机通过）
 
+## M10 — 内置壁纸库
+
+- [x] 精选目录：Windows 11 Bloom + Windows 10 Hero（WallpaperHub CDN）与 macOS Tahoe → Big Sur 默认壁纸（512pixels 6K）；远程热链，只有 2.7KB 的开机图收进仓库
+- [x] 搞笑屏：4K 蓝屏照片、CSS 手搓的 Windows 更新中界面（带动画、多语言），以及苹果官方开机图做 macOS 版（切掉 3px 灰框；宽屏 contain、窄屏 cover）
+- [x] 壁纸 tab 按平台 → 版本分组，缩略图懒加载；失效链接自动隐藏不留坏图
+- [x] 选择按 id 持久化；上传与目录共存
+- [ ] 后续壁纸复核（Tahoe Day / 新版本发布时补）
+
 ### 后续可选（未阻塞当前版本）
 
 - [x] 覆盖层跟随所有 macOS Spaces（2026-09-11 在 2 个 Space 上 soak 通过）

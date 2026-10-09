@@ -1,4 +1,5 @@
 import { defaultStorage, loadJson, saveJson, type StorageLike } from "../platform/webStorage";
+import { getBuiltinWallpaper } from "./builtinWallpapers";
 
 /**
  * Web-demo backdrop: a fake "desktop" behind the bugs so the page reads like
@@ -17,6 +18,8 @@ export interface BackdropState {
   image: string | null;
   /** Uploaded wallpaper library (persisted on a best-effort budget). */
   images: string[];
+  /** Built-in catalog selection (wins over `image` when set). Persisted as id. */
+  builtinId: string | null;
 }
 
 export const BACKDROP_STORE_KEY = "bugscurry.backdrop";
@@ -26,6 +29,7 @@ export const DEFAULT_BACKDROP: BackdropState = {
   color: "#2e3440",
   image: null,
   images: [],
+  builtinId: null,
 };
 
 /** Small built-in wallpaper palette (solid colors + gradients). */
@@ -68,8 +72,11 @@ export function normalizeBackdrop(raw: unknown): BackdropState {
   const trimmed = images.slice(0, BACKDROP_MAX_IMAGES);
   const image =
     isImageUrl(r.image) && trimmed.includes(r.image) ? r.image : (trimmed[0] ?? null);
-  if (mode === "image" && !image) mode = DEFAULT_BACKDROP.mode;
-  return { mode, color, images: trimmed, image };
+  const builtinId = getBuiltinWallpaper(
+    typeof r.builtinId === "string" ? r.builtinId : null,
+  )?.id ?? null;
+  if (mode === "image" && !image && !builtinId) mode = DEFAULT_BACKDROP.mode;
+  return { mode, color, images: trimmed, image, builtinId };
 }
 
 export function loadBackdrop(storage: StorageLike = defaultStorage()): BackdropState {
@@ -97,13 +104,17 @@ export function saveBackdrop(
   }
   const image = next.image && kept.includes(next.image) ? next.image : (kept[0] ?? null);
   let mode = next.mode;
-  if (mode === "image" && !image) mode = DEFAULT_BACKDROP.mode;
+  if (mode === "image" && !image && !next.builtinId) mode = DEFAULT_BACKDROP.mode;
   saveJson(storage, BACKDROP_STORE_KEY, { ...next, images: kept, image, mode });
   return next;
 }
 
 /** Upload (or re-select) a wallpaper: it becomes current immediately. */
-export function addBackdropImage(state: BackdropState, dataUrl: string): BackdropState {
+export function addBackdropImage(
+  state: BackdropState,
+  dataUrl: string,
+  storage: StorageLike = defaultStorage(),
+): BackdropState {
   const s = normalizeBackdrop(state);
   if (!isImageUrl(dataUrl)) return s;
   const images = s.images.includes(dataUrl) ? [...s.images] : [...s.images, dataUrl];
@@ -113,35 +124,63 @@ export function addBackdropImage(state: BackdropState, dataUrl: string): Backdro
     if (idx < 0) break;
     images.splice(idx, 1);
   }
-  return saveBackdrop({ ...s, mode: "image", image: dataUrl, images });
+  return saveBackdrop({ ...s, mode: "image", image: dataUrl, images }, storage);
 }
 
-/** Switch to an already-uploaded wallpaper. */
-export function selectBackdropImage(state: BackdropState, dataUrl: string): BackdropState {
+/** Switch to an already-uploaded wallpaper (clears any catalog selection). */
+export function selectBackdropImage(
+  state: BackdropState,
+  dataUrl: string,
+  storage: StorageLike = defaultStorage(),
+): BackdropState {
   const s = normalizeBackdrop(state);
   if (!s.images.includes(dataUrl)) return s;
-  return saveBackdrop({ ...s, mode: "image", image: dataUrl });
+  return saveBackdrop({ ...s, mode: "image", image: dataUrl, builtinId: null }, storage);
+}
+
+/** Switch to a built-in catalog wallpaper (uploads stay in the library). */
+export function selectBuiltinBackdrop(
+  state: BackdropState,
+  id: string,
+  storage: StorageLike = defaultStorage(),
+): BackdropState {
+  const s = normalizeBackdrop(state);
+  if (!getBuiltinWallpaper(id)) return s;
+  return saveBackdrop({ ...s, mode: "image", builtinId: id }, storage);
 }
 
 /** Delete a wallpaper; falls back to the next one, then to solid color. */
-export function removeBackdropImage(state: BackdropState, dataUrl: string): BackdropState {
+export function removeBackdropImage(
+  state: BackdropState,
+  dataUrl: string,
+  storage: StorageLike = defaultStorage(),
+): BackdropState {
   const s = normalizeBackdrop(state);
   const images = s.images.filter((img) => img !== dataUrl);
   const image = s.image === dataUrl ? (images[0] ?? null) : s.image;
   const mode = image ? s.mode : DEFAULT_BACKDROP.mode;
-  return saveBackdrop({ ...s, images, image, mode });
+  return saveBackdrop({ ...s, images, image, mode }, storage);
 }
 
-/** CSS background value for the backdrop layer (image wins when present). */
+/** CSS background value for the backdrop layer (catalog wins when selected). */
 export function backdropStyle(state: BackdropState): Record<string, string> {
   const s = normalizeBackdrop(state);
-  if (s.mode === "image" && s.image) {
-    return {
-      backgroundImage: `url("${s.image}")`,
-      backgroundSize: "cover",
+  const builtin = s.mode === "image" ? getBuiltinWallpaper(s.builtinId) : undefined;
+  if (builtin?.fake) {
+    // CSS-composed screen: the component paints on top of this base color.
+    return { background: builtin.color ?? s.color };
+  }
+  const url = builtin ? builtin.full : s.mode === "image" ? s.image : null;
+  if (url) {
+    // Contain-fit entries (the Apple boot asset) size via CSS class so a
+    // media query can switch them to cover on narrow screens.
+    const style: Record<string, string> = {
+      backgroundImage: `url("${url}")`,
       backgroundPosition: "center",
       backgroundColor: s.color,
     };
+    if (backdropFit(s) === "cover") style.backgroundSize = "cover";
+    return style;
   }
   if (s.mode === "color") {
     return { background: s.color };
@@ -152,4 +191,21 @@ export function backdropStyle(state: BackdropState): Record<string, string> {
       "repeating-conic-gradient(color-mix(in srgb, #ffffff 14%, transparent) 0% 25%, transparent 0% 50%)",
     backgroundSize: "28px 28px",
   };
+}
+
+/** Backdrop fit: catalog entries may request contain (see below). */
+export function backdropFit(state: BackdropState): "cover" | "contain" {
+  const s = normalizeBackdrop(state);
+  if (s.mode !== "image") return "cover";
+  return getBuiltinWallpaper(s.builtinId)?.fit ?? "cover";
+}
+
+/** Browser-chrome tint: catalog base color wins, else the solid color. */
+export function backdropThemeColor(state: BackdropState): string {
+  const s = normalizeBackdrop(state);
+  if (s.mode === "image") {
+    const builtin = getBuiltinWallpaper(s.builtinId);
+    if (builtin?.color) return builtin.color;
+  }
+  return s.color;
 }

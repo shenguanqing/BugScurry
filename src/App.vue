@@ -29,14 +29,19 @@ import { getWindowLabel, isTauri } from "./platform/desktop";
 import {
   BACKDROP_SWATCHES,
   addBackdropImage,
+  backdropFit,
   backdropStyle,
+  backdropThemeColor,
   loadBackdrop,
   removeBackdropImage,
   saveBackdrop,
   selectBackdropImage,
+  selectBuiltinBackdrop,
   type BackdropState,
 } from "./services/webBackdrop";
 import { parseShareParams } from "./services/webShare";
+import { getBuiltinWallpaper, groupBuiltins } from "./services/builtinWallpapers";
+import FakeScreen from "./components/FakeScreen.vue";
 import {
   applyMonitorMode,
   applyUiLocale,
@@ -119,9 +124,15 @@ const isWeb = !isTauri();
 const settingsOpen = ref(false);
 const openPopover = ref<"feed" | "weather" | "backdrop" | null>(null);
 const backdrop = ref<BackdropState>(
-  isWeb ? loadBackdrop() : { mode: "checker", color: "#000000", image: null, images: [] },
+  isWeb ? loadBackdrop() : { mode: "checker", color: "#000000", image: null, images: [], builtinId: null },
 );
 const backdropCss = computed(() => (isWeb ? backdropStyle(backdrop.value) : {}));
+const backdropFitCss = computed(() => (isWeb ? backdropFit(backdrop.value) : "cover"));
+/** CSS-composed joke screen (Windows/macOS updating) over the base color. */
+const activeFake = computed(() => {
+  if (!isWeb || backdrop.value.mode !== "image") return undefined;
+  return getBuiltinWallpaper(backdrop.value.builtinId)?.fake;
+});
 const todayStats = ref({ kills: 0, bestCombo: 0 });
 const sprayLeft = ref(0);
 const weatherKinds = RAIN_KIND_ORDER;
@@ -155,7 +166,7 @@ function syncThemeColor(): void {
   if (!isWeb || typeof document === "undefined") return;
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute("content", backdrop.value.color);
+    ?.setAttribute("content", backdropThemeColor(backdrop.value));
 }
 
 watch(backdrop, syncThemeColor);
@@ -172,14 +183,22 @@ function pickBackdropImage(image: string): void {
   backdrop.value = selectBackdropImage(backdrop.value, image);
 }
 
-/** Wallpaper tab: show the library, or open the picker when empty. */
+/** Wallpaper tab: show the library (uploads + built-in catalog). */
 function onImageTab(): void {
-  if (backdrop.value.images.length > 0) {
-    setBackdropMode("image");
-    return;
-  }
-  fileInput.value?.click();
+  setBackdropMode("image");
 }
+
+/** Hide catalog thumbs that fail to load (dead hotlink) instead of broken tiles. */
+const builtinFailed = ref<string[]>([]);
+function onBuiltinError(id: string): void {
+  if (!builtinFailed.value.includes(id)) builtinFailed.value.push(id);
+}
+
+function pickBuiltin(id: string): void {
+  backdrop.value = selectBuiltinBackdrop(backdrop.value, id);
+}
+
+const builtinGroups = groupBuiltins();
 
 const fileInput = ref<HTMLInputElement | null>(null);
 
@@ -746,7 +765,9 @@ onUnmounted(() => {
 
 <template>
   <div class="overlay" :class="{ hidden: !visible, clickable, web: isWeb }">
-    <div v-if="isWeb" class="backdrop" :style="backdropCss" aria-hidden="true" />
+    <div v-if="isWeb" class="backdrop" :class="{ 'fit-contain': backdropFitCss === 'contain' }" :style="backdropCss" aria-hidden="true">
+      <FakeScreen v-if="activeFake" />
+    </div>
     <canvas ref="canvasRef" class="bugs-canvas" @pointerleave="onPointerLeave" />
     <Transition name="event-banner">
       <div v-if="bannerVisible" class="event-banner" aria-live="polite">
@@ -832,26 +853,52 @@ onUnmounted(() => {
             <span aria-hidden="true">＋</span>
           </label>
         </div>
-        <div v-if="backdrop.mode === 'image'" class="web-pop-row thumbs">
-          <button
-            v-for="img in backdrop.images"
-            :key="img"
-            type="button"
-            class="thumb"
-            :class="{ active: backdrop.image === img }"
-            :aria-label="t('web.backdrop.image')"
-            @click="pickBackdropImage(img)"
-          >
-            <img :src="img" alt="" />
-            <span
-              class="thumb-x"
-              role="button"
-              :aria-label="t('web.backdrop.remove')"
-              @click.stop="clearBackdropImage(img)"
-            >×</span>
-          </button>
-          <button type="button" class="thumb add" :title="t('web.backdrop.upload')" :aria-label="t('web.backdrop.upload')" @click="fileInput?.click()">＋</button>
+        <div v-if="backdrop.mode === 'image'" class="web-pop-section">
+          <p v-if="backdrop.images.length" class="web-pop-caption">{{ t("web.backdrop.uploads") }}</p>
+          <div class="web-pop-row thumbs">
+            <button
+              v-for="img in backdrop.images"
+              :key="img"
+              type="button"
+              class="thumb"
+              :class="{ active: !backdrop.builtinId && backdrop.image === img }"
+              :aria-label="t('web.backdrop.image')"
+              @click="pickBackdropImage(img)"
+            >
+              <img :src="img" alt="" />
+              <span
+                class="thumb-x"
+                role="button"
+                :aria-label="t('web.backdrop.remove')"
+                @click.stop="clearBackdropImage(img)"
+              >×</span>
+            </button>
+            <button type="button" class="thumb add" :title="t('web.backdrop.upload')" :aria-label="t('web.backdrop.upload')" @click="fileInput?.click()">＋</button>
+          </div>
         </div>
+        <template v-if="backdrop.mode === 'image'" v-for="group in builtinGroups" :key="group.platform">
+        <div class="web-pop-section">
+          <p class="web-pop-caption">{{ t(`web.backdrop.${group.platform}`) }}</p>
+          <div v-for="ver in group.versions" :key="ver.version">
+            <p class="web-pop-sub">{{ ver.version }}</p>
+            <div class="web-pop-row thumbs">
+              <button
+                v-for="item in ver.items.filter((i) => !builtinFailed.includes(i.id))"
+                :key="item.id"
+                type="button"
+                class="thumb"
+                :class="{ active: backdrop.builtinId === item.id }"
+                :title="`${ver.version} ${t(`web.backdrop.${item.variant}`)}`"
+                :aria-label="`${ver.version} ${t(`web.backdrop.${item.variant}`)}`"
+                @click="pickBuiltin(item.id)"
+              >
+                <FakeScreen v-if="item.fake" mini />
+                <img v-else :src="item.thumb" :alt="ver.version" loading="lazy" referrerpolicy="no-referrer" @error="onBuiltinError(item.id)" />
+              </button>
+            </div>
+          </div>
+        </div>
+        </template>
         <input ref="fileInput" type="file" accept="image/*" multiple hidden @change="onBackdropFile" />
       </div>
     </Transition>
@@ -972,6 +1019,18 @@ onUnmounted(() => {
   inset: 0;
   z-index: 0;
   pointer-events: none;
+}
+
+/* The Apple boot asset is landscape: contain on wide screens, but cover on
+   narrow ones (logo and bar are centered, only black bars get cropped). */
+.overlay.web .backdrop.fit-contain {
+  background-size: contain;
+}
+
+@media (max-aspect-ratio: 128/83) {
+  .overlay.web .backdrop.fit-contain {
+    background-size: cover;
+  }
 }
 
 .overlay.web .bugs-canvas {
@@ -1130,6 +1189,25 @@ onUnmounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+}
+
+.web-pop-section + .web-pop-section {
+  margin-top: 8px;
+}
+
+.web-pop-caption {
+  margin: 6px 2px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(242, 240, 234, 0.55);
+}
+
+.web-pop-sub {
+  margin: 6px 2px 4px;
+  font-size: 11px;
+  color: rgba(242, 240, 234, 0.75);
 }
 
 .web-pop-row .web-pop-item {

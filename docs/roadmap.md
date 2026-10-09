@@ -103,6 +103,14 @@ Ship a playable loop first; every milestone must be runnable and checkable.
 - [x] CF Pages production deploy (https://bugscurry.blnf.dpdns.org/)
 - [x] Safari/Chrome mobile soak (passed on-device 2026-10-09)
 
+## M10 — Built-in wallpaper library
+
+- [x] Curated catalog: Windows 11 Bloom + Windows 10 Hero (WallpaperHub CDN) and macOS Tahoe → Big Sur defaults (512pixels 6K); hotlinked, except the 2.7KB vendored boot art
+- [x] Joke screens: 4K BSOD photo, CSS-composed Windows updating screen (animated, localized), and Apple's official boot asset for macOS (3px frame shaved; contain on wide, cover on narrow)
+- [x] Image tab groups by platform → version with lazy thumbnails; dead links hide instead of broken tiles
+- [x] Selections persist as ids; uploads and catalog coexist
+- [ ] Next wallpapers review (add Tahoe Day / new releases when they ship)
+
 ## Later (not blocking)
 
 - [x] Overlay on all macOS Spaces (soaked 2 Spaces on macOS 15.7.9; overlay stayed onscreen)

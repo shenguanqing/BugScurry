@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-10-09
+
+### Added
+
+- Built-in wallpaper library for the web-demo backdrop: official Windows 11 Bloom (light/dark), Windows 10 Hero, and macOS Tahoe / Sequoia / Sonoma / Ventura / Big Sur defaults — hotlinked at 4K–6K, grouped by platform and version with lazy thumbnails
+- Joke screens: 4K BSOD photo, CSS-composed Windows updating screen, and Apple's official boot art for macOS (frame shaved, vendored as 2.7KB `public/mac-boot.png`; contain on wide screens, cover on narrow)
+- Catalog selections persist as tiny ids and survive reloads; uploads keep working alongside
+
 ## [0.6.0] - 2026-10-09
 
 Web demo shell: the same `dist/` now runs as a standalone page (Cloudflare Pages) with near-full feature parity.
@@ -21,6 +29,7 @@ Web demo shell: the same `dist/` now runs as a standalone page (Cloudflare Pages
 ### Fixed
 
 - Web Audio no longer constructs an `AudioContext` before the first user gesture (removes the "AudioContext was not allowed to start" warning); rain ambience fades in after first interaction
+- Mobile double-tap zoom disabled (`touch-action`); browser theme-color follows the backdrop; settings drawer no longer hijacks the page tab title; favicon served from `public/`
 
 ## [0.5.0] - 2026-10-07
 

@@ -29,7 +29,7 @@ Cross-platform desktop app for **macOS** and **Windows**. Runs in the background
 The same `dist/` runs as a standalone page — no backend, no account. Deploy it anywhere static (e.g. Cloudflare Pages: build command `pnpm build`, output directory `dist/`).
 
 - Toolbar replaces the tray (settings / hide / add-remove / regenerate / spray / feed / weather / backdrop / today kills); settings open as a side drawer
-- Fake-desktop backdrop: checkerboard, solid colors, or an uploadable multi-wallpaper library
+- Fake-desktop backdrop: checkerboard, solid colors, an uploadable multi-wallpaper library, or the built-in catalog (official Windows/macOS defaults plus joke screens, streamed on demand)
 - Touch supported; audio starts after the first tap (browser autoplay policy)
 - Share links: `?count=12&species=ant&weather=heavy` — link overrides are ephemeral and never rewrite stored settings
 - Installable PWA (`manifest.webmanifest`, standalone display); ships without a service worker, so the first load needs network
@@ -155,6 +155,7 @@ BugScurry/
 │   │   ├── settingsService.ts # Store (desktop) / localStorage (web), theme, monitor mode
 │   │   ├── dailyStatsService.ts # Primary overlay only: kill log + tray stats
 │   │   ├── webBackdrop.ts     # Web-only fake desktop (checker / solid / wallpapers)
+│   │   ├── builtinWallpapers.ts # Built-in catalog (official Windows/macOS defaults, hotlinked)
 │   │   ├── webShare.ts        # Web share-link params (?count=&species=&weather=)
 │   │   └── __tests__/
 │   ├── i18n/

@@ -29,7 +29,7 @@
 同一份 `dist/` 可直接当独立网页跑——无后端、无账号。扔到任何静态托管即可（例如 Cloudflare Pages：构建命令 `pnpm build`，输出目录 `dist/`）。
 
 - 工具栏替代托盘（设置/隐藏/增减/重生/喷雾/投喂/天气/背景/今日数）；设置以侧边抽屉打开
-- 假桌面背景：棋盘格、纯色，或上传多张壁纸建图库
+- 假桌面背景：棋盘格、纯色、可上传的多壁纸库，或内置目录（官方 Windows/macOS 默认壁纸 + 搞笑屏，按需加载）
 - 支持触屏；受浏览器自动播放策略限制，声音从第一次点击后开始
 - 分享链接：`?count=12&species=ant&weather=heavy`——链接参数只临时覆盖，不会写回本地存档
 - 可安装 PWA（`manifest.webmanifest`，standalone 显示）；不带 service worker，首次打开需要联网
@@ -155,6 +155,7 @@ BugScurry/
 │   │   ├── settingsService.ts # 配置存储（桌面 store / 网页 localStorage）、主题、多屏
 │   │   ├── dailyStatsService.ts # 主覆盖层独占：击杀落盘与托盘战绩
 │   │   ├── webBackdrop.ts     # 网页专属假桌面（棋盘格/纯色/壁纸库）
+│   │   ├── builtinWallpapers.ts # 内置目录（官方 Windows/macOS 默认壁纸，远程热链）
 │   │   ├── webShare.ts        # 网页分享链接参数（?count=&species=&weather=）
 │   │   └── __tests__/
 │   ├── i18n/

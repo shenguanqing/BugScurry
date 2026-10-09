@@ -2,13 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   BACKDROP_STORE_KEY,
   addBackdropImage,
+  backdropFit,
   backdropStyle,
+  backdropThemeColor,
   DEFAULT_BACKDROP,
   loadBackdrop,
   normalizeBackdrop,
   removeBackdropImage,
   saveBackdrop,
   selectBackdropImage,
+  selectBuiltinBackdrop,
 } from "../webBackdrop";
 import type { StorageLike } from "../../platform/webStorage";
 
@@ -45,8 +48,8 @@ describe("web backdrop state", () => {
 
   it("round-trips through storage", () => {
     const storage = memory();
-    const saved = saveBackdrop({ mode: "color", color: "#112233", image: null, images: [] }, storage);
-    expect(saved).toEqual({ mode: "color", color: "#112233", image: null, images: [] });
+    const saved = saveBackdrop({ mode: "color", color: "#112233", image: null, images: [], builtinId: null }, storage);
+    expect(saved).toEqual({ mode: "color", color: "#112233", image: null, images: [], builtinId: null });
     expect(loadBackdrop(storage)).toEqual(saved);
     expect(storage.getItem(BACKDROP_STORE_KEY)).toContain("#112233");
   });
@@ -54,7 +57,7 @@ describe("web backdrop state", () => {
   it("keeps oversized uploads session-only without dropping the image", () => {
     const storage = memory();
     const big = "data:image/png;base64," + "A".repeat(2_000_000);
-    const saved = saveBackdrop({ mode: "image", color: "#112233", image: big, images: [big] }, storage);
+    const saved = saveBackdrop({ mode: "image", color: "#112233", image: big, images: [big], builtinId: null }, storage);
     expect(saved.mode).toBe("image");
     expect(saved.image).toBe(big);
     // Persisted copy drops the payload (and the mode) so quota is not blown.
@@ -63,16 +66,17 @@ describe("web backdrop state", () => {
       color: "#112233",
       image: null,
       images: [],
+      builtinId: null,
     });
   });
 
   it("renders checker / color / image styles", () => {
-    expect(backdropStyle({ mode: "checker", color: "#112233", image: null, images: [] }).backgroundSize).toBe("28px 28px");
-    expect(backdropStyle({ mode: "color", color: "#112233", image: null, images: [] })).toEqual({
+    expect(backdropStyle({ mode: "checker", color: "#112233", image: null, images: [], builtinId: null }).backgroundSize).toBe("28px 28px");
+    expect(backdropStyle({ mode: "color", color: "#112233", image: null, images: [], builtinId: null })).toEqual({
       background: "#112233",
     });
     const img = "data:image/png;base64,AAA";
-    const style = backdropStyle({ mode: "image", color: "#112233", image: img, images: [img] });
+    const style = backdropStyle({ mode: "image", color: "#112233", image: img, images: [img], builtinId: null });
     expect(style.backgroundImage).toContain(img);
     expect(style.backgroundSize).toBe("cover");
   });
@@ -114,5 +118,42 @@ describe("web backdrop state", () => {
     const s = normalizeBackdrop({ mode: "color", color: "#112233", image: img });
     expect(s.images).toEqual([img]);
     expect(s.image).toBe(img);
+  });
+
+  it("selects built-in catalog wallpapers and persists the id", () => {
+    const storage = memory();
+    let s = loadBackdrop(storage);
+    s = selectBuiltinBackdrop(s, "win11-bloom-dark", storage);
+    expect(s).toMatchObject({ mode: "image", builtinId: "win11-bloom-dark" });
+    expect(backdropStyle(s).backgroundImage).toContain("wallpaperhub");
+    expect(backdropThemeColor(s)).toBe(s.color);
+    // Round-trips as a tiny id, not a data URL.
+    expect(loadBackdrop(storage).builtinId).toBe("win11-bloom-dark");
+    // Unknown ids are ignored; uploads clear the catalog selection.
+    expect(selectBuiltinBackdrop(s, "nope")).toEqual(s);
+    const img = "data:image/png;base64,AAA";
+    s = selectBackdropImage(addBackdropImage(s, img), img);
+    expect(s.builtinId).toBeNull();
+    // A stale builtin id resolves to nothing and falls back to solid color.
+    const stale = normalizeBackdrop({ mode: "image", color: "#112233", image: null, images: [], builtinId: "gone" });
+    expect(stale.builtinId).toBeNull();
+    expect(backdropStyle({ ...stale, mode: "image" }).background).toBe("#112233");
+  });
+
+  it("renders the CSS Windows screen, the Apple boot asset, and tints chrome", () => {
+    const win = normalizeBackdrop({ mode: "image", color: "#112233", image: null, images: [], builtinId: "win-updating" });
+    expect(backdropStyle(win)).toEqual({ background: "#0078d7" });
+    expect(backdropThemeColor(win)).toBe("#0078d7");
+    // Official Apple boot asset: contained on black so any ratio stays seamless.
+    const mac = normalizeBackdrop({ mode: "image", color: "#112233", image: null, images: [], builtinId: "mac-updating" });
+    const macStyle = backdropStyle(mac);
+    expect(macStyle.backgroundImage).toContain("mac-boot.png");
+    expect(macStyle.backgroundSize).toBeUndefined();
+    expect(backdropFit(mac)).toBe("contain");
+    expect(backdropFit(loadBackdrop(memory()))).toBe("cover");
+    expect(backdropThemeColor(mac)).toBe("#000000");
+    // Non-image modes never render the catalog entry.
+    expect(backdropStyle({ ...win, mode: "color" })).toEqual({ background: "#112233" });
+    expect(backdropThemeColor({ ...win, mode: "color" })).toBe("#112233");
   });
 });
