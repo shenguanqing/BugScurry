@@ -67,15 +67,17 @@ tray.rs
 | Audio | `src/core/audio.ts` | Short Web Audio “snap” / hurt |
 | Loop | `src/core/loop.ts` | rAF update + render; primary `onFrame` drives rain audio |
 | Species | `src/species/*` | Registry, traits (`favoriteFood`, `activity`, `eatStyle`), per-species drawing; shared `contactShadow` / `glint` / `shell` highlights |
-| Settings UI | `src/settings/*` | Settings window |
+| Settings UI | `src/settings/*` | Settings window (update card is status + entry; download lives in the updater window) |
+| Updater window | `src/updater/*` (`updater.html`) | Dedicated dialog: left icon/version/progress/actions, right per-release changelog; self-checks on mount |
 | Services | `src/services/*` | Tauri events/commands, store, theme, monitors |
+| Updater | `src/services/updaterService.ts` + `tauriBridge` check/download/relaunch/`open_updater_window` | GitHub Releases static `latest.json` via `tauri-plugin-updater`: auto (launch + 24h, opens dialog) / tray (`⌘U`) opens dialog directly / settings manual check / exact-version skip; signed bundles (`.sig`), pubkey in `tauri.conf.json` |
 | Platform boundary | `src/platform/desktop.ts` + `src/platform/webStorage.ts` | `isTauri()` gate, native/local event bridge, localStorage persistence |
 | Web backdrop | `src/services/webBackdrop.ts` | Web-only fake desktop (checker / solid / wallpaper library) |
 | Built-in wallpapers | `src/services/builtinWallpapers.ts` | Hotlinked official Windows/macOS catalog + joke screens (2.7KB boot art vendored) |
 | DailyStatsService | `src/services/dailyStatsService.ts` | Primary-overlay owner: queue kills, serialize store writes, refresh tray stats |
 | Prank / random events | `BugManager.sprayKillAll` / `startSwarm` / `startFatInvasion` / `startBerserk` / `startSizeChaos` / `startNightRaid`; `randomEvents.ts` | Tray spray + in-place cooldown; Settings random-event pool (tide/fat/berserk/size/night); temp state never writes `settings.count` |
 | Shell | `src-tauri/src/lib.rs` | Windows, cursor, monitors, commands, overlay/settings z-order |
-| Tray | `src-tauri/src/tray.rs` | Menu bar / tray (feed, weather, spray) |
+| Tray | `src-tauri/src/tray.rs` | Menu bar / tray (feed, weather, spray, check-for-updates with `CmdOrCtrl+U`) |
 
 ## 3.1 Web backdrop selection
 

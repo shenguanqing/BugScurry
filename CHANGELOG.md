@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+In-app updates via `tauri-plugin-updater` (signed GitHub Releases).
+
+### Added
+
+- Tray “Check for updates” (`CmdOrCtrl+U`) opening a dedicated update dialog: app icon, version jump, download progress, install/restart/skip actions, per-release changelog on the right
+- Auto-check on launch and every 24h while tray-resident; exact-version skip (manual checks bypass the skip)
+- Settings update card: auto-check toggle, live status, details entry; update failure surfaces as a footnote
+- CI publishes signed bundles plus `latest.json` (with CHANGELOG notes) on every `v*` tag
+
 ## [0.6.2] - 2026-10-09
 
 Web-demo wallpaper picker fixes and clearer custom wallpaper labeling.

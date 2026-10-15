@@ -27,6 +27,7 @@ export default defineConfig(() => ({
       input: {
         overlay: resolve(__dirname, "index.html"),
         settings: resolve(__dirname, "settings.html"),
+        updater: resolve(__dirname, "updater.html"),
       },
     },
   },

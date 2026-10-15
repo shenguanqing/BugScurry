@@ -9,12 +9,16 @@ import { t } from "../i18n";
 import { getSpecies, listSpecies } from "../species";
 import {
   beginHotkeyRecording,
+  checkUpdateNow,
   endHotkeyRecording,
+  getAppVersion,
   getCaptureMonitorStatus,
   keycodeToCode,
   listenHotkeyCaptured,
   openSystemSettingsPane,
+  openUpdaterWindow,
 } from "../services/tauriBridge";
+import { isNewerVersion, normalizeVersion } from "../services/updaterService";
 import {
   enableCaptureCompatibility as enableNativeCaptureCompatibility,
   isCaptureCompatibilityReady,
@@ -108,6 +112,9 @@ const settings = reactive<Settings>({
   rainWind: 0,
   autoRain: false,
   randomEvents: false,
+  autoUpdate: true,
+  skippedVersion: "",
+  lastUpdateCheck: 0,
 });
 
 const foodEmoji: Record<FoodKind, string> = { cookie: "🍪", sugar: "🍬", fruit: "🍓" };
@@ -210,6 +217,72 @@ const hotkeyRecording = ref(false);
 let hotkeyRecorderTimer = 0;
 let unlistenHotkeyCaptured: UnlistenFn | null = null;
 const captureCompatibilityReady = computed(() => settings.captureCompatibilityEnabled && isCaptureCompatibilityReady(captureMonitorStatus.value));
+
+/** In-app updater (desktop only; web shell hides this card). */
+type UpdateStatus =
+  | "idle"
+  | "checking"
+  | "up-to-date"
+  | "available"
+  | "skipped"
+  | "error";
+const appVersion = ref("");
+const updateStatus = ref<UpdateStatus>("idle");
+const latestVersion = ref("");
+const latestNotes = ref("");
+
+/** Status block only renders when it has content; an empty block would
+ *  steal the last-row border treatment and leave a stray divider. */
+const showUpdateStatus = computed(() =>
+  ["up-to-date", "available", "skipped"].includes(updateStatus.value),
+);
+
+async function runManualUpdateCheck(): Promise<void> {
+  if (!isDesktop || updateStatus.value === "checking") return;
+  updateStatus.value = "checking";
+  try {
+    const [current, found] = await Promise.all([getAppVersion(), checkUpdateNow()]);
+    appVersion.value = current;
+    settings.lastUpdateCheck = Date.now();
+    if (!found || !isNewerVersion(current, found.version)) {
+      updateStatus.value = "up-to-date";
+      latestVersion.value = "";
+      latestNotes.value = "";
+    } else {
+      latestVersion.value = found.version;
+      latestNotes.value = found.body ?? "";
+      updateStatus.value =
+        normalizeVersion(found.version) === normalizeVersion(settings.skippedVersion || "")
+          ? "skipped"
+          : "available";
+    }
+    await persist();
+  } catch (err) {
+    console.error("update check failed", err);
+    updateStatus.value = "error";
+  }
+}
+
+function skipUpdateVersion(): void {
+  if (latestVersion.value) settings.skippedVersion = latestVersion.value;
+  updateStatus.value = "skipped";
+  void persist();
+}
+
+function unskipUpdateVersion(): void {
+  settings.skippedVersion = "";
+  updateStatus.value = latestVersion.value ? "available" : "idle";
+  void persist();
+}
+
+function toggleAutoUpdate(): void {
+  settings.autoUpdate = !settings.autoUpdate;
+  void persist();
+}
+
+function openUpdateDetails(): void {
+  void openUpdaterWindow().catch((err) => console.error("open updater failed", err));
+}
 
 const HOTKEY_MOD_GLYPHS: Record<string, string> = { cmd: "⌘", ctrl: "⌃", alt: "⌥", shift: "⇧", fn: "Fn+" };
 
@@ -547,6 +620,13 @@ onMounted(async () => {
   const loaded = await loadSettings();
   Object.assign(settings, loaded);
   void refreshCaptureMonitorStatus();
+  if (isDesktop) {
+    try {
+      appVersion.value = await getAppVersion();
+    } catch (err) {
+      console.error("get app version failed", err);
+    }
+  }
   applyThemeToDocument(document, settings.theme);
   await applyUiLocale(settings.locale);
   localeVersion.value++;
@@ -870,28 +950,6 @@ onUnmounted(() => {
     <section v-if="isDesktop" class="card list-card">
       <div class="toggles">
         <div class="toggle-row">
-          <span class="toggle-label">{{ tt("toggle.autostart") }}</span>
-          <button
-            type="button"
-            class="toggle-switch"
-            id="toggle-autostart"
-            :class="{ on: settings.autostart }"
-            role="switch"
-            :aria-checked="settings.autostart"
-            :aria-label="tt('toggle.autostart')"
-            @click="toggleAutostart"
-          ></button>
-        </div>
-      </div>
-    </section>
-    <div v-if="isDesktop && captureMonitorStatus?.supported" class="settings-footnote">
-      <p class="hint">{{ tt("autostart.loginItemsHint") }}</p>
-      <span class="compat-enable" @click="openSystemSettingsPane('login-items')">{{ tt("autostart.openLoginItems") }}</span>
-    </div>
-
-    <section v-if="isDesktop" class="card list-card">
-      <div class="toggles">
-        <div class="toggle-row">
           <div class="toggle-label-wrap">
             <span class="toggle-label">{{ tt("toggle.showInCaptures") }}</span>
             <InfoTip
@@ -1059,6 +1117,83 @@ onUnmounted(() => {
         </div>
       </div>
     </section>
+
+    <section v-if="isDesktop" class="card list-card">
+      <div class="toggles">
+        <div class="toggle-row">
+          <span class="toggle-label">{{ tt("toggle.autostart") }}</span>
+          <button
+            type="button"
+            class="toggle-switch"
+            id="toggle-autostart"
+            :class="{ on: settings.autostart }"
+            role="switch"
+            :aria-checked="settings.autostart"
+            :aria-label="tt('toggle.autostart')"
+            @click="toggleAutostart"
+          ></button>
+        </div>
+      </div>
+    </section>
+    <div v-if="isDesktop && captureMonitorStatus?.supported" class="settings-footnote">
+      <p class="hint">{{ tt("autostart.loginItemsHint") }}</p>
+      <span class="compat-enable" @click="openSystemSettingsPane('login-items')">{{ tt("autostart.openLoginItems") }}</span>
+    </div>
+
+    <section v-if="isDesktop" class="card list-card" aria-labelledby="update-title">
+      <div class="toggles">
+        <div class="toggle-row">
+          <span class="toggle-label">{{ tt("update.auto") }}</span>
+          <button
+            type="button"
+            class="toggle-switch"
+            :class="{ on: settings.autoUpdate }"
+            role="switch"
+            :aria-checked="settings.autoUpdate"
+            :aria-label="tt('update.auto')"
+            @click="toggleAutoUpdate"
+          ></button>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-label-wrap">
+            <span id="update-title" class="toggle-label">{{ tt("update.title") }}</span>
+            <span class="update-ver">v{{ appVersion }}</span>
+          </div>
+          <button
+            type="button"
+            class="compat-enable"
+            :disabled="updateStatus === 'checking'"
+            @click="runManualUpdateCheck"
+          >{{ updateStatus === "checking" ? tt("update.checking") : tt("update.check") }}</button>
+        </div>
+        <div v-if="showUpdateStatus" class="update-status">
+          <p v-if="updateStatus === 'up-to-date'" class="hint" role="status">{{ tt("update.upToDate") }}</p>
+          <template v-else-if="updateStatus === 'available' || updateStatus === 'skipped'">
+            <p class="update-available" role="status">{{ tt("update.available") }} v{{ latestVersion }}</p>
+            <p v-if="latestNotes" class="hint update-notes">{{ latestNotes.slice(0, 280) }}</p>
+            <p v-if="updateStatus === 'skipped'" class="hint" role="status">{{ tt("update.skipped") }}</p>
+            <div class="update-row">
+              <button type="button" class="compat-enable" @click="openUpdateDetails">{{ tt("update.details") }}</button>
+              <button
+                v-if="updateStatus === 'available'"
+                type="button"
+                class="compat-enable muted"
+                @click="skipUpdateVersion"
+              >{{ tt("update.skip") }}</button>
+              <button
+                v-else
+                type="button"
+                class="compat-enable muted"
+                @click="unskipUpdateVersion"
+              >{{ tt("update.unskip") }}</button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </section>
+    <div v-if="isDesktop && updateStatus === 'error'" class="settings-footnote">
+      <p class="hint" role="alert">{{ tt("update.error") }}</p>
+    </div>
 
     <section class="actions">
       <button type="button" class="btn primary" @click="regenerate">{{ tt("action.regenerate") }}</button>

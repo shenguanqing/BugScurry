@@ -663,6 +663,26 @@ fn open_settings_window(app: tauri::AppHandle) {
     open_or_focus_settings(&app);
 }
 
+fn open_or_focus_updater(app: &tauri::AppHandle) {
+    // Dedicated update dialog: same treatment as settings — shown, raised,
+    // focused, while the click-through overlay stays usable underneath.
+    if let Some(win) = app.get_webview_window("updater") {
+        let _ = win.show();
+        let _ = win.unminimize();
+        let _ = win.set_always_on_top(true);
+        let _ = win.set_focus();
+        let _ = win.set_always_on_top(true);
+    } else {
+        eprintln!("updater window not found; skip open");
+    }
+    set_overlays_always_on_top(app, true);
+}
+
+#[tauri::command]
+fn open_updater_window(app: tauri::AppHandle) {
+    open_or_focus_updater(&app);
+}
+
 #[tauri::command]
 fn apply_monitor_mode_cmd(app: tauri::AppHandle, mode: String) {
     apply_monitor_mode(&app, &mode);
@@ -757,6 +777,7 @@ fn register_global_shortcuts(app: &tauri::AppHandle) {
         "CmdOrCtrl+Minus",
         "CmdOrCtrl+R",
         "CmdOrCtrl+Comma",
+        "CmdOrCtrl+U",
         "CmdOrCtrl+Q",
     ] {
         match spec.parse::<tauri_plugin_global_shortcut::Shortcut>() {
@@ -782,6 +803,8 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -811,6 +834,7 @@ pub fn run() {
                         Code::Minus => "remove_one",
                         Code::KeyR => "regenerate",
                         Code::Comma => "open_settings",
+                        Code::KeyU => "check_for_updates",
                         Code::KeyQ => "quit",
                         _ => return,
                     };
@@ -835,6 +859,7 @@ pub fn run() {
             open_settings_pane,
             get_overlay_scale,
             open_settings_window,
+            open_updater_window,
             apply_monitor_mode_cmd,
             force_rebuild_overlays,
             apply_locale,
@@ -863,10 +888,12 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             let label = window.label();
-            if label == "settings" {
+            if label == "settings" || label == "updater" {
                 match event {
                     WindowEvent::CloseRequested { api, .. } => {
                         // Actually close — hide+prevent_close left a stuck blank window on Windows.
+                        // (Updater included: closing must hide, not destroy,
+                        // or the tray entry opens it exactly once per launch.)
                         let _ = window.hide();
                         api.prevent_close();
                         set_overlays_always_on_top(window.app_handle(), true);

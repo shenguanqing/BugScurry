@@ -113,6 +113,14 @@ Ship a playable loop first; every milestone must be runnable and checkable.
 - [x] Selection regression coverage (0.6.2): deleting uploads preserves the built-in selection; new uploads become active; selections survive reload
 - [ ] Next wallpapers review (add Tahoe Day / new releases when they ship)
 
+## M11 — In-app updates
+
+- [x] `tauri-plugin-updater` + `process`: signed bundles (`.sig`), pubkey in `tauri.conf.json`, static `latest.json` on GitHub Releases (with CHANGELOG notes), CI collects artifacts on both platforms
+- [x] Auto-check on launch + every 24h while tray-resident; exact-version skip; manual check bypasses skip
+- [x] Tray “Check for updates” (`CmdOrCtrl+U`) opens a dedicated dialog: left icon/version/progress/actions, right per-release changelog
+- [x] Settings update card: auto toggle + status + details entry; download lives in the dialog only
+- [ ] First signed release soak: tray check finds the build, changelog renders, download + restart applies on macOS and Windows
+
 ## Later (not blocking)
 
 - [x] Overlay on all macOS Spaces (soaked 2 Spaces on macOS 15.7.9; overlay stayed onscreen)

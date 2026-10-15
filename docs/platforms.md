@@ -51,6 +51,7 @@ Windows column remains unverified on this machine.
 | Rain / thunder (0.3+) | Tray weather has five intensities + stop/random with checkmarks. Rain audio is procedural (primary overlay only); hard-mute on stop / hide / sound off. Thunder is a delayed low rumble (close strikes add a dark tear). |
 | Feeding FX (0.3+) | Personality + species eat styles; ant carry draws a crumb at the mouth; fruit finish leaves a short `__juice` blot; post-meal warm glow. |
 | Bundle | `src-tauri/target/release/bundle/macos/BugScurry.app` · `dmg/BugScurry_0.4.0_aarch64.dmg` (arm64) |
+| Updater (unsoaked) | Signed `tauri-plugin-updater` bundles (`.tar.gz` + `.sig`, pubkey in config, `latest.json` on Releases). No signed release published yet — checks fail until the first one ships. Unsigned mac builds will hit Gatekeeper on install. |
 
 ## Windows
 
@@ -61,6 +62,7 @@ Windows column remains unverified on this machine.
 - Requires WebView2 runtime
 - Tray hide/show changes every overlay's native visibility, using the same shared state as macOS.
 - Capture preference requests `WDA_EXCLUDEFROMCAPTURE` when `showInCaptures` is off; supported from Windows 10 version 2004, with `WDA_MONITOR` behavior on older versions. It applies to supported OS capture methods and depends on desktop composition; coverage of actual capture tools remains unverified. [Microsoft API documentation](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowdisplayaffinity).
+- Updater uses `passive` installMode (small progress window, no interaction); the app exits automatically during install.
 
 ### Pass-through
 

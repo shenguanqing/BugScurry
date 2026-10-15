@@ -52,6 +52,7 @@ Windows 列本机尚未实机验证。
 | 天气（0.3+） | 托盘：停止 + 五档雨 / 雪 / 雾 / 沙尘，并勾选当前档。环境声程序化（仅主覆盖层）；停止/隐藏/关音效时硬静音。雷为延迟低频滚雷；沙尘共用阵风包络偏风噪。 |
 | 投喂特效（0.3+） | 性格 + 虫种吃相；蚂蚁搬运时口器前画碎屑；水果吃完留 `__juice` 淡印；餐后暖光。 |
 | 产物 | `src-tauri/target/release/bundle/macos/BugScurry.app` · `dmg/BugScurry_0.4.0_aarch64.dmg`（arm64） |
+| 更新器（未实测） | 签名 `tauri-plugin-updater` 产物（`.tar.gz` + `.sig`，公钥在配置，Releases 挂 `latest.json`）。还没发过签名版——发之前所有检查都会失败。未签名 mac 包安装时会撞 Gatekeeper。 |
 
 ## Windows
 
@@ -62,6 +63,7 @@ Windows 列本机尚未实机验证。
 - WebView2 运行时依赖：安装器需处理 bootstrapper
 - 托盘隐藏/显示修改所有覆盖窗口的原生可见状态，与 macOS 共用同一状态。
 - 截图偏好关闭 `showInCaptures` 时请求 `WDA_EXCLUDEFROMCAPTURE`，从 Windows 10 2004 起支持，更早版本按 `WDA_MONITOR` 处理。作用于支持的系统截图方式，依赖桌面合成；实际截图工具的覆盖情况仍未验证。[Microsoft API 文档](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowdisplayaffinity)。
+- 更新器用 `passive` 安装模式（小进度窗、无需交互）；安装时应用自动退出。
 
 ### 鼠标穿透
 

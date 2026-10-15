@@ -67,15 +67,17 @@ tray.rs
 | Audio | `src/core/audio.ts` | Web Audio 短音效 |
 | Loop | `src/core/loop.ts` | rAF 更新 + 绘制；主覆盖层 `onFrame` 驱动雨声 |
 | Species | `src/species/*` | 注册表、traits（`favoriteFood` / `activity` / `eatStyle`）、各虫种绘制 |
-| Settings UI | `src/settings/*` | 设置窗口 |
+| Settings UI | `src/settings/*` | 设置窗口（更新卡片只做状态+入口，下载在更新窗口） |
+| Updater window | `src/updater/*`（`updater.html`） | 独立更新对话框：左侧图标/版本/进度/操作，右侧按版本列更新日志；打开时自查 |
 | Services | `src/services/*` | Tauri 事件/命令、配置、主题、多屏 |
+| Updater | `src/services/updaterService.ts` + `tauriBridge` 检查/下载/重启/`open_updater_window` | GitHub Releases 静态 `latest.json`，经 `tauri-plugin-updater`：自动（启动+24h，弹对话框）/托盘（`⌘U`）直达对话框/设置手动检查/按精确版本跳过；签名包（`.sig`），公钥在 `tauri.conf.json` |
 | Platform boundary | `src/platform/desktop.ts` + `src/platform/webStorage.ts` | `isTauri()` 门控、原生/页内事件桥、localStorage 持久化 |
 | Web backdrop | `src/services/webBackdrop.ts` | 网页专属假桌面（棋盘格/纯色/壁纸库） |
 | Built-in wallpapers | `src/services/builtinWallpapers.ts` | 官方 Windows/macOS 热链目录 + 搞笑屏（2.7KB 开机图收进仓库） |
 | DailyStatsService | `src/services/dailyStatsService.ts` | 主覆盖层独占：排队击杀、串行落盘、刷新托盘战绩 |
 | Prank / random events | `BugManager.sprayKillAll` / `startSwarm` / `startFatInvasion` / `startBerserk` / `startSizeChaos` / `startNightRaid`；`randomEvents.ts` | 托盘喷雾 + 原地冷却；设置随机事件池（虫潮/肥虫/狂暴/体型/夜袭），临时状态不写 `settings.count` |
 | Shell | `src-tauri/src/lib.rs` | 窗口、光标、显示器、命令、覆盖层/设置层级 |
-| Tray | `src-tauri/src/tray.rs` | 菜单栏 / 托盘（投喂、天气、喷雾） |
+| Tray | `src-tauri/src/tray.rs` | 菜单栏 / 托盘（投喂、天气、喷雾、检查更新 `CmdOrCtrl+U`） |
 
 ## 3.1 网页背景选择
 

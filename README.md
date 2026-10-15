@@ -243,6 +243,7 @@ gh run download <run-id> -n BugScurry-macos-arm64 -D release
 1. Bump `version` in `package.json` and `src-tauri/tauri.conf.json`, and update `CHANGELOG.md`
 2. macOS: signing & notarization (optional for local use)
 3. Windows: optional code signing (SmartScreen may warn on unsigned builds)
+4. Updates: `TAURI_SIGNING_PRIVATE_KEY` must be in GitHub Secrets, or CI cannot sign bundles and no `latest.json` is published (in-app checks will keep failing)
 
 ## Platform notes
 

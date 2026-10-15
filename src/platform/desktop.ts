@@ -99,13 +99,21 @@ export function getWindowLabel(): string | null {
   }
 }
 
-/** Rename the native window (desktop settings window); no-op on web. */
+/** Rename the native window (desktop settings/updater windows); no-op on web. */
 export function setWindowTitle(title: string): void {
-  try {
-    void tauriGlobal()?.__TAURI__?.window
-      ?.getCurrent?.()
-      ?.setTitle?.(title);
-  } catch {
-    // ignore — document.title is set by the caller
-  }
+  if (!isTauri()) return;
+  // Canonical v2 API first: the legacy `__TAURI__.window.getCurrent` global
+  // is absent with `withGlobalTauri: false`, which fails silently and leaves
+  // the tauri.conf placeholder title in the native title bar.
+  void import("@tauri-apps/api/window")
+    .then(({ getCurrentWindow }) => getCurrentWindow().setTitle(title))
+    .catch(() => {
+      try {
+        void tauriGlobal()?.__TAURI__?.window
+          ?.getCurrent?.()
+          ?.setTitle?.(title);
+      } catch {
+        // ignore — document.title is set by the caller
+      }
+    });
 }

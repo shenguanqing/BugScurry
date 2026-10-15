@@ -605,7 +605,7 @@ output {
   transition: background 0.15s ease, opacity 0.15s ease;
 }
 
-.compat-enable:hover {
+.compat-enable:hover:not(:disabled) {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
@@ -1126,6 +1126,48 @@ output {
   border-top: 1px solid var(--line);
   font-size: 12px;
   line-height: 1.6;
+  color: var(--muted);
+}
+
+/* Updater card: list rows reuse .toggle-row/.toggle-switch/.compat-enable. */
+.update-ver {
+  margin-left: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.update-status {
+  padding: 6px 0 10px;
+}
+
+.update-available {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.update-notes {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.update-row {
+  display: flex;
+  gap: 14px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.update-row .compat-enable {
+  margin-left: 0;
+  padding-left: 0;
+}
+
+.compat-enable.muted {
   color: var(--muted);
 }
 

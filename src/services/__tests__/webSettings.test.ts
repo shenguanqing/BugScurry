@@ -49,9 +49,12 @@ describe("web settings persistence", () => {
 
   it("round-trips daily stats through localStorage", async () => {
     const { loadDailyStats, saveDailyStats } = await import("../settingsService");
+    const { emptyDailyStats } = await import("../../core/bugManager");
+    // Stats roll over at midnight: only today's date round-trips.
+    const today = emptyDailyStats().date;
     expect(await loadDailyStats()).toEqual({ date: expect.any(String), kills: 0, bestCombo: 0 });
-    await saveDailyStats({ date: "2026-10-09", kills: 5, bestCombo: 3 });
-    expect(await loadDailyStats()).toEqual({ date: "2026-10-09", kills: 5, bestCombo: 3 });
+    await saveDailyStats({ date: today, kills: 5, bestCombo: 3 });
+    expect(await loadDailyStats()).toEqual({ date: today, kills: 5, bestCombo: 3 });
     expect(JSON.parse(localStorage.getItem(WEB_DAILY_KEY)!).kills).toBe(5);
   });
 

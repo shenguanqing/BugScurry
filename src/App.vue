@@ -17,6 +17,7 @@ import {
   listenOverlayVisibility,
   listenTray,
   listenKillReports,
+  openUpdaterWindow,
   reportKill,
   requestOverlayCursor,
   setOverlayClickable,
@@ -54,6 +55,10 @@ import {
   saveSettings,
 } from "./services/settingsService";
 import { createDailyStatsService } from "./services/dailyStatsService";
+import {
+  UPDATE_CHECK_INTERVAL_MS,
+  checkForUpdates,
+} from "./services/updaterService";
 import { stopRainAudio, tickRainAudio } from "./core/rainAudio";
 import {
   createAutoRainClock,
@@ -109,6 +114,8 @@ let unlistenRandomEvent: (() => void) | null = null;
 /** Primary overlay owns the tray spray cooldown countdown. */
 let sprayReadyAt = 0;
 let sprayTickTimer = 0;
+/** Resident auto update check (startup + daily). */
+let updateCheckTimer = 0;
 
 /** Full-screen event title — never captures clicks. */
 const bannerVisible = ref(false);
@@ -563,6 +570,10 @@ function handleTray(cmd: string) {
     case "open_settings":
       void openSettingsWindow();
       break;
+    case "check_for_updates":
+      // The updater window checks on mount and owns download progress.
+      void openUpdaterWindow();
+      break;
     default:
       applyRainTrayCommand(cmd);
       break;
@@ -637,6 +648,20 @@ onMounted(async () => {
         Math.random,
       );
     }, 2000);
+    // Auto update: startup once + daily while tray-resident. "Ask before
+    // download" is enforced in the settings UI; here we only surface.
+    if (!isWeb) {
+      window.setTimeout(() => {
+        void checkForUpdates("auto").catch((err) =>
+          console.error("auto update check failed", err),
+        );
+      }, 8000);
+      updateCheckTimer = window.setInterval(() => {
+        void checkForUpdates("auto").catch((err) =>
+          console.error("auto update check failed", err),
+        );
+      }, UPDATE_CHECK_INTERVAL_MS);
+    }
   }
 
   // Every display banners + applies its own copy of the event.
@@ -743,6 +768,7 @@ onUnmounted(() => {
   window.clearInterval(autoRainTimer);
   window.clearInterval(autoEventTimer);
   window.clearInterval(sprayTickTimer);
+  window.clearInterval(updateCheckTimer);
   window.removeEventListener("pointerdown", onPointerDown);
   window.removeEventListener("pointerdown", unlockAudio, true);
   window.removeEventListener("keydown", unlockAudio, true);

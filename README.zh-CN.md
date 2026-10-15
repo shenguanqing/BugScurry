@@ -243,6 +243,7 @@ gh run download <run-id> -n BugScurry-macos-arm64 -D release
 1. 更新 `package.json` 与 `src-tauri/tauri.conf.json` 中的 `version`，并更新 `CHANGELOG.md`
 2. macOS：可选签名与公证
 3. Windows：可选代码签名（未签名可能被 SmartScreen 拦截）
+4. 更新通道：GitHub Secrets 里必须有 `TAURI_SIGNING_PRIVATE_KEY`，否则 CI 签不了包、发不出 `latest.json`（应用内检查会一直失败）
 
 ## 平台说明
 

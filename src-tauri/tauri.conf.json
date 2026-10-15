@@ -46,6 +46,20 @@
         "center": true,
         "skipTaskbar": false,
         "focusable": true
+      },
+      {
+        "label": "updater",
+        "title": "BugScurry 更新",
+        "url": "updater.html",
+        "width": 640,
+        "height": 460,
+        "visible": false,
+        "decorations": true,
+        "resizable": false,
+        "alwaysOnTop": true,
+        "center": true,
+        "skipTaskbar": false,
+        "focusable": true
       }
     ],
     "security": {
@@ -55,6 +69,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -62,5 +77,18 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "dialog": false,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkwQjAxNzZCMDgzN0IxMUMKUldRY3NUY0lheGV3a004TVhBT0F5UnEzdHJhdFNjcE5pbE1KTldjZnN5eXB3Y2FFcklEVkVtSjIK",
+      "endpoints": [
+        "https://github.com/shenguanqing/BugScurry/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }
