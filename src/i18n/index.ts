@@ -46,7 +46,6 @@ export async function syncTrayLocale(locale: Locale): Promise<void> {
         rain_fog: t("tray.rain.fog"),
         rain_sand: t("tray.rain.sand"),
         spray: t("tray.prank.spray"),
-        checkUpdate: t("tray.checkUpdate"),
         settings: t("tray.settings"),
         quit: t("tray.quit"),
         stats: t("tray.stats"),

@@ -72,14 +72,12 @@ jobs:
         run: pnpm tauri build
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Collect NSIS installer
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path release | Out-Null
-          # Updater needs the .sig sidecars: keep exe + sig together.
-          Get-ChildItem -Recurse src-tauri/target/release/bundle -Include *.exe,*.sig |
+          Get-ChildItem -Recurse src-tauri/target/release/bundle/nsis -Filter *.exe |
             ForEach-Object { Copy-Item $_.FullName release/ }
           Get-ChildItem release
 
@@ -125,17 +123,11 @@ jobs:
 
       - name: Build Tauri app
         run: pnpm tauri build
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Collect DMG and app
         run: |
           mkdir -p release
           find src-tauri/target/release/bundle -name "*.dmg" -exec cp {} release/ \;
-          # Updater bundles: macOS .tar.gz + every .sig sidecar.
-          find src-tauri/target/release/bundle -name "*.tar.gz" -exec cp {} release/ \; || true
-          find src-tauri/target/release/bundle -name "*.sig" -exec cp {} release/ \; || true
           # Also keep the .app for local use / notarization later
           if [ -d src-tauri/target/release/bundle/macos/BugScurry.app ]; then
             ditto -c -k --sequesterRsrc --keepParent \
@@ -178,62 +170,9 @@ jobs:
       - name: Stage release files
         run: |
           mkdir -p dist-release
-          # User downloads: installers only (no .sig sidecars here).
-          cp dist-windows/*.exe dist-release/ 2>/dev/null || true
+          cp dist-windows/* dist-release/
           cp dist-macos/*.dmg dist-release/
-          # Updater bundles travel alongside for latest.json below.
-          cp dist-windows/*.sig dist-release/ 2>/dev/null || true
-          cp dist-macos/*.tar.gz dist-release/ 2>/dev/null || true
-          cp dist-macos/*.sig dist-release/ 2>/dev/null || true
           ls -la dist-release
-
-      - name: Build latest.json for the updater
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          python3 <<'PY'
-          import datetime, os, pathlib
-          tag = os.environ["TAG"]
-          version = tag[1:] if tag.startswith("v") else tag
-          repo = os.environ.get("GITHUB_REPOSITORY", "shenguanqing/BugScurry")
-          base = f"https://github.com/{repo}/releases/download/{tag}"
-          dist = pathlib.Path("dist-release")
-
-          def sig_for(bundle: pathlib.Path) -> str | None:
-              sig = bundle.with_suffix(bundle.suffix + ".sig")
-              if sig.exists():
-                  return sig.read_text(encoding="utf-8").strip()
-              # mac tar.gz sig is "<name>.tar.gz.sig"
-              alt = pathlib.Path(str(bundle) + ".sig")
-              if alt.exists():
-                  return alt.read_text(encoding="utf-8").strip()
-              return None
-
-          platforms: dict[str, dict[str, str]] = {}
-          # Windows x64 (NSIS setup exe reused by the updater).
-          for exe in sorted(dist.glob("*.exe")):
-              sig = sig_for(exe)
-              if sig:
-                  platforms["windows-x86_64"] = {"url": f"{base}/{exe.name}", "signature": sig}
-                  break
-          # macOS arm64 (tar.gz updater bundle).
-          for tgz in sorted(dist.glob("*.tar.gz")):
-              sig = sig_for(tgz)
-              if sig:
-                  platforms["darwin-aarch64"] = {"url": f"{base}/{tgz.name}", "signature": sig}
-                  break
-          if not platforms:
-              print("no updater bundles found; writing version-only latest.json")
-          payload = {
-              "version": version,
-              "notes": f"BugScurry {tag}",
-              "pub_date": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-              "platforms": platforms,
-          }
-          import json
-          dist.joinpath("latest.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-          print(json.dumps(payload, indent=2))
-          PY
 
       - name: Build notes from CHANGELOG
         env:

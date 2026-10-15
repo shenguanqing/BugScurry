@@ -25,9 +25,6 @@ export const DEFAULT_SETTINGS: Settings = {
   rainWind: 0,
   autoRain: false,
   randomEvents: false,
-  autoUpdate: true,
-  skippedVersion: "",
-  lastUpdateCheck: 0,
 };
 
 export const LIMITS = {

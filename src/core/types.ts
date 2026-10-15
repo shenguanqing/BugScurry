@@ -132,12 +132,6 @@ export interface Settings {
   autoRain: boolean;
   /** Auto-roll prank chaos events (currently: bug swarm). */
   randomEvents: boolean;
-  /** Auto check for updates on launch + every 24h while resident. */
-  autoUpdate: boolean;
-  /** Exact version the user chose to skip (e.g. "0.7.0"); "" = none. */
-  skippedVersion: string;
-  /** Last update check timestamp (ms epoch); 0 = never. */
-  lastUpdateCheck: number;
 }
 
 /** Cursor position in the overlay window's local CSS pixels. */
@@ -185,7 +179,6 @@ export type TrayCommand =
   | "rain_fog"
   | "rain_sand"
   | "prank_spray"
-  | "check_for_updates"
   | "open_settings";
 
 /** Chaos events rolled by Settings → Random events (and the debug panel). */

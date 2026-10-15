@@ -69,7 +69,6 @@ tray.rs
 | Species | `src/species/*` | Registry, traits (`favoriteFood`, `activity`, `eatStyle`), per-species drawing; shared `contactShadow` / `glint` / `shell` highlights |
 | Settings UI | `src/settings/*` | Settings window |
 | Services | `src/services/*` | Tauri events/commands, store, theme, monitors |
-| Updater | `src/services/updaterService.ts` + `tauriBridge` check/download/relaunch | GitHub Releases via `tauri-plugin-updater`: auto (launch + 24h) / tray + settings manual / exact-version skip |
 | Platform boundary | `src/platform/desktop.ts` + `src/platform/webStorage.ts` | `isTauri()` gate, native/local event bridge, localStorage persistence |
 | Web backdrop | `src/services/webBackdrop.ts` | Web-only fake desktop (checker / solid / wallpaper library) |
 | Built-in wallpapers | `src/services/builtinWallpapers.ts` | Hotlinked official Windows/macOS catalog + joke screens (2.7KB boot art vendored) |

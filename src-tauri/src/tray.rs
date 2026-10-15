@@ -30,8 +30,6 @@ pub struct TrayLabels {
     pub rain_fog: String,
     pub rain_sand: String,
     pub spray: String,
-    #[serde(rename = "checkUpdate", alias = "check_update")]
-    pub check_update: String,
     pub settings: String,
     pub quit: String,
     pub stats: String,
@@ -59,7 +57,6 @@ impl Default for TrayLabels {
             rain_fog: "雾".into(),
             rain_sand: "沙尘".into(),
             spray: "喷雾杀虫剂".into(),
-            check_update: "检查更新".into(),
             settings: "设置…".into(),
             quit: "退出".into(),
             stats: "今日战绩".into(),
@@ -248,13 +245,6 @@ fn build_menu(app: &tauri::AppHandle, labels: &TrayLabels) -> tauri::Result<Menu
         true,
         Some("CmdOrCtrl+,"),
     )?;
-    let check_update = MenuItem::with_id(
-        app,
-        "check_for_updates",
-        &labels.check_update,
-        true,
-        None::<&str>,
-    )?;
     let quit = MenuItem::with_id(app, "quit", &labels.quit, true, Some("CmdOrCtrl+Q"))?;
     let spray_cd = spray_cooldown_sec();
     let spray = MenuItem::with_id(
@@ -277,7 +267,6 @@ fn build_menu(app: &tauri::AppHandle, labels: &TrayLabels) -> tauri::Result<Menu
             &spray,
             &feed,
             &rain,
-            &check_update,
             &settings,
             &quit,
         ],

@@ -62,14 +62,6 @@ export function clampSettings(input: Partial<Settings>): Settings {
   next.rain = !!next.rain;
   next.autoRain = !!next.autoRain;
   next.randomEvents = !!next.randomEvents;
-  next.autoUpdate = next.autoUpdate !== false;
-  next.skippedVersion =
-    typeof next.skippedVersion === "string"
-      ? next.skippedVersion.trim().slice(0, 32)
-      : "";
-  const lastCheck = Number(next.lastUpdateCheck);
-  next.lastUpdateCheck =
-    Number.isFinite(lastCheck) && lastCheck > 0 ? Math.floor(lastCheck) : 0;
   next.rainKind = RAIN_KINDS.includes(next.rainKind) ? next.rainKind : "moderate";
   const wind = Number(next.rainWind);
   next.rainWind = Number.isFinite(wind) ? Math.min(1, Math.max(-1, wind)) : 0;
