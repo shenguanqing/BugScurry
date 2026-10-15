@@ -2,16 +2,20 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { isTauri, setWindowTitle } from "../platform/desktop";
-import { t } from "../i18n";
+import { currentLocale, t } from "../i18n";
 import {
   checkUpdateNow,
   downloadAndInstallUpdate,
   getAppVersion,
   relaunchApp,
 } from "../services/tauriBridge";
-import { isNewerVersion, extractReleaseNotes, normalizeVersion } from "../services/updaterService";
+import { isNewerVersion, extractLocalizedNotes, normalizeVersion } from "../services/updaterService";
 import { renderMarkdown } from "../services/markdown";
-import changelogText from "../../CHANGELOG.md?raw";
+import changelogEn from "../../CHANGELOG.md?raw";
+import changelogZhCn from "../../CHANGELOG.zh-CN.md?raw";
+import changelogZhTw from "../../CHANGELOG.zh-TW.md?raw";
+import changelogJa from "../../CHANGELOG.ja.md?raw";
+import changelogKo from "../../CHANGELOG.ko.md?raw";
 import {
   applyThemeToDocument,
   applyUiLocale,
@@ -45,6 +49,21 @@ const skippedVersion = ref("");
 const status = ref<Status>("checking");
 const downloaded = ref(0);
 const total = ref<number | null>(null);
+/** Tracks whether the notes pane shows bundled (localizable) notes. */
+let usingBundledNotes = false;
+const uiLocale = ref(currentLocale());
+const changelogBundles: Record<string, string> = {
+  en: changelogEn,
+  "zh-CN": changelogZhCn,
+  "zh-TW": changelogZhTw,
+  ja: changelogJa,
+  ko: changelogKo,
+};
+
+/** Bundled notes follow the UI locale (missing sections fall back to English). */
+function bundledNotes(version: string): string {
+  return extractLocalizedNotes(changelogBundles, uiLocale.value, version);
+}
 let unlistenSettings: UnlistenFn | null = null;
 
 const percent = computed(() => {
@@ -73,11 +92,13 @@ async function runCheck(): Promise<void> {
       // Updater backend returns null when already latest, so it carries no
       // notes. Fall back to the bundled CHANGELOG for the current version
       // so "What's new" still shows something useful offline.
-      latestNotes.value = extractReleaseNotes(changelogText, current);
+      latestNotes.value = bundledNotes(current);
+      usingBundledNotes = true;
       return;
     }
     latestVersion.value = found.version;
     latestNotes.value = found.body ?? "";
+    usingBundledNotes = false;
     const settings = await loadSettings(false);
     skippedVersion.value = settings.skippedVersion;
     status.value =
@@ -91,7 +112,8 @@ async function runCheck(): Promise<void> {
     // Keep the current-version notes visible so a failed check does not
     // blank the right pane when we already know the version.
     if (!latestNotes.value && current) {
-      latestNotes.value = extractReleaseNotes(changelogText, current);
+      latestNotes.value = bundledNotes(current);
+      usingBundledNotes = true;
     }
   }
 }
@@ -155,13 +177,20 @@ onMounted(async () => {
   skippedVersion.value = loaded.skippedVersion;
   applyThemeToDocument(document, loaded.theme);
   await applyUiLocale(loaded.locale);
+  uiLocale.value = currentLocale();
   localeVersion.value++;
   await syncWindowTitle();
   // Language can change while this window sits hidden: follow it live.
   unlistenSettings = await listenSettings((next) => {
     void applyUiLocale(next.locale).then(() => {
+      uiLocale.value = currentLocale();
       localeVersion.value++;
       void syncWindowTitle();
+      // Bundled notes are localizable; re-resolve them on language change.
+      // Remote notes for a pending update stay as published (English).
+      if (usingBundledNotes && appVersion.value) {
+        latestNotes.value = bundledNotes(appVersion.value);
+      }
     });
   });
   await runCheck();

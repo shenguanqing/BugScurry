@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import { clampSettings } from "../../core/settings";
 import {
   compareVersions,
+  extractLocalizedNotes,
   isNewerVersion,
   isUpdateCheckDue,
   normalizeVersion,
+  pickLocalizedChangelog,
   shouldAutoPrompt,
   UPDATE_CHECK_INTERVAL_MS,
 } from "../updaterService";
@@ -56,6 +58,26 @@ describe("skip semantics", () => {
     ).toBe(true);
     expect(shouldAutoPrompt({ ...base, autoUpdate: false })).toBe(false);
     expect(shouldAutoPrompt({ ...base, latest: "0.6.2" })).toBe(false);
+  });
+});
+
+describe("localized changelogs", () => {
+  const bundles = {
+    en: "## [1.0.0]\n\nHello\n",
+    "zh-CN": "## [1.0.0]\n\n你好\n",
+  };
+
+  it("prefers exact locale, then base language, then English", () => {
+    expect(pickLocalizedChangelog("zh-CN", bundles)).toBe(bundles["zh-CN"]);
+    expect(pickLocalizedChangelog("zh-HK", bundles)).toBe(bundles["zh-CN"]);
+    expect(pickLocalizedChangelog("ja", bundles)).toBe(bundles.en);
+    expect(pickLocalizedChangelog("", bundles)).toBe(bundles.en);
+  });
+
+  it("falls back to the English section when missing", () => {
+    expect(extractLocalizedNotes(bundles, "zh-CN", "1.0.0")).toContain("你好");
+    expect(extractLocalizedNotes({ en: bundles.en }, "zh-CN", "1.0.0")).toContain("Hello");
+    expect(extractLocalizedNotes(bundles, "ja", "9.9.9")).toBe("");
   });
 });
 

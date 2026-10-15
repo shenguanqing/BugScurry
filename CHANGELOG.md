@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-10-15
+
+Update dialog changelog follows the UI language.
+
+### Added
+
+- Per-locale CHANGELOG bundles (`CHANGELOG.zh-CN/zh-TW/ja/ko.md`, English is canonical): bundled notes render in the interface language, with exact → base-language → English fallback per section
+- Bundled notes re-resolve live when the language changes while the updater window sits open
+
+### Notes
+
+- Release-time process: translate each new CHANGELOG section into the four locale files (documented in the file headers)
+- Notes for a pending update still show as published (English); localizing those would need a `latest.json` schema change
+
 ## [0.6.3] - 2026-10-15
 
 In-app updates via `tauri-plugin-updater` (signed GitHub Releases).
@@ -270,7 +284,8 @@ First public baseline: desktop bug overlay for macOS and Windows.
 
 - Production binaries must be built with `pnpm tauri build` (not bare `cargo build --release`)
 
-[Unreleased]: https://github.com/shenguanqing/BugScurry/compare/v0.6.3...HEAD
+[Unreleased]: https://github.com/shenguanqing/BugScurry/compare/v0.6.4...HEAD
+[0.6.4]: https://github.com/shenguanqing/BugScurry/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/shenguanqing/BugScurry/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/shenguanqing/BugScurry/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/shenguanqing/BugScurry/compare/v0.6.0...v0.6.1

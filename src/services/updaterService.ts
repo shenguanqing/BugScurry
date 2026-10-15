@@ -49,6 +49,47 @@ export function extractReleaseNotes(changelog: string, version: string): string 
   return (match?.[1] ?? "").trim();
 }
 
+/**
+ * Pick the bundled changelog matching the UI locale:
+ * exact match → same base language → English → first available.
+ */
+export function pickLocalizedChangelog(
+  locale: string,
+  bundles: Record<string, string>,
+  fallback = "en",
+): string {
+  const norm = locale.trim();
+  if (norm && bundles[norm]) return bundles[norm];
+  const base = norm.split(/[-_]/)[0].toLowerCase();
+  if (base) {
+    const hit = Object.keys(bundles).find(
+      (key) =>
+        key !== norm &&
+        key.split(/[-_]/)[0].toLowerCase() === base &&
+        bundles[key],
+    );
+    if (hit) return bundles[hit];
+  }
+  return bundles[fallback] ?? Object.values(bundles)[0] ?? "";
+}
+
+/**
+ * Localized notes for a version. A missing section in the locale bundle
+ * falls back to the English section (partial translations stay useful).
+ */
+export function extractLocalizedNotes(
+  bundles: Record<string, string>,
+  locale: string,
+  version: string,
+): string {
+  const localized = extractReleaseNotes(
+    pickLocalizedChangelog(locale, bundles),
+    version,
+  );
+  if (localized) return localized;
+  return extractReleaseNotes(bundles.en ?? "", version);
+}
+
 /** Resident apps restart rarely: re-check daily even without relaunch. */
 export function isUpdateCheckDue(
   lastCheck: number,
