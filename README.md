@@ -8,6 +8,20 @@ Cross-platform desktop app for **macOS** and **Windows**. Runs in the background
 
 ![Bugs crawling over a browser window](docs/screenshots/desktop-overlay.png)
 
+## Install
+
+Download the latest build from [GitHub Releases](https://github.com/shenguanqing/BugScurry/releases):
+
+- macOS: `BugScurry_<version>_aarch64.dmg` — drag `BugScurry.app` to Applications
+- Windows: `BugScurry_<version>_x64-setup.exe`
+
+> [!NOTE]
+> The macOS build is **not Apple-signed or notarized**, so Gatekeeper may report “BugScurry.app is damaged” on first launch. The file is fine — clear the download quarantine flag and open it again:
+>
+> ```bash
+> xattr -cr /Applications/BugScurry.app
+> ```
+
 ## Features
 
 - Transparent, borderless, always-on-top desktop overlay (bugs stay visible while settings is open)

@@ -182,9 +182,19 @@ jobs:
           cp dist-windows/*.exe dist-release/ 2>/dev/null || true
           cp dist-macos/*.dmg dist-release/
           # Updater bundles travel alongside for latest.json below.
-          cp dist-windows/*.sig dist-release/ 2>/dev/null || true
+          # Copy only the .sig sidecars matching a staged bundle, so strays
+          # (e.g. an .msi.sig with no .msi) never reach the Release page.
+          for f in dist-release/*.exe; do
+            [ -e "$f" ] || continue
+            sig="dist-windows/$(basename "$f").sig"
+            [ -f "$sig" ] && cp "$sig" dist-release/
+          done
           cp dist-macos/*.tar.gz dist-release/ 2>/dev/null || true
-          cp dist-macos/*.sig dist-release/ 2>/dev/null || true
+          for f in dist-release/*.tar.gz; do
+            [ -e "$f" ] || continue
+            sig="dist-macos/$(basename "$f").sig"
+            [ -f "$sig" ] && cp "$sig" dist-release/
+          done
           ls -la dist-release
 
       - name: Build latest.json for the updater
@@ -242,12 +252,19 @@ jobs:
           print(json.dumps({**payload, "notes": notes[:200]}, indent=2))
           PY
 
+      # Signatures already live inside latest.json: keep the Release page to
+      # installers + updater bundles + latest.json.
+      - name: Drop .sig sidecars from the published files
+        run: |
+          rm -f dist-release/*.sig
+          ls -la dist-release
+
       - name: Build notes from CHANGELOG
         env:
           TAG: ${{ github.ref_name }}
         run: |
           python3 <<'PY'
-          import os, re, pathlib
+          import os, re, pathlib, subprocess
           tag = os.environ["TAG"]
           version = tag[1:] if tag.startswith("v") else tag
           text = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8")
@@ -257,7 +274,13 @@ jobs:
               re.S,
           )
           section = m.group(1).strip() if m else f"See CHANGELOG.md for {version}."
-          files = sorted(p.name for p in pathlib.Path("dist-release").iterdir())
+          # Table lists user-facing installers only: updater bundles (.tar.gz),
+          # .sig sidecars, and latest.json would all label as "—".
+          files = sorted(
+              p.name
+              for p in pathlib.Path("dist-release").iterdir()
+              if p.suffix.lower() in {".dmg", ".exe"}
+          )
 
           def platform_label(name: str) -> str:
               n = name.lower()
@@ -274,13 +297,33 @@ jobs:
           rows = "\n".join(
               f"| {platform_label(name)} | `{name}` |" for name in files
           )
-          parts = version.split(".")
-          if len(parts) >= 3 and parts[2] != "0":
-              base = f"v{parts[0]}.{parts[1]}.0"
-          elif int(parts[1]) > 0:
-              base = f"v{parts[0]}.{int(parts[1]) - 1}.0"
-          else:
-              base = f"v{parts[0]}.0.0"
+
+          def ver_key(t: str) -> tuple[int, ...]:
+              return tuple(int(x) if x.isdigit() else 0 for x in t.lstrip("v").split("."))
+
+          def previous_tag(tag: str) -> str | None:
+              try:
+                  tags = subprocess.check_output(
+                      ["git", "tag", "--list", "v*"], text=True
+                  ).split()
+              except Exception:
+                  tags = []
+              ordered = sorted(set(tags), key=ver_key)
+              return ordered[-2] if len(ordered) >= 2 and ordered[-1] == tag else (
+                  ordered[-1] if ordered and ordered[-1] != tag else None
+              )
+
+          # Full Changelog links at the previous real tag (v0.6.0 was never
+          # tagged, so arithmetic guessing yields a dead compare link).
+          base = previous_tag(tag)
+          if base is None:
+              parts = version.split(".")
+              if len(parts) >= 3 and parts[2] != "0":
+                  base = f"v{parts[0]}.{parts[1]}.0"
+              elif len(parts) >= 2 and parts[1].isdigit() and int(parts[1]) > 0:
+                  base = f"v{parts[0]}.{int(parts[1]) - 1}.0"
+              else:
+                  base = f"v{parts[0]}.0.0"
           repo = os.environ.get("GITHUB_REPOSITORY", "shenguanqing/BugScurry")
           notes = (
               f"## BugScurry v{version}\n\n"
@@ -289,6 +332,13 @@ jobs:
               f"| Platform | File |\n"
               f"|----------|------|\n"
               f"{rows}\n\n"
+              f"### Installing on macOS\n\n"
+              f"The mac build is **not Apple-signed or notarized**, so Gatekeeper may report\n"
+              f"\u201cBugScurry.app is damaged\u201d on first launch. The file is fine \u2014 clear the\n"
+              f"download quarantine flag and open it again:\n\n"
+              f"```bash\n"
+              f"xattr -cr /Applications/BugScurry.app\n"
+              f"```\n\n"
               f"**Full Changelog**: https://github.com/{repo}/compare/{base}...{tag}\n"
           )
           pathlib.Path("release-notes.md").write_text(notes, encoding="utf-8")

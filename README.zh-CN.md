@@ -8,6 +8,20 @@
 
 ![虫子爬在浏览器窗口上](docs/screenshots/desktop-overlay.png)
 
+## 安装
+
+从 [GitHub Releases](https://github.com/shenguanqing/BugScurry/releases) 下载最新构建：
+
+- macOS：`BugScurry_<version>_aarch64.dmg` —— 把 `BugScurry.app` 拖进应用程序文件夹
+- Windows：`BugScurry_<version>_x64-setup.exe`
+
+> [!NOTE]
+> macOS 包**没有 Apple 签名和公证**，首次打开可能报「“BugScurry.app”已损坏」。文件本身没问题——清除下载隔离标记再打开即可：
+>
+> ```bash
+> xattr -cr /Applications/BugScurry.app
+> ```
+
 ## 功能
 
 - 透明、无边框、始终置顶的桌面覆盖层（打开设置时虫子仍可见）
