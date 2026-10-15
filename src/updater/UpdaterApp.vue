@@ -9,7 +9,9 @@ import {
   getAppVersion,
   relaunchApp,
 } from "../services/tauriBridge";
-import { isNewerVersion, normalizeVersion } from "../services/updaterService";
+import { isNewerVersion, extractReleaseNotes, normalizeVersion } from "../services/updaterService";
+import { renderMarkdown } from "../services/markdown";
+import changelogText from "../../CHANGELOG.md?raw";
 import {
   applyThemeToDocument,
   applyUiLocale,
@@ -50,16 +52,28 @@ const percent = computed(() => {
   return Math.min(100, Math.round((downloaded.value / total.value) * 100));
 });
 
+/** Sanitized HTML for the notes pane (headings / lists / code / links). */
+const renderedNotes = computed(() => renderMarkdown(latestNotes.value));
+
 async function runCheck(): Promise<void> {
   if (!isDesktop || status.value === "downloading") return;
   status.value = "checking";
+  let current = appVersion.value;
   try {
-    const [current, found] = await Promise.all([getAppVersion(), checkUpdateNow()]);
+    current = await getAppVersion();
     appVersion.value = current;
+  } catch (err) {
+    console.error("update version lookup failed", err);
+  }
+  try {
+    const found = await checkUpdateNow();
     if (!found || !isNewerVersion(current, found.version)) {
       status.value = "up-to-date";
       latestVersion.value = "";
-      latestNotes.value = "";
+      // Updater backend returns null when already latest, so it carries no
+      // notes. Fall back to the bundled CHANGELOG for the current version
+      // so "What's new" still shows something useful offline.
+      latestNotes.value = extractReleaseNotes(changelogText, current);
       return;
     }
     latestVersion.value = found.version;
@@ -74,6 +88,11 @@ async function runCheck(): Promise<void> {
   } catch (err) {
     console.error("update check failed", err);
     status.value = "error";
+    // Keep the current-version notes visible so a failed check does not
+    // blank the right pane when we already know the version.
+    if (!latestNotes.value && current) {
+      latestNotes.value = extractReleaseNotes(changelogText, current);
+    }
   }
 }
 
@@ -207,7 +226,7 @@ onUnmounted(() => {
     <div class="up-right">
       <h2 class="up-notes-title">{{ tt("update.notesTitle") }}</h2>
       <p v-if="status === 'skipped'" class="hint" role="status">{{ tt("update.skipped") }}</p>
-      <pre v-if="latestNotes" class="up-notes">{{ latestNotes }}</pre>
+      <div v-if="latestNotes" class="up-notes md" v-html="renderedNotes"></div>
       <p v-else class="hint">{{ tt("update.upToDate") }}</p>
     </div>
   </div>
@@ -216,7 +235,9 @@ onUnmounted(() => {
 <style scoped>
 .updater {
   display: flex;
-  min-height: 100vh;
+  /* Fixed window: the shell never scrolls, only the notes pane does. */
+  height: 100vh;
+  overflow: hidden;
   background: var(--bg, #f2f2f7);
   color: var(--ink, #1c1c1e);
 }
@@ -232,6 +253,7 @@ onUnmounted(() => {
   padding: 24px 20px;
   text-align: center;
   border-right: 1px solid var(--line);
+  overflow: hidden;
 }
 
 .up-icon {
@@ -274,19 +296,26 @@ onUnmounted(() => {
 .up-actions {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
   align-items: center;
-  margin-top: 8px;
-  width: 100%;
+  margin-top: 12px;
+  width: auto;
+  max-width: 100%;
 }
 
 .up-actions .btn {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 999px;
 }
 
 .up-right {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   padding: 20px 20px 16px;
@@ -295,6 +324,7 @@ onUnmounted(() => {
 
 .up-notes-title {
   margin: 0 0 8px;
+  flex: none;
   font-size: 15px;
   font-weight: 700;
 }
@@ -302,8 +332,9 @@ onUnmounted(() => {
 .up-notes {
   margin: 0;
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  white-space: pre-wrap;
+  overscroll-behavior: contain;
   word-break: break-word;
   font-size: 13px;
   line-height: 1.65;

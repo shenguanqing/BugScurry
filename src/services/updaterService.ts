@@ -38,6 +38,17 @@ export function isNewerVersion(current: string, latest: string): boolean {
   return compareVersions(current, latest) < 0;
 }
 
+/** Extract the `## [x.y.z]` section body from a Keep-a-Changelog file. */
+export function extractReleaseNotes(changelog: string, version: string): string {
+  const clean = normalizeVersion(version);
+  if (!changelog || !clean) return "";
+  const escaped = clean.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = changelog.match(
+    new RegExp(`## \\[${escaped}\\][^\\n]*\\n([\\s\\S]*?)(?=\\n## \\[|$)`, ""),
+  );
+  return (match?.[1] ?? "").trim();
+}
+
 /** Resident apps restart rarely: re-check daily even without relaunch. */
 export function isUpdateCheckDue(
   lastCheck: number,

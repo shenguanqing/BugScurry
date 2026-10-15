@@ -136,7 +136,7 @@ Capture exclusion covers bugs, weather, and effects in the overlay. On macOS, tu
 | F-TRAY-07 | Settings | P0 |
 | F-TRAY-08 | Quit | P0 |
 | F-TRAY-09 | Closing settings does not quit | P0 |
-| F-TRAY-10 | Check for updates (`CmdOrCtrl+U`): opens a dedicated dialog (icon/version/progress/actions + per-release changelog); failure never blocks the tray | P1 |
+| F-TRAY-10 | Check for updates (`CmdOrCtrl+U`): opens a dedicated dialog (icon/version/progress/actions + per-release changelog rendered as Markdown); failure never blocks the tray | P1 |
 
 ## 4. Non-functional
 

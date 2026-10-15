@@ -68,9 +68,9 @@ tray.rs
 | Loop | `src/core/loop.ts` | rAF update + render; primary `onFrame` drives rain audio |
 | Species | `src/species/*` | Registry, traits (`favoriteFood`, `activity`, `eatStyle`), per-species drawing; shared `contactShadow` / `glint` / `shell` highlights |
 | Settings UI | `src/settings/*` | Settings window (update card is status + entry; download lives in the updater window) |
-| Updater window | `src/updater/*` (`updater.html`) | Dedicated dialog: left icon/version/progress/actions, right per-release changelog; self-checks on mount |
+| Updater window | `src/updater/*` (`updater.html`) | Dedicated dialog: left icon/version/progress/actions, right per-release changelog rendered as sanitized Markdown; shell never scrolls, only the notes pane does; self-checks on mount |
 | Services | `src/services/*` | Tauri events/commands, store, theme, monitors |
-| Updater | `src/services/updaterService.ts` + `tauriBridge` check/download/relaunch/`open_updater_window` | GitHub Releases static `latest.json` via `tauri-plugin-updater`: auto (launch + 24h, opens dialog) / tray (`⌘U`) opens dialog directly / settings manual check / exact-version skip; signed bundles (`.sig`), pubkey in `tauri.conf.json` |
+| Updater | `src/services/updaterService.ts` + `tauriBridge` check/download/relaunch/`open_updater_window` + `src/services/markdown.ts` (dependency-free render/strip) | GitHub Releases static `latest.json` via `tauri-plugin-updater`: auto (launch + 24h, opens dialog) / tray (`⌘U`) opens dialog directly / settings manual check / exact-version skip; signed bundles (`.sig`), pubkey in `tauri.conf.json`; up-to-date and check-failed states fall back to the bundled CHANGELOG section for the current version (offline-safe) |
 | Platform boundary | `src/platform/desktop.ts` + `src/platform/webStorage.ts` | `isTauri()` gate, native/local event bridge, localStorage persistence |
 | Web backdrop | `src/services/webBackdrop.ts` | Web-only fake desktop (checker / solid / wallpaper library) |
 | Built-in wallpapers | `src/services/builtinWallpapers.ts` | Hotlinked official Windows/macOS catalog + joke screens (2.7KB boot art vendored) |

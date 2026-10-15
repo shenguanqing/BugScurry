@@ -19,6 +19,7 @@ import {
   openUpdaterWindow,
 } from "../services/tauriBridge";
 import { isNewerVersion, normalizeVersion } from "../services/updaterService";
+import { stripMarkdown } from "../services/markdown";
 import {
   enableCaptureCompatibility as enableNativeCaptureCompatibility,
   isCaptureCompatibilityReady,
@@ -230,6 +231,8 @@ const appVersion = ref("");
 const updateStatus = ref<UpdateStatus>("idle");
 const latestVersion = ref("");
 const latestNotes = ref("");
+/** Plain-text preview: Markdown markup never leaks into the hint line. */
+const latestNotesPreview = computed(() => stripMarkdown(latestNotes.value).slice(0, 280));
 
 /** Status block only renders when it has content; an empty block would
  *  steal the last-row border treatment and leave a stray divider. */
@@ -1170,7 +1173,7 @@ onUnmounted(() => {
           <p v-if="updateStatus === 'up-to-date'" class="hint" role="status">{{ tt("update.upToDate") }}</p>
           <template v-else-if="updateStatus === 'available' || updateStatus === 'skipped'">
             <p class="update-available" role="status">{{ tt("update.available") }} v{{ latestVersion }}</p>
-            <p v-if="latestNotes" class="hint update-notes">{{ latestNotes.slice(0, 280) }}</p>
+            <p v-if="latestNotesPreview" class="hint update-notes">{{ latestNotesPreview }}</p>
             <p v-if="updateStatus === 'skipped'" class="hint" role="status">{{ tt("update.skipped") }}</p>
             <div class="update-row">
               <button type="button" class="compat-enable" @click="openUpdateDetails">{{ tt("update.details") }}</button>

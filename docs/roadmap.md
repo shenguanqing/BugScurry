@@ -119,6 +119,7 @@ Ship a playable loop first; every milestone must be runnable and checkable.
 - [x] Auto-check on launch + every 24h while tray-resident; exact-version skip; manual check bypasses skip
 - [x] Tray “Check for updates” (`CmdOrCtrl+U`) opens a dedicated dialog: left icon/version/progress/actions, right per-release changelog
 - [x] Settings update card: auto toggle + status + details entry; download lives in the dialog only
+- [x] Updater polish (0.6.3): bundled CHANGELOG fallback so “What's new” shows the current version when up-to-date or the check fails (offline-safe); dependency-free Markdown rendering (sanitized, no raw HTML); small pill action buttons; shell never scrolls, only the notes pane does; settings preview strips Markdown to plain text
 - [ ] First signed release soak: tray check finds the build, changelog renders, download + restart applies on macOS and Windows
 
 ## Later (not blocking)

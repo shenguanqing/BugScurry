@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-10-15
+
 In-app updates via `tauri-plugin-updater` (signed GitHub Releases).
 
 ### Added
@@ -15,6 +17,15 @@ In-app updates via `tauri-plugin-updater` (signed GitHub Releases).
 - Auto-check on launch and every 24h while tray-resident; exact-version skip (manual checks bypass the skip)
 - Settings update card: auto-check toggle, live status, details entry; update failure surfaces as a footnote
 - CI publishes signed bundles plus `latest.json` (with CHANGELOG notes) on every `v*` tag
+
+### Changed
+
+- Update dialog renders release notes as sanitized Markdown (headings, lists, tables, code, links; no raw HTML passthrough, non-http(s) links stay plain text); settings preview strips Markdown to plain text
+- Update dialog buttons are small pills; the window shell never scrolls — only the notes pane scrolls internally
+
+### Fixed
+
+- “What's new” no longer blanks when already up to date or the check fails: it falls back to the bundled CHANGELOG section for the current version (works offline)
 
 ## [0.6.2] - 2026-10-09
 
@@ -259,7 +270,11 @@ First public baseline: desktop bug overlay for macOS and Windows.
 
 - Production binaries must be built with `pnpm tauri build` (not bare `cargo build --release`)
 
-[Unreleased]: https://github.com/shenguanqing/BugScurry/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/shenguanqing/BugScurry/compare/v0.6.3...HEAD
+[0.6.3]: https://github.com/shenguanqing/BugScurry/compare/v0.6.2...v0.6.3
+[0.6.2]: https://github.com/shenguanqing/BugScurry/compare/v0.6.1...v0.6.2
+[0.6.1]: https://github.com/shenguanqing/BugScurry/compare/v0.6.0...v0.6.1
+[0.6.0]: https://github.com/shenguanqing/BugScurry/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/shenguanqing/BugScurry/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/shenguanqing/BugScurry/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/shenguanqing/BugScurry/compare/v0.3.2...v0.4.0
