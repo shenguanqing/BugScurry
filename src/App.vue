@@ -9,6 +9,7 @@ import type { CursorState, FoodKind, Settings, Viewport } from "./core/types";
 import { RAIN_KIND_ORDER } from "./core/weather";
 import {
   emitRandomEvent,
+  emitUpdaterCheckRequest,
   fitWindowToDisplay,
   forceRebuildOverlays,
   listenCursorLocal,
@@ -54,6 +55,10 @@ import {
   saveSettings,
 } from "./services/settingsService";
 import { createDailyStatsService } from "./services/dailyStatsService";
+import {
+  UPDATE_CHECK_INTERVAL_MS,
+  checkForUpdates,
+} from "./services/updaterService";
 import { stopRainAudio, tickRainAudio } from "./core/rainAudio";
 import {
   createAutoRainClock,
@@ -109,6 +114,8 @@ let unlistenRandomEvent: (() => void) | null = null;
 /** Primary overlay owns the tray spray cooldown countdown. */
 let sprayReadyAt = 0;
 let sprayTickTimer = 0;
+/** Resident auto update check (startup + daily). */
+let updateCheckTimer = 0;
 
 /** Full-screen event title — never captures clicks. */
 const bannerVisible = ref(false);
@@ -563,6 +570,16 @@ function handleTray(cmd: string) {
     case "open_settings":
       void openSettingsWindow();
       break;
+    case "check_for_updates":
+      // Settings owns the update UI: open it first so the check result
+      // has a listener, then ask it to run a manual check.
+      void openSettingsWindow();
+      window.setTimeout(() => {
+        void emitUpdaterCheckRequest().catch((err) =>
+          console.error("updater check request failed", err),
+        );
+      }, 900);
+      break;
     default:
       applyRainTrayCommand(cmd);
       break;
@@ -637,6 +654,20 @@ onMounted(async () => {
         Math.random,
       );
     }, 2000);
+    // Auto update: startup once + daily while tray-resident. "Ask before
+    // download" is enforced in the settings UI; here we only surface.
+    if (!isWeb) {
+      window.setTimeout(() => {
+        void checkForUpdates("auto").catch((err) =>
+          console.error("auto update check failed", err),
+        );
+      }, 8000);
+      updateCheckTimer = window.setInterval(() => {
+        void checkForUpdates("auto").catch((err) =>
+          console.error("auto update check failed", err),
+        );
+      }, UPDATE_CHECK_INTERVAL_MS);
+    }
   }
 
   // Every display banners + applies its own copy of the event.
@@ -743,6 +774,7 @@ onUnmounted(() => {
   window.clearInterval(autoRainTimer);
   window.clearInterval(autoEventTimer);
   window.clearInterval(sprayTickTimer);
+  window.clearInterval(updateCheckTimer);
   window.removeEventListener("pointerdown", onPointerDown);
   window.removeEventListener("pointerdown", unlockAudio, true);
   window.removeEventListener("keydown", unlockAudio, true);

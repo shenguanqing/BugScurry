@@ -297,3 +297,81 @@ export async function listenKillReports(
   if (!isTauri()) return Promise.resolve(listenLocal<KillReport>("bug-killed", (report) => cb(report)));
   return listen<KillReport>("bug-killed", (event) => cb(event.payload));
 }
+
+/** App version from the native bundle (package.json/tauri.conf parity). */
+export async function getAppVersion(): Promise<string> {
+  if (!isTauri()) return "0.0.0-web";
+  const { getVersion } = await import("@tauri-apps/api/app");
+  return getVersion();
+}
+
+export interface UpdateAvailable {
+  version: string;
+  body?: string;
+  date?: string;
+}
+
+/** Check via tauri-plugin-updater; null = up to date. Null on web. */
+export async function checkUpdateNow(): Promise<UpdateAvailable | null> {
+  if (!isTauri()) return null;
+  const { check } = await import("@tauri-apps/plugin-updater");
+  const update = await check();
+  if (!update) return null;
+  return { version: update.version, body: update.body, date: update.date };
+}
+
+/** Download + install; progress 0..1. Restarts on Windows automatically. */
+export async function downloadAndInstallUpdate(
+  onProgress?: (downloaded: number, total: number | null) => void,
+): Promise<void> {
+  if (!isTauri()) return;
+  const { check } = await import("@tauri-apps/plugin-updater");
+  const update = await check();
+  if (!update) return;
+  let total: number | null = null;
+  await update.downloadAndInstall((event) => {
+    if (event.event === "Started") total = event.data.contentLength ?? null;
+    else if (event.event === "Progress") {
+      onProgress?.(event.data.chunkLength, total);
+    } else if (event.event === "Finished") onProgress?.(1, 1);
+  });
+}
+
+/** Restart after update install (no-op on web). */
+export async function relaunchApp(): Promise<void> {
+  if (!isTauri()) return;
+  const { relaunch } = await import("@tauri-apps/plugin-process");
+  await relaunch();
+}
+
+/** Tray "check for updates" → open settings and run a check there. */
+export async function emitUpdaterCheckRequest(): Promise<void> {
+  if (!isTauri()) {
+    emitLocal("updater-check-request", {});
+    return;
+  }
+  await emit("updater-check-request", {});
+}
+
+export async function listenUpdaterCheckRequest(
+  cb: () => void,
+): Promise<UnlistenFn> {
+  if (!isTauri()) return Promise.resolve(listenLocal("updater-check-request", () => cb()));
+  return listen("updater-check-request", () => cb());
+}
+
+/** Auto-check found a version → wake the settings UI. */
+export async function emitUpdaterAvailable(version: string): Promise<void> {
+  if (!isTauri()) {
+    emitLocal("updater-available", { version });
+    return;
+  }
+  await emit("updater-available", { version });
+}
+
+export async function listenUpdaterAvailable(
+  cb: (version: string) => void,
+): Promise<UnlistenFn> {
+  if (!isTauri()) return Promise.resolve(listenLocal<{ version: string }>("updater-available", (p) => cb(p.version)));
+  return listen<{ version: string }>("updater-available", (e) => cb(e.payload.version));
+}

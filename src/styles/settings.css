@@ -1129,6 +1129,32 @@ output {
   color: var(--muted);
 }
 
+/* Updater card: version row + actions reuse .btn/.hint/.toggle-row. */
+.update-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.update-block {
+  padding: 8px 0;
+}
+
+.update-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.update-notes {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .species, .species-wide { transition: none; }
 }

@@ -9,12 +9,19 @@ import { t } from "../i18n";
 import { getSpecies, listSpecies } from "../species";
 import {
   beginHotkeyRecording,
+  checkUpdateNow,
+  downloadAndInstallUpdate,
   endHotkeyRecording,
+  getAppVersion,
   getCaptureMonitorStatus,
   keycodeToCode,
   listenHotkeyCaptured,
+  listenUpdaterAvailable,
+  listenUpdaterCheckRequest,
   openSystemSettingsPane,
+  relaunchApp,
 } from "../services/tauriBridge";
+import { isNewerVersion, normalizeVersion } from "../services/updaterService";
 import {
   enableCaptureCompatibility as enableNativeCaptureCompatibility,
   isCaptureCompatibilityReady,
@@ -108,6 +115,9 @@ const settings = reactive<Settings>({
   rainWind: 0,
   autoRain: false,
   randomEvents: false,
+  autoUpdate: true,
+  skippedVersion: "",
+  lastUpdateCheck: 0,
 });
 
 const foodEmoji: Record<FoodKind, string> = { cookie: "🍪", sugar: "🍬", fruit: "🍓" };
@@ -210,6 +220,99 @@ const hotkeyRecording = ref(false);
 let hotkeyRecorderTimer = 0;
 let unlistenHotkeyCaptured: UnlistenFn | null = null;
 const captureCompatibilityReady = computed(() => settings.captureCompatibilityEnabled && isCaptureCompatibilityReady(captureMonitorStatus.value));
+
+/** In-app updater (desktop only; web shell hides this card). */
+type UpdateStatus =
+  | "idle"
+  | "checking"
+  | "up-to-date"
+  | "available"
+  | "skipped"
+  | "downloading"
+  | "ready"
+  | "error";
+const appVersion = ref("");
+const updateStatus = ref<UpdateStatus>("idle");
+const latestVersion = ref("");
+const latestNotes = ref("");
+const downloadTotal = ref<number | null>(null);
+const downloadDone = ref(0);
+let unlistenUpdaterCheck: UnlistenFn | null = null;
+let unlistenUpdaterAvail: UnlistenFn | null = null;
+
+async function runManualUpdateCheck(): Promise<void> {
+  if (!isDesktop || updateStatus.value === "checking" || updateStatus.value === "downloading") return;
+  updateStatus.value = "checking";
+  try {
+    const [current, found] = await Promise.all([getAppVersion(), checkUpdateNow()]);
+    appVersion.value = current;
+    settings.lastUpdateCheck = Date.now();
+    if (!found || !isNewerVersion(current, found.version)) {
+      updateStatus.value = "up-to-date";
+      latestVersion.value = "";
+      latestNotes.value = "";
+    } else {
+      latestVersion.value = found.version;
+      latestNotes.value = found.body ?? "";
+      updateStatus.value =
+        normalizeVersion(found.version) === normalizeVersion(settings.skippedVersion || "")
+          ? "skipped"
+          : "available";
+    }
+    await persist();
+  } catch (err) {
+    console.error("update check failed", err);
+    updateStatus.value = "error";
+  }
+}
+
+async function downloadUpdate(): Promise<void> {
+  if (!isDesktop || updateStatus.value !== "available") return;
+  updateStatus.value = "downloading";
+  downloadDone.value = 0;
+  downloadTotal.value = null;
+  try {
+    await downloadAndInstallUpdate((chunk, total) => {
+      if (total === 1) {
+        downloadDone.value = 1;
+        downloadTotal.value = 1;
+        return;
+      }
+      downloadDone.value += chunk;
+      if (typeof total === "number" && total > 0) downloadTotal.value = total;
+    });
+    updateStatus.value = "ready";
+  } catch (err) {
+    console.error("update download failed", err);
+    updateStatus.value = "error";
+  }
+}
+
+async function restartToUpdate(): Promise<void> {
+  try {
+    await relaunchApp();
+  } catch (err) {
+    console.error("relaunch failed", err);
+    updateStatus.value = "error";
+  }
+}
+
+function skipUpdateVersion(): void {
+  if (latestVersion.value) settings.skippedVersion = latestVersion.value;
+  updateStatus.value = "skipped";
+  void persist();
+}
+
+function unskipUpdateVersion(): void {
+  settings.skippedVersion = "";
+  updateStatus.value = latestVersion.value ? "available" : "idle";
+  void persist();
+}
+
+function toggleAutoUpdate(): void {
+  settings.autoUpdate = !settings.autoUpdate;
+  void persist();
+}
 
 const HOTKEY_MOD_GLYPHS: Record<string, string> = { cmd: "⌘", ctrl: "⌃", alt: "⌥", shift: "⇧", fn: "Fn+" };
 
@@ -547,6 +650,23 @@ onMounted(async () => {
   const loaded = await loadSettings();
   Object.assign(settings, loaded);
   void refreshCaptureMonitorStatus();
+  if (isDesktop) {
+    try {
+      appVersion.value = await getAppVersion();
+    } catch (err) {
+      console.error("get app version failed", err);
+    }
+    unlistenUpdaterCheck = await listenUpdaterCheckRequest(() => {
+      void runManualUpdateCheck();
+    });
+    unlistenUpdaterAvail = await listenUpdaterAvailable((version) => {
+      latestVersion.value = version;
+      updateStatus.value =
+        normalizeVersion(version) === normalizeVersion(settings.skippedVersion || "")
+          ? "skipped"
+          : "available";
+    });
+  }
   applyThemeToDocument(document, settings.theme);
   await applyUiLocale(settings.locale);
   localeVersion.value++;
@@ -574,6 +694,8 @@ onUnmounted(() => {
   window.removeEventListener("focus", onWindowFocus);
   window.removeEventListener("blur", onWindowBlur);
   unlistenHotkeyCaptured?.();
+  unlistenUpdaterCheck?.();
+  unlistenUpdaterAvail?.();
   window.clearTimeout(hotkeyRecorderTimer);
   void endHotkeyRecording().catch((err) => console.error("end hotkey recording failed", err));
   window.clearTimeout(captureStatusTimer);
@@ -1063,6 +1185,67 @@ onUnmounted(() => {
     <section class="actions">
       <button type="button" class="btn primary" @click="regenerate">{{ tt("action.regenerate") }}</button>
       <button type="button" class="btn danger" @click="clearAll">{{ tt("action.clear") }}</button>
+    </section>
+
+    <section v-if="isDesktop" class="card list-card" aria-labelledby="update-title">
+      <div class="row head">
+        <div class="grow">
+          <h2 id="update-title" class="update-title">{{ tt("update.title") }}</h2>
+          <p class="hint">{{ tt("update.current") }} v{{ appVersion }}</p>
+        </div>
+        <button
+          type="button"
+          class="btn"
+          :disabled="updateStatus === 'checking' || updateStatus === 'downloading'"
+          @click="runManualUpdateCheck"
+        >{{ updateStatus === "checking" ? tt("update.checking") : tt("update.check") }}</button>
+      </div>
+      <p v-if="updateStatus === 'up-to-date'" class="hint" role="status">{{ tt("update.upToDate") }}</p>
+      <p v-else-if="updateStatus === 'error'" class="hint" role="alert">{{ tt("update.error") }}</p>
+      <div v-else-if="updateStatus === 'available' || updateStatus === 'skipped'" class="update-block">
+        <p class="hint" role="status">{{ tt("update.available") }} v{{ latestVersion }}</p>
+        <p v-if="latestNotes" class="hint update-notes">{{ latestNotes.slice(0, 280) }}</p>
+        <p v-if="updateStatus === 'skipped'" class="hint" role="status">{{ tt("update.skipped") }}</p>
+        <div class="update-row">
+          <button type="button" class="btn primary" @click="downloadUpdate">{{ tt("update.downloadInstall") }}</button>
+          <button
+            v-if="updateStatus === 'available'"
+            type="button"
+            class="btn ghost"
+            @click="skipUpdateVersion"
+          >{{ tt("update.skip") }}</button>
+          <button
+            v-else
+            type="button"
+            class="btn ghost"
+            @click="unskipUpdateVersion"
+          >{{ tt("update.unskip") }}</button>
+        </div>
+      </div>
+      <div v-else-if="updateStatus === 'downloading'" class="update-block">
+        <p class="hint" role="status">
+          {{ tt("update.downloading") }}
+          <template v-if="downloadTotal && downloadTotal > 1"> {{ Math.min(100, Math.round((downloadDone / downloadTotal) * 100)) }}%</template>
+        </p>
+      </div>
+      <div v-else-if="updateStatus === 'ready'" class="update-block">
+        <p class="hint" role="status">{{ tt("update.ready") }} v{{ latestVersion }}</p>
+        <div class="update-row">
+          <button type="button" class="btn primary" @click="restartToUpdate">{{ tt("update.restart") }}</button>
+        </div>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-label">{{ tt("update.auto") }}</span>
+        <button
+          type="button"
+          class="toggle-switch"
+          :class="{ on: settings.autoUpdate }"
+          role="switch"
+          :aria-checked="settings.autoUpdate"
+          :aria-label="tt('update.auto')"
+          @click="toggleAutoUpdate"
+        ></button>
+      </div>
     </section>
 
     <section v-if="debugOpen" class="card debug-card" :aria-label="tt('debug.title')">
