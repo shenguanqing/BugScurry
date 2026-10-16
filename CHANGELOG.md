@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-10-15
+
+Post-update permission re-grant dialog, plus native-bridge fixes that revive silently-dead primary logic.
+
+### Added
+
+- Permission re-grant dialog on macOS (`permission.html`): pops every launch while screenshot compatibility is opted in but Input Monitoring is not granted; three one-tap system-settings entries (Input Monitoring / Accessibility / Login Items); dismiss only closes it; fully localized in all five UI languages
+- Dialog and updater windows re-sync the UI language on focus, in case the settings-changed event was missed
+
+### Fixed
+
+- `isPrimaryOverlay()` was always false: the legacy `__TAURI__.window` global is absent with `withGlobalTauri: false`, so auto update checks, daily-stats aggregation, and the new dialog trigger never ran — window labels now resolve from `__TAURI_INTERNALS__` metadata at startup
+- `invokeNative` / `listenNative` / `emitNative` threw on every call for the same reason (empty `__TAURI__` object); they now use the canonical `@tauri-apps/api/*` imports — display hot-plug and sleep/wake listeners work again
+- The new `permission-prompt` window was missing from `src-tauri/capabilities/default.json`, so dismiss, title updates, settings sync, and locale switching all silently failed inside it
+- Enabling screenshot compatibility no longer leaves the switch stuck on when the native call fails (rolls back like the visibility toggle)
+
 ## [0.6.4] - 2026-10-15
 
 Update dialog changelog follows the UI language.
@@ -284,7 +300,8 @@ First public baseline: desktop bug overlay for macOS and Windows.
 
 - Production binaries must be built with `pnpm tauri build` (not bare `cargo build --release`)
 
-[Unreleased]: https://github.com/shenguanqing/BugScurry/compare/v0.6.4...HEAD
+[Unreleased]: https://github.com/shenguanqing/BugScurry/compare/v0.6.5...HEAD
+[0.6.5]: https://github.com/shenguanqing/BugScurry/compare/v0.6.4...v0.6.5
 [0.6.4]: https://github.com/shenguanqing/BugScurry/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/shenguanqing/BugScurry/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/shenguanqing/BugScurry/compare/v0.6.1...v0.6.2

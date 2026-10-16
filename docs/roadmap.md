@@ -88,6 +88,7 @@ Ship a playable loop first; every milestone must be runnable and checkable.
 - [x] Third-party picker keys (WeChat `⌘⌃A`, Snipaste `Fn+F1` presets, editable); recording needs Accessibility with a 10-second deadline
 - [x] `⌘⇧5` auto-restore on saved capture file (save-directory scan, names/mtimes only); Esc covers clipboard saves; tray Show recovers stuck sessions
 - [x] Permission UX: explicit opt-in, one-time-prompt race handled, manual-add and stale-entry-after-update guidance
+- [x] Post-update re-grant dialog (0.6.5, macOS): pops every launch while capture compatibility is opted in but Input Monitoring is not granted, with system-pane shortcuts; failed enables roll back instead of sticking on
 - [x] Unit tests: `capture_guard` sessions, completion scan, monitor service
 
 ## M9 — Web demo (Cloudflare Pages) + mobile

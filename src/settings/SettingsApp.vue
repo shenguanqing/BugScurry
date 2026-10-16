@@ -468,6 +468,14 @@ async function enableCaptureCompatibility(): Promise<void> {
     if (!settingsUnmounted) captureMonitorStatus.value = status;
   } catch (err) {
     capturePermissionRequestFailed.value = true;
+    // A failed enable must not leave the switch on: roll back so the stored
+    // preference never claims more than the system actually granted.
+    settings.captureCompatibilityEnabled = false;
+    try {
+      await persist();
+    } catch (persistErr) {
+      console.error("capture compat rollback failed", persistErr);
+    }
     console.error("capture input monitoring request failed", err);
   } finally {
     capturePermissionPending.value = false;

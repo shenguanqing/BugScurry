@@ -683,6 +683,32 @@ fn open_updater_window(app: tauri::AppHandle) {
     open_or_focus_updater(&app);
 }
 
+fn open_or_focus_permission_prompt(app: &tauri::AppHandle) {
+    // Post-update re-grant dialog: same treatment as settings/updater —
+    // shown, raised, focused, overlays stay usable underneath.
+    if let Some(win) = app.get_webview_window("permission-prompt") {
+        let _ = win.show();
+        let _ = win.unminimize();
+        let _ = win.set_always_on_top(true);
+        let _ = win.set_focus();
+        let _ = win.set_always_on_top(true);
+    } else {
+        eprintln!("permission prompt window not found; skip open");
+    }
+    set_overlays_always_on_top(app, true);
+}
+
+#[tauri::command]
+fn open_permission_prompt_window(app: tauri::AppHandle) {
+    open_or_focus_permission_prompt(&app);
+}
+
+/** OS identifier for frontend gating ("macos" | "windows" | ...). */
+#[tauri::command]
+fn get_os() -> String {
+    std::env::consts::OS.to_string()
+}
+
 #[tauri::command]
 fn apply_monitor_mode_cmd(app: tauri::AppHandle, mode: String) {
     apply_monitor_mode(&app, &mode);
@@ -860,6 +886,8 @@ pub fn run() {
             get_overlay_scale,
             open_settings_window,
             open_updater_window,
+            open_permission_prompt_window,
+            get_os,
             apply_monitor_mode_cmd,
             force_rebuild_overlays,
             apply_locale,

@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for overlay, settings, and updater windows",
-  "windows": ["overlay", "overlay-*", "settings", "updater"],
+  "description": "Capability for overlay, settings, updater, and permission-prompt windows",
+  "windows": ["overlay", "overlay-*", "settings", "updater", "permission-prompt"],
   "permissions": [
     "core:default",
     "core:window:allow-set-ignore-cursor-events",

@@ -177,6 +177,12 @@ export async function openSettingsWindow(): Promise<void> {
   await invoke("open_settings_window");
 }
 
+/** Post-update permission re-grant dialog (desktop only). */
+export async function openPermissionPromptWindow(): Promise<void> {
+  if (!isTauri()) return;
+  await invoke("open_permission_prompt_window");
+}
+
 export async function applyMonitorMode(mode: Settings["monitorMode"]): Promise<void> {
   // Single viewport on web; nothing to re-layout.
   if (!isTauri()) return;

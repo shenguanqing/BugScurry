@@ -172,6 +172,27 @@ async function syncWindowTitle(): Promise<void> {
   setWindowTitle(title);
 }
 
+// Language can change while this window sits hidden: follow it live,
+// plus a focus resync in case the event was missed.
+function refreshLocale(pref: Parameters<typeof applyUiLocale>[0]): void {
+  void applyUiLocale(pref).then(() => {
+    uiLocale.value = currentLocale();
+    localeVersion.value++;
+    void syncWindowTitle();
+    // Bundled notes are localizable; re-resolve them on language change.
+    // Remote notes for a pending update stay as published (English).
+    if (usingBundledNotes && appVersion.value) {
+      latestNotes.value = bundledNotes(appVersion.value);
+    }
+  });
+}
+
+function onWindowFocus(): void {
+  void loadSettings(false).then((s) => {
+    refreshLocale(s.locale);
+  });
+}
+
 onMounted(async () => {
   const loaded = await loadSettings(false);
   skippedVersion.value = loaded.skippedVersion;
@@ -180,24 +201,16 @@ onMounted(async () => {
   uiLocale.value = currentLocale();
   localeVersion.value++;
   await syncWindowTitle();
-  // Language can change while this window sits hidden: follow it live.
   unlistenSettings = await listenSettings((next) => {
-    void applyUiLocale(next.locale).then(() => {
-      uiLocale.value = currentLocale();
-      localeVersion.value++;
-      void syncWindowTitle();
-      // Bundled notes are localizable; re-resolve them on language change.
-      // Remote notes for a pending update stay as published (English).
-      if (usingBundledNotes && appVersion.value) {
-        latestNotes.value = bundledNotes(appVersion.value);
-      }
-    });
+    refreshLocale(next.locale);
   });
+  window.addEventListener("focus", onWindowFocus);
   await runCheck();
 });
 
 onUnmounted(() => {
   unlistenSettings?.();
+  window.removeEventListener("focus", onWindowFocus);
 });
 </script>
 

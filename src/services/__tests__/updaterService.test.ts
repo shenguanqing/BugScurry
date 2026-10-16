@@ -8,6 +8,7 @@ import {
   normalizeVersion,
   pickLocalizedChangelog,
   shouldAutoPrompt,
+  shouldPromptPermissions,
   UPDATE_CHECK_INTERVAL_MS,
 } from "../updaterService";
 
@@ -78,6 +79,39 @@ describe("localized changelogs", () => {
     expect(extractLocalizedNotes(bundles, "zh-CN", "1.0.0")).toContain("你好");
     expect(extractLocalizedNotes({ en: bundles.en }, "zh-CN", "1.0.0")).toContain("Hello");
     expect(extractLocalizedNotes(bundles, "ja", "9.9.9")).toBe("");
+  });
+});
+
+describe("post-update permission prompt", () => {
+  const granted = {
+    captureCompatibilityEnabled: true,
+    captureSupported: true,
+    inputMonitoringAuthorized: true,
+  };
+  it("nags every launch while opted in but not granted", () => {
+    expect(
+      shouldPromptPermissions({
+        ...granted,
+        inputMonitoringAuthorized: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("stays quiet when granted, opted out, unsupported, or unknown", () => {
+    expect(shouldPromptPermissions(granted)).toBe(false);
+    expect(
+      shouldPromptPermissions({ ...granted, captureCompatibilityEnabled: false }),
+    ).toBe(false);
+    expect(
+      shouldPromptPermissions({
+        ...granted,
+        captureSupported: false,
+        inputMonitoringAuthorized: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldPromptPermissions({ ...granted, inputMonitoringAuthorized: null }),
+    ).toBe(false);
   });
 });
 

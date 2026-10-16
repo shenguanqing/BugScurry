@@ -344,6 +344,12 @@ export async function relaunchApp(): Promise<void> {
   await relaunch();
 }
 
+/** OS identifier from the Rust runtime ("macos" | "windows" | ...). Null on web. */
+export async function getOs(): Promise<string | null> {
+  if (!isTauri()) return null;
+  return invokeNative<string>("get_os");
+}
+
 /** Open the dedicated update dialog (desktop; no-op on web). */
 export async function openUpdaterWindow(): Promise<void> {
   if (!isTauri()) return;

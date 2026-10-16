@@ -44,13 +44,14 @@ export function isTauri(): boolean {
 }
 
 /**
- * Invoke a Rust command. Rejects off-runtime so `await` callers can fall back;
- * `tauriBridge` guards with `isTauri()` first and never reaches this on web.
+ * Invoke a Rust command. Rejects off-runtime so `await` callers can fall back.
+ * Uses the canonical v2 API: the legacy `__TAURI__.core` global is an empty
+ * object with `withGlobalTauri: false`, so reaching invoke through it throws
+ * a TypeError on every call.
  */
 export function invokeNative<T>(command: string, args?: Record<string, unknown>): Promise<T> {
-  const api = tauriGlobal()?.__TAURI__;
-  if (!api) return Promise.reject(new Error("native runtime unavailable"));
-  return api.core.invoke<T>(command, args);
+  if (!isTauri()) return Promise.reject(new Error("native runtime unavailable"));
+  return import("@tauri-apps/api/core").then((m) => m.invoke<T>(command, args));
 }
 
 /** Listen to a native (cross-WebView) event. Off-runtime resolves a no-op. */
@@ -58,18 +59,19 @@ export function listenNative<T>(
   event: string,
   handler: (payload: T) => void,
 ): Promise<() => void> {
-  const api = tauriGlobal()?.__TAURI__;
-  if (!api?.event?.listen) return Promise.resolve(() => {});
-  return api.event.listen<T>(event, (e) => handler(e.payload)).then(
-    (un) => un,
+  if (!isTauri()) return Promise.resolve(() => {});
+  return import("@tauri-apps/api/event").then(
+    (m) => m.listen<T>(event, (e) => handler(e.payload)).catch(() => () => {}),
     () => () => {},
   );
 }
 
 /** Emit a native event. Off-runtime resolves without sending. */
 export function emitNative(event: string, payload: unknown): Promise<void> {
-  return (
-    tauriGlobal()?.__TAURI__?.event?.emit?.(event, payload) ?? Promise.resolve()
+  if (!isTauri()) return Promise.resolve();
+  return import("@tauri-apps/api/event").then(
+    (m) => m.emit(event, payload),
+    () => {},
   );
 }
 
@@ -90,13 +92,34 @@ export function listenLocal<T>(event: string, handler: (payload: T) => void): ()
   return () => window.removeEventListener(event, listener);
 }
 
+let resolvedLabel: string | null | undefined;
+
 /** Current WebView label (`overlay`, `overlay-1`, …); null off-runtime. */
 export function getWindowLabel(): string | null {
+  if (resolvedLabel !== undefined) return resolvedLabel;
   try {
     return tauriGlobal()?.__TAURI__?.window?.getCurrent?.()?.label ?? null;
   } catch {
     return null;
   }
+}
+
+/**
+ * Metadata-backed label resolution. The legacy `__TAURI__.window` global is
+ * absent with `withGlobalTauri: false`, so the sync lookup above yields null
+ * and every `isPrimaryOverlay()` check silently fails. Call once at startup
+ * before any such check; afterwards `getWindowLabel()` serves the cache.
+ * Keeps zero static dependencies (dynamic import runs on desktop only).
+ */
+export async function resolveWindowLabel(): Promise<string | null> {
+  if (resolvedLabel !== undefined) return resolvedLabel;
+  try {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    resolvedLabel = getCurrentWindow().label ?? getWindowLabel();
+  } catch {
+    resolvedLabel = getWindowLabel();
+  }
+  return resolvedLabel;
 }
 
 /** Rename the native window (desktop settings/updater windows); no-op on web. */

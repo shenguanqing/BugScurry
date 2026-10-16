@@ -11,6 +11,8 @@ import {
   emitRandomEvent,
   fitWindowToDisplay,
   forceRebuildOverlays,
+  getCaptureMonitorStatus,
+  getOs,
   listenCursorLocal,
   listenDisplaysChanged,
   listenSystemResumed,
@@ -26,7 +28,7 @@ import {
   setTraySpray,
   listenRandomEvent,
 } from "./services/tauriBridge";
-import { getWindowLabel, isTauri } from "./platform/desktop";
+import { getWindowLabel, isTauri, resolveWindowLabel } from "./platform/desktop";
 import {
   BACKDROP_SWATCHES,
   addBackdropImage,
@@ -50,6 +52,7 @@ import {
   listenSettings,
   loadDailyStats,
   loadSettings,
+  openPermissionPromptWindow,
   openSettingsWindow,
   saveDailyStats,
   saveSettings,
@@ -58,6 +61,7 @@ import { createDailyStatsService } from "./services/dailyStatsService";
 import {
   UPDATE_CHECK_INTERVAL_MS,
   checkForUpdates,
+  shouldPromptPermissions,
 } from "./services/updaterService";
 import { stopRainAudio, tickRainAudio } from "./core/rainAudio";
 import {
@@ -581,6 +585,12 @@ function handleTray(cmd: string) {
 }
 
 onMounted(async () => {
+  // Metadata-backed label first: the sync global is absent with
+  // withGlobalTauri:false, and every isPrimaryOverlay() gate below (update
+  // checks, stats, permission prompt) depends on it.
+  await resolveWindowLabel().catch((err) =>
+    console.error("resolve window label failed", err),
+  );
   // A stored non-default backdrop must re-tint the browser chrome on load.
   syncThemeColor();
   await refreshViewport();
@@ -651,6 +661,24 @@ onMounted(async () => {
     // Auto update: startup once + daily while tray-resident. "Ask before
     // download" is enforced in the settings UI; here we only surface.
     if (!isWeb) {
+      // Unsigned builds invalidate macOS authorizations on every update: nag
+      // every launch while capture compatibility is opted in but Input
+      // Monitoring is not granted. Dismissing only closes the dialog.
+      try {
+        const monitor = await getCaptureMonitorStatus().catch(() => null);
+        if (
+          (await getOs().catch(() => null)) === "macos" &&
+          shouldPromptPermissions({
+            captureCompatibilityEnabled: loaded.captureCompatibilityEnabled,
+            captureSupported: monitor?.supported ?? null,
+            inputMonitoringAuthorized: monitor?.authorized ?? null,
+          })
+        ) {
+          await openPermissionPromptWindow();
+        }
+      } catch (err) {
+        console.error("post-update permission check failed", err);
+      }
       window.setTimeout(() => {
         void checkForUpdates("auto").catch((err) =>
           console.error("auto update check failed", err),

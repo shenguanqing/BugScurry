@@ -90,6 +90,23 @@ export function extractLocalizedNotes(
   return extractReleaseNotes(bundles.en ?? "", version);
 }
 
+/**
+ * Whether the permission re-grant dialog should pop on this launch.
+ * Unsigned builds invalidate macOS authorizations on every update, so nag
+ * every launch while capture compatibility is opted in but Input Monitoring
+ * is not granted. Unknown state never nags; dismissing only closes the
+ * dialog and the next launch nags again until fixed.
+ */
+export function shouldPromptPermissions(args: {
+  captureCompatibilityEnabled: boolean;
+  captureSupported: boolean | null;
+  inputMonitoringAuthorized: boolean | null;
+}): boolean {
+  if (!args.captureCompatibilityEnabled) return false;
+  if (args.captureSupported === false) return false;
+  return args.inputMonitoringAuthorized === false;
+}
+
 /** Resident apps restart rarely: re-check daily even without relaunch. */
 export function isUpdateCheckDue(
   lastCheck: number,

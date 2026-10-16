@@ -1,6 +1,6 @@
 [package]
 name = "bugscurry"
-version = "0.6.4"
+version = "0.6.5"
 description = "Desktop bugs that crawl on your screen"
 authors = ["shenguanqing"]
 edition = "2021"
