@@ -91,6 +91,32 @@ export function extractLocalizedNotes(
 }
 
 /**
+ * Localized notes for a pending update. Uses the matching latest.json
+ * version only (never mix notes across versions); falls back to the
+ * plugin-provided English body. Section bodies are picked whole — unlike
+ * bundled changelogs they carry no `## [x.y.z]` headers to extract.
+ */
+export function pickRemoteNotes(args: {
+  foundVersion: string;
+  fallbackBody?: string;
+  remote: { version: string; notes: Record<string, string> } | null;
+  locale: string;
+}): string {
+  const body = args.fallbackBody ?? "";
+  if (
+    !args.remote ||
+    normalizeVersion(args.remote.version) !== normalizeVersion(args.foundVersion)
+  ) {
+    return body;
+  }
+  const bundles: Record<string, string> = { en: body };
+  for (const [locale, notes] of Object.entries(args.remote.notes)) {
+    if (notes) bundles[locale] = notes;
+  }
+  return pickLocalizedChangelog(args.locale, bundles) || body;
+}
+
+/**
  * Whether the permission re-grant dialog should pop on this launch.
  * Unsigned builds invalidate macOS authorizations on every update, so nag
  * every launch while capture compatibility is opted in but Input Monitoring

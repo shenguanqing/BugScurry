@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.6] - 2026-10-16
+
+Pending-update notes follow the UI language.
+
+### Added
+
+- `latest.json` now carries per-locale `notes_<locale>` sections (built from the `CHANGELOG.<locale>.md` mirrors); the update dialog and settings preview fetch them directly and pick by interface language, with exact → base-language → English fallback
+- Cached remote payload re-picks on language switch without another fetch; offline or version mismatch falls back to the English body
+
 ## [0.6.5] - 2026-10-15
 
 Post-update permission re-grant dialog, plus native-bridge fixes that revive silently-dead primary logic.
@@ -300,7 +309,8 @@ First public baseline: desktop bug overlay for macOS and Windows.
 
 - Production binaries must be built with `pnpm tauri build` (not bare `cargo build --release`)
 
-[Unreleased]: https://github.com/shenguanqing/BugScurry/compare/v0.6.5...HEAD
+[Unreleased]: https://github.com/shenguanqing/BugScurry/compare/v0.6.6...HEAD
+[0.6.6]: https://github.com/shenguanqing/BugScurry/compare/v0.6.5...v0.6.6
 [0.6.5]: https://github.com/shenguanqing/BugScurry/compare/v0.6.4...v0.6.5
 [0.6.4]: https://github.com/shenguanqing/BugScurry/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/shenguanqing/BugScurry/compare/v0.6.2...v0.6.3

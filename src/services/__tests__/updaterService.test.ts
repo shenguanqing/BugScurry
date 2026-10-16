@@ -7,6 +7,7 @@ import {
   isUpdateCheckDue,
   normalizeVersion,
   pickLocalizedChangelog,
+  pickRemoteNotes,
   shouldAutoPrompt,
   shouldPromptPermissions,
   UPDATE_CHECK_INTERVAL_MS,
@@ -79,6 +80,33 @@ describe("localized changelogs", () => {
     expect(extractLocalizedNotes(bundles, "zh-CN", "1.0.0")).toContain("你好");
     expect(extractLocalizedNotes({ en: bundles.en }, "zh-CN", "1.0.0")).toContain("Hello");
     expect(extractLocalizedNotes(bundles, "ja", "9.9.9")).toBe("");
+  });
+});
+
+describe("remote update notes", () => {
+  const remote = {
+    version: "0.6.5",
+    notes: { "zh-CN": "中文日志", "ja": "日本語" },
+  };
+  const base = {
+    foundVersion: "0.6.5",
+    fallbackBody: "English notes",
+    remote,
+    locale: "zh-CN",
+  };
+  it("picks the locale notes on version match", () => {
+    expect(pickRemoteNotes(base)).toBe("中文日志");
+    expect(pickRemoteNotes({ ...base, locale: "zh-HK" })).toBe("中文日志");
+    expect(pickRemoteNotes({ ...base, locale: "ja" })).toBe("日本語");
+  });
+
+  it("falls back to the English body", () => {
+    expect(pickRemoteNotes({ ...base, locale: "ko" })).toBe("English notes");
+    expect(pickRemoteNotes({ ...base, remote: null })).toBe("English notes");
+    expect(
+      pickRemoteNotes({ ...base, remote: { ...remote, version: "0.6.6" } }),
+    ).toBe("English notes");
+    expect(pickRemoteNotes({ ...base, fallbackBody: "" })).toBe("中文日志");
   });
 });
 

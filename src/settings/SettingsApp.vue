@@ -5,12 +5,13 @@ import { isTauri, setWindowTitle } from "../platform/desktop";
 import { LIMITS } from "../core/config";
 import { RAIN_KIND_ORDER } from "../core/weather";
 import type { FoodKind, Settings } from "../core/types";
-import { t } from "../i18n";
+import { currentLocale, t } from "../i18n";
 import { getSpecies, listSpecies } from "../species";
 import {
   beginHotkeyRecording,
   checkUpdateNow,
   endHotkeyRecording,
+  fetchRemoteUpdateNotes,
   getAppVersion,
   getCaptureMonitorStatus,
   keycodeToCode,
@@ -18,7 +19,7 @@ import {
   openSystemSettingsPane,
   openUpdaterWindow,
 } from "../services/tauriBridge";
-import { isNewerVersion, normalizeVersion } from "../services/updaterService";
+import { isNewerVersion, normalizeVersion, pickRemoteNotes } from "../services/updaterService";
 import { stripMarkdown } from "../services/markdown";
 import {
   enableCaptureCompatibility as enableNativeCaptureCompatibility,
@@ -253,7 +254,13 @@ async function runManualUpdateCheck(): Promise<void> {
       latestNotes.value = "";
     } else {
       latestVersion.value = found.version;
-      latestNotes.value = found.body ?? "";
+      const remote = await fetchRemoteUpdateNotes().catch(() => null);
+      latestNotes.value = pickRemoteNotes({
+        foundVersion: found.version,
+        fallbackBody: found.body ?? "",
+        remote,
+        locale: currentLocale(),
+      });
       updateStatus.value =
         normalizeVersion(found.version) === normalizeVersion(settings.skippedVersion || "")
           ? "skipped"

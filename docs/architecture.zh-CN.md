@@ -71,7 +71,7 @@ tray.rs
 | Permission prompt | `src/permission/*`（`permission.html`） | 更新后重新授权对话框（macOS）：截图兼容开着但输入监控没授权时每次启动都弹；三个系统设置直达，关闭只关窗口 |
 | Updater window | `src/updater/*`（`updater.html`） | 独立更新对话框：左侧图标/版本/进度/操作，右侧按版本列更新日志（渲染为消毒后的 Markdown）；内置日志跟随界面语言（`CHANGELOG.<locale>.md`，缺失回落英文）；窗口壳不滚动，只有日志区内滚动；打开时自查 |
 | Services | `src/services/*` | Tauri 事件/命令、配置、主题、多屏 |
-| Updater | `src/services/updaterService.ts` + `tauriBridge` 检查/下载/重启/`open_updater_window` + `src/services/markdown.ts`（无依赖的渲染/去标记） | GitHub Releases 静态 `latest.json`，经 `tauri-plugin-updater`：自动（启动+24h，弹对话框）/托盘（`⌘U`）直达对话框/设置手动检查/按精确版本跳过；签名包（`.sig`），公钥在 `tauri.conf.json`；已是最新或检查失败时回落到内置 CHANGELOG 当前版本段落（离线可用） |
+| Updater | `src/services/updaterService.ts` + `tauriBridge` 检查/下载/重启/`open_updater_window` + `src/services/markdown.ts`（无依赖的渲染/去标记） | GitHub Releases 静态 `latest.json`，经 `tauri-plugin-updater`：自动（启动+24h，弹对话框）/托盘（`⌘U`）直达对话框/设置手动检查/按精确版本跳过；签名包（`.sig`），公钥在 `tauri.conf.json`；已是最新或检查失败时回落到内置 CHANGELOG 当前版本段落（离线可用）；待更新日志优先用从 `latest.json` 直取的多语言 `notes_<locale>` 字段（CSP 放行 Release 域名），英文原文兜底 |
 | Platform boundary | `src/platform/desktop.ts` + `src/platform/webStorage.ts` | `isTauri()` 门控、原生/页内事件桥、localStorage 持久化；窗口 label 启动时从 `__TAURI_INTERNALS__` 元数据解析，原生调用走 canonical `@tauri-apps/api/*`（`withGlobalTauri: false` 时 legacy `__TAURI__` 全局是空对象） |
 | Web backdrop | `src/services/webBackdrop.ts` | 网页专属假桌面（棋盘格/纯色/壁纸库） |
 | Built-in wallpapers | `src/services/builtinWallpapers.ts` | 官方 Windows/macOS 热链目录 + 搞笑屏（2.7KB 开机图收进仓库） |

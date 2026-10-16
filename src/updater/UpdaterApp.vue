@@ -6,10 +6,12 @@ import { currentLocale, t } from "../i18n";
 import {
   checkUpdateNow,
   downloadAndInstallUpdate,
+  fetchRemoteUpdateNotes,
   getAppVersion,
   relaunchApp,
 } from "../services/tauriBridge";
-import { isNewerVersion, extractLocalizedNotes, normalizeVersion } from "../services/updaterService";
+import { isNewerVersion, extractLocalizedNotes, normalizeVersion, pickRemoteNotes } from "../services/updaterService";
+import type { RemoteUpdateNotes } from "../services/tauriBridge";
 import { renderMarkdown } from "../services/markdown";
 import changelogEn from "../../CHANGELOG.md?raw";
 import changelogZhCn from "../../CHANGELOG.zh-CN.md?raw";
@@ -45,6 +47,10 @@ type Status =
 const appVersion = ref("");
 const latestVersion = ref("");
 const latestNotes = ref("");
+/** latest.json payload backing the remote-notes pick (null = English body). */
+const remoteNotes = ref<RemoteUpdateNotes | null>(null);
+/** English body from the updater plugin (stable fallback across switches). */
+const remoteBody = ref("");
 const skippedVersion = ref("");
 const status = ref<Status>("checking");
 const downloaded = ref(0);
@@ -97,7 +103,17 @@ async function runCheck(): Promise<void> {
       return;
     }
     latestVersion.value = found.version;
-    latestNotes.value = found.body ?? "";
+    // Prefer translated notes from latest.json; fall back to the English
+    // body when offline or the versions don't line up. Cached so a later
+    // language switch re-picks without another fetch.
+    remoteNotes.value = await fetchRemoteUpdateNotes().catch(() => null);
+    remoteBody.value = found.body ?? "";
+    latestNotes.value = pickRemoteNotes({
+      foundVersion: found.version,
+      fallbackBody: remoteBody.value,
+      remote: remoteNotes.value,
+      locale: uiLocale.value,
+    });
     usingBundledNotes = false;
     const settings = await loadSettings(false);
     skippedVersion.value = settings.skippedVersion;
@@ -180,9 +196,16 @@ function refreshLocale(pref: Parameters<typeof applyUiLocale>[0]): void {
     localeVersion.value++;
     void syncWindowTitle();
     // Bundled notes are localizable; re-resolve them on language change.
-    // Remote notes for a pending update stay as published (English).
+    // Remote notes re-pick from the cached latest.json payload.
     if (usingBundledNotes && appVersion.value) {
       latestNotes.value = bundledNotes(appVersion.value);
+    } else if (!usingBundledNotes && latestVersion.value) {
+      latestNotes.value = pickRemoteNotes({
+        foundVersion: latestVersion.value,
+        fallbackBody: remoteBody.value,
+        remote: remoteNotes.value,
+        locale: uiLocale.value,
+      });
     }
   });
 }

@@ -320,6 +320,43 @@ export async function checkUpdateNow(): Promise<UpdateAvailable | null> {
   return { version: update.version, body: update.body, date: update.date };
 }
 
+export interface RemoteUpdateNotes {
+  version: string;
+  /** Locale ("zh-CN", …) → translated markdown section. */
+  notes: Record<string, string>;
+}
+
+const LATEST_JSON_URL =
+  "https://github.com/shenguanqing/BugScurry/releases/latest/download/latest.json";
+
+/**
+ * Fetch latest.json directly for per-locale notes (the updater plugin only
+ * exposes the English `notes` as `body`). Null on web, on HTTP failure, or
+ * on schema mismatch — callers fall back to `body`.
+ */
+export async function fetchRemoteUpdateNotes(): Promise<RemoteUpdateNotes | null> {
+  if (!isTauri()) return null;
+  try {
+    const res = await fetch(LATEST_JSON_URL, { cache: "no-store" });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { version?: unknown } & Record<string, unknown>;
+    if (typeof data.version !== "string" || !data.version) return null;
+    const notes: Record<string, string> = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (
+        key.startsWith("notes_") &&
+        typeof value === "string" &&
+        value.trim()
+      ) {
+        notes[key.slice("notes_".length)] = value;
+      }
+    }
+    return { version: data.version, notes };
+  } catch {
+    return null;
+  }
+}
+
 /** Download + install; progress 0..1. Restarts on Windows automatically. */
 export async function downloadAndInstallUpdate(
   onProgress?: (downloaded: number, total: number | null) => void,

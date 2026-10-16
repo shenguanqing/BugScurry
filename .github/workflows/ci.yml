@@ -235,19 +235,30 @@ jobs:
           if not platforms:
               print("no updater bundles found; writing version-only latest.json")
           # Updater panel shows these notes as the changelog (UI truncates).
-          changelog = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8")
-          m = re.search(
-              rf"## \[{re.escape(version)}\][^\n]*\n(.*?)(?=\n## \[|\Z)",
-              changelog,
-              re.S,
-          )
-          notes = m.group(1).strip()[:4000] if m else f"BugScurry {tag}"
+          def section_of(path: pathlib.Path) -> str:
+              try:
+                  text = path.read_text(encoding="utf-8")
+              except OSError:
+                  return ""
+              m = re.search(
+                  rf"## \[{re.escape(version)}\][^\n]*\n(.*?)(?=\n## \[|\Z)",
+                  text,
+                  re.S,
+              )
+              return m.group(1).strip()[:4000] if m else ""
+          notes = section_of(pathlib.Path("CHANGELOG.md")) or f"BugScurry {tag}"
           payload = {
               "version": version,
               "notes": notes,
               "pub_date": datetime.datetime.now(datetime.timezone.utc).isoformat(),
               "platforms": platforms,
           }
+          # Per-locale notes for the update dialog (plugin reads `notes`;
+          # the app fetches this file directly for the rest).
+          for locale in ["zh-CN", "zh-TW", "ja", "ko"]:
+              translated = section_of(pathlib.Path(f"CHANGELOG.{locale}.md"))
+              if translated:
+                  payload[f"notes_{locale}"] = translated
           dist.joinpath("latest.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
           print(json.dumps({**payload, "notes": notes[:200]}, indent=2))
           PY
